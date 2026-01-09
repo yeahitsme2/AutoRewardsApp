@@ -24,6 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('Initial session check:', session?.user?.id || 'No session');
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
@@ -31,9 +32,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         setLoading(false);
       }
+    }).catch((error) => {
+      console.error('Error getting session:', error);
+      setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth state change:', event, session?.user?.id || 'No session');
       (async () => {
         setSession(session);
         setUser(session?.user ?? null);
@@ -50,6 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const loadCustomer = async (userId: string) => {
+    console.log('Loading customer for user:', userId);
     try {
       const { data, error } = await supabase
         .from('customers')
@@ -57,28 +63,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq('id', userId)
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error loading customer:', error);
+        throw error;
+      }
 
       if (!data) {
         console.error('Customer record not found for user:', userId);
-        setCustomer(null);
-        return;
-      }
-
-      if (data.is_deactivated) {
+        console.log('Signing out user without customer record...');
         await supabase.auth.signOut();
         setCustomer(null);
         setUser(null);
         setSession(null);
+        setLoading(false);
+        return;
+      }
+
+      if (data.is_deactivated) {
+        console.log('Account is deactivated, signing out...');
+        await supabase.auth.signOut();
+        setCustomer(null);
+        setUser(null);
+        setSession(null);
+        setLoading(false);
         throw new Error('Account has been deactivated');
       }
 
+      console.log('Customer loaded successfully:', data.email);
       setCustomer(data);
     } catch (error) {
       console.error('Error loading customer:', error);
       if ((error as Error).message === 'Account has been deactivated') {
         throw error;
       }
+      setCustomer(null);
     } finally {
       setLoading(false);
     }
@@ -122,6 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             full_name: fullName,
             phone: phone || null,
           },
+          emailRedirectTo: window.location.origin,
         },
       });
 
@@ -142,6 +161,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       console.log('User created successfully:', authData.user.id);
+
+      // If email confirmation is required, the user won't be in a session yet
+      if (authData.session) {
+        console.log('User is already authenticated (email confirmation disabled)');
+      } else {
+        console.log('Email confirmation required - user needs to check their email');
+        throw new Error('Please check your email to confirm your account before signing in.');
+      }
 
       return { error: null };
     } catch (error) {

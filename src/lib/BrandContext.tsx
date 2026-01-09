@@ -46,7 +46,12 @@ export function BrandProvider({ children }: { children: ReactNode }) {
         .select('shop_logo_url, primary_color, secondary_color, accent_color, header_text, welcome_message')
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error loading brand settings:', error);
+        // Use defaults on error
+        applyBrandStyles(defaultBrand);
+        return;
+      }
 
       if (data) {
         const settings = {
@@ -59,9 +64,12 @@ export function BrandProvider({ children }: { children: ReactNode }) {
         };
         setBrandSettings(settings);
         applyBrandStyles(settings);
+      } else {
+        applyBrandStyles(defaultBrand);
       }
     } catch (error) {
       console.error('Error loading brand settings:', error);
+      applyBrandStyles(defaultBrand);
     } finally {
       setLoading(false);
     }
