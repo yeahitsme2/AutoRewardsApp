@@ -7,7 +7,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
-    base: './',
+    base: '/',
     optimizeDeps: {
       exclude: ['lucide-react'],
     },
