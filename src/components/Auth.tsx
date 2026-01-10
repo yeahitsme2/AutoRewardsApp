@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { LogIn, UserPlus, Eye, EyeOff, Shield } from 'lucide-react';
 
@@ -12,8 +12,18 @@ export function Auth() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
+  const [shopId, setShopId] = useState<string>(DEMO_SHOP_ID);
 
   const { signIn, signUp, authError, clearAuthError } = useAuth();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const shopIdParam = params.get('shop');
+    if (shopIdParam) {
+      setShopId(shopIdParam);
+      setIsSignUp(true);
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,7 +33,7 @@ export function Auth() {
 
     try {
       if (isSignUp) {
-        const { error } = await signUp(email, password, fullName, DEMO_SHOP_ID);
+        const { error } = await signUp(email, password, fullName, shopId);
         if (error) throw error;
       } else {
         const { error } = await signIn(email, password);

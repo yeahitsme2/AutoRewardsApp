@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
 import { useShop } from '../lib/ShopContext';
-import { Settings as SettingsIcon, Save, DollarSign, Award, Palette, Image, Store } from 'lucide-react';
+import { Settings as SettingsIcon, Save, DollarSign, Award, Palette, Image, Store, QrCode, Download } from 'lucide-react';
+import QRCodeLib from 'qrcode';
 import type { ShopSettings } from '../types/database';
 
 export function Settings() {
@@ -34,12 +35,55 @@ export function Settings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
+  const qrCanvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     if (shop?.id) {
       loadSettings();
+      generateQRCode();
     }
   }, [shop?.id]);
+
+  const generateQRCode = async () => {
+    if (!shop?.id) return;
+
+    const signupUrl = `${window.location.origin}/?shop=${shop.id}`;
+
+    try {
+      if (qrCanvasRef.current) {
+        await QRCodeLib.toCanvas(qrCanvasRef.current, signupUrl, {
+          width: 256,
+          margin: 2,
+          color: {
+            dark: '#1e293b',
+            light: '#ffffff',
+          },
+        });
+      }
+
+      const dataUrl = await QRCodeLib.toDataURL(signupUrl, {
+        width: 512,
+        margin: 2,
+        color: {
+          dark: '#1e293b',
+          light: '#ffffff',
+        },
+      });
+      setQrCodeUrl(dataUrl);
+    } catch (error) {
+      console.error('Error generating QR code:', error);
+    }
+  };
+
+  const downloadQRCode = () => {
+    if (!qrCodeUrl) return;
+
+    const link = document.createElement('a');
+    link.download = `${shop?.name || 'shop'}-signup-qr.png`;
+    link.href = qrCodeUrl;
+    link.click();
+  };
 
   const loadSettings = async () => {
     if (!shop?.id) return;
@@ -189,6 +233,64 @@ export function Settings() {
                   </p>
                 </div>
               )}
+            </div>
+          </div>
+
+          <div className="border-t border-slate-200 pt-6">
+            <h4 className="text-base font-semibold text-slate-900 mb-4 flex items-center gap-2">
+              <QrCode className="w-5 h-5 text-slate-700" />
+              Customer Signup QR Code
+            </h4>
+
+            <div className="bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 rounded-lg p-6">
+              <div className="flex flex-col md:flex-row items-center gap-6">
+                <div className="flex-shrink-0">
+                  <div className="bg-white p-4 rounded-lg shadow-sm border-2 border-slate-300">
+                    <canvas ref={qrCanvasRef} className="w-64 h-64" />
+                  </div>
+                </div>
+
+                <div className="flex-1 space-y-4">
+                  <div>
+                    <h5 className="text-sm font-semibold text-slate-900 mb-2">
+                      How to use this QR code
+                    </h5>
+                    <ul className="text-sm text-slate-600 space-y-2">
+                      <li className="flex items-start gap-2">
+                        <span className="text-emerald-600 mt-0.5">•</span>
+                        <span>Display this QR code in your shop where customers can easily scan it</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-emerald-600 mt-0.5">•</span>
+                        <span>When scanned, it directs customers to a signup page specifically for your shop</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-emerald-600 mt-0.5">•</span>
+                        <span>New customers will automatically be associated with your shop</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-emerald-600 mt-0.5">•</span>
+                        <span>Download and print the QR code to display at your counter or waiting area</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  <button
+                    onClick={downloadQRCode}
+                    className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-lg transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download QR Code
+                  </button>
+
+                  <div className="bg-white border border-slate-200 rounded-lg p-3">
+                    <p className="text-xs text-slate-500 mb-1">Signup URL:</p>
+                    <code className="text-xs text-slate-700 break-all">
+                      {window.location.origin}/?shop={shop?.id}
+                    </code>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
