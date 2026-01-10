@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
 import { useShop } from '../lib/ShopContext';
-import { Settings as SettingsIcon, Save, DollarSign, Award, Palette, Image, Store, QrCode, Download } from 'lucide-react';
+import { Settings as SettingsIcon, Save, DollarSign, Award, Palette, Image, Store, QrCode, Download, Copy, Check } from 'lucide-react';
 import QRCodeLib from 'qrcode';
 import type { ShopSettings } from '../types/database';
 
@@ -35,6 +35,7 @@ export function Settings() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
+  const [copied, setCopied] = useState(false);
   const qrCanvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -82,6 +83,20 @@ export function Settings() {
     link.download = `${shop?.name || 'shop'}-signup-qr.png`;
     link.href = qrCodeUrl;
     link.click();
+  };
+
+  const copySignupUrl = async () => {
+    if (!shop?.slug) return;
+
+    const signupUrl = `${window.location.origin}/?shop=${shop.slug}`;
+
+    try {
+      await navigator.clipboard.writeText(signupUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy URL:', error);
+    }
   };
 
   const loadSettings = async () => {
@@ -313,8 +328,26 @@ export function Settings() {
                   </button>
 
                   <div className="bg-white border border-slate-200 rounded-lg p-3">
-                    <p className="text-xs text-slate-500 mb-1">Signup URL:</p>
-                    <code className="text-xs text-slate-700 break-all">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <p className="text-xs font-medium text-slate-700">Signup URL:</p>
+                      <button
+                        onClick={copySignupUrl}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded transition-colors"
+                      >
+                        {copied ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                            <span className="text-emerald-600">Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5" />
+                            Copy URL
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <code className="text-xs text-slate-600 break-all block">
                       {window.location.origin}/?shop={shop?.slug}
                     </code>
                   </div>
