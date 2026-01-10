@@ -109,6 +109,7 @@ export interface Database {
           tier: string;
           reward_points: number;
           lifetime_spending: number;
+          has_account: boolean;
           is_deactivated: boolean;
           created_at: string;
           updated_at: string;
@@ -124,6 +125,7 @@ export interface Database {
           tier?: string;
           reward_points?: number;
           lifetime_spending?: number;
+          has_account?: boolean;
           is_deactivated?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -139,6 +141,7 @@ export interface Database {
           tier?: string;
           reward_points?: number;
           lifetime_spending?: number;
+          has_account?: boolean;
           is_deactivated?: boolean;
           created_at?: string;
           updated_at?: string;

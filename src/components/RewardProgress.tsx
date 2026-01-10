@@ -22,7 +22,7 @@ export function RewardProgress({ customer }: RewardProgressProps) {
         .from('reward_items')
         .select('*')
         .eq('is_active', true)
-        .order('points_cost', { ascending: true });
+        .order('points_required', { ascending: true });
 
       if (error) throw error;
       setRewards(data || []);
@@ -80,7 +80,7 @@ export function RewardProgress({ customer }: RewardProgressProps) {
         <div className="flex items-center justify-between text-sm">
           <span className="text-slate-600">Your progress</span>
           <span className="font-semibold text-slate-900">
-            {customer.reward_points} / {reward.points_cost} points
+            {customer.reward_points} / {reward.points_required} points
           </span>
         </div>
         <div className="relative h-3 bg-slate-100 rounded-full overflow-hidden">

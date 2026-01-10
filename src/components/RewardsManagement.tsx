@@ -20,12 +20,12 @@ export function RewardsManagement() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    points_cost: '',
+    points_required: '',
   });
   const [editData, setEditData] = useState({
     name: '',
     description: '',
-    points_cost: '',
+    points_required: '',
   });
 
   useEffect(() => {
@@ -35,7 +35,7 @@ export function RewardsManagement() {
   const loadData = async () => {
     try {
       const [rewardsResult, customersResult] = await Promise.all([
-        supabase.from('reward_items').select('*').order('points_cost', { ascending: true }),
+        supabase.from('reward_items').select('*').order('points_required', { ascending: true }),
         supabase.from('customers').select('*').order('full_name', { ascending: true }),
       ]);
 
@@ -58,13 +58,13 @@ export function RewardsManagement() {
       const { error } = await supabase.from('reward_items').insert({
         name: formData.name,
         description: formData.description,
-        points_cost: parseInt(formData.points_cost),
+        points_required: parseInt(formData.points_required),
         is_active: true,
       });
 
       if (error) throw error;
 
-      setFormData({ name: '', description: '', points_cost: '' });
+      setFormData({ name: '', description: '', points_required: '' });
       setShowAddForm(false);
       loadData();
     } catch (error) {
@@ -106,13 +106,13 @@ export function RewardsManagement() {
     setEditData({
       name: reward.name,
       description: reward.description || '',
-      points_cost: reward.points_cost.toString(),
+      points_required: reward.points_required.toString(),
     });
   };
 
   const cancelEdit = () => {
     setEditingId(null);
-    setEditData({ name: '', description: '', points_cost: '' });
+    setEditData({ name: '', description: '', points_required: '' });
   };
 
   const handleUpdate = async (id: string) => {
@@ -122,7 +122,7 @@ export function RewardsManagement() {
         .update({
           name: editData.name,
           description: editData.description,
-          points_cost: parseInt(editData.points_cost),
+          points_required: parseInt(editData.points_required),
           updated_at: new Date().toISOString(),
         })
         .eq('id', id);
@@ -130,7 +130,7 @@ export function RewardsManagement() {
       if (error) throw error;
 
       setEditingId(null);
-      setEditData({ name: '', description: '', points_cost: '' });
+      setEditData({ name: '', description: '', points_required: '' });
       loadData();
     } catch (error) {
       console.error('Error updating reward:', error);
@@ -145,7 +145,7 @@ export function RewardsManagement() {
       const customer = customers.find((c) => c.id === customerId);
       if (!customer) return;
 
-      if (customer.reward_points < selectedReward.points_cost) {
+      if (customer.reward_points < selectedReward.points_required) {
         alert('Customer does not have enough points for this reward.');
         return;
       }
@@ -153,7 +153,7 @@ export function RewardsManagement() {
       const { error } = await supabase.from('reward_redemptions').insert({
         customer_id: customerId,
         reward_item_id: selectedReward.id,
-        points_spent: selectedReward.points_cost,
+        points_spent: selectedReward.points_required,
         status: 'completed',
       });
 
@@ -225,13 +225,13 @@ export function RewardsManagement() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Points Cost</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Points Required</label>
               <input
                 type="number"
                 required
                 min="1"
-                value={formData.points_cost}
-                onChange={(e) => setFormData({ ...formData, points_cost: e.target.value })}
+                value={formData.points_required}
+                onChange={(e) => setFormData({ ...formData, points_required: e.target.value })}
                 placeholder="e.g., 500"
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               />
@@ -242,7 +242,7 @@ export function RewardsManagement() {
                 type="button"
                 onClick={() => {
                   setShowAddForm(false);
-                  setFormData({ name: '', description: '', points_cost: '' });
+                  setFormData({ name: '', description: '', points_required: '' });
                 }}
                 className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50"
               >
@@ -297,13 +297,13 @@ export function RewardsManagement() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Points Cost</label>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Points Required</label>
                   <input
                     type="number"
                     required
                     min="1"
-                    value={editData.points_cost}
-                    onChange={(e) => setEditData({ ...editData, points_cost: e.target.value })}
+                    value={editData.points_required}
+                    onChange={(e) => setEditData({ ...editData, points_required: e.target.value })}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
                   />
                 </div>
@@ -365,7 +365,7 @@ export function RewardsManagement() {
                 <div className="flex items-center justify-between pt-3 border-t border-slate-200">
                   <div className="flex items-center gap-1.5 font-semibold" style={{ color: brandSettings.primary_color }}>
                     <Award className="w-5 h-5" />
-                    <span>{reward.points_cost} pts</span>
+                    <span>{reward.points_required} pts</span>
                   </div>
                   {reward.is_active && (
                     <button
@@ -406,7 +406,7 @@ export function RewardsManagement() {
             <div className="p-6 border-b border-slate-200">
               <h3 className="text-xl font-bold text-slate-900">Redeem Reward</h3>
               <p className="text-sm text-slate-600 mt-1">
-                {selectedReward.name} ({selectedReward.points_cost} points)
+                {selectedReward.name} ({selectedReward.points_required} points)
               </p>
             </div>
 
@@ -419,7 +419,7 @@ export function RewardsManagement() {
                     <button
                       key={customer.id}
                       onClick={() => handleRedeemForCustomer(customer.id)}
-                      disabled={customer.reward_points < selectedReward.points_cost}
+                      disabled={customer.reward_points < selectedReward.points_required}
                       className="w-full text-left p-3 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                       <div className="flex items-center justify-between">
@@ -431,7 +431,7 @@ export function RewardsManagement() {
                           <p className="text-sm font-semibold" style={{ color: brandSettings.primary_color }}>
                             {customer.reward_points} pts
                           </p>
-                          {customer.reward_points < selectedReward.points_cost && (
+                          {customer.reward_points < selectedReward.points_required && (
                             <p className="text-xs text-red-600">Not enough points</p>
                           )}
                         </div>

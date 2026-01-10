@@ -25,7 +25,7 @@ export function CustomerRewards() {
           .from('reward_items')
           .select('*')
           .eq('is_active', true)
-          .order('points_cost', { ascending: true }),
+          .order('points_required', { ascending: true }),
         supabase
           .from('reward_redemptions')
           .select('*, reward_item:reward_items(*)')
@@ -108,7 +108,7 @@ export function CustomerRewards() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {rewards.map((reward) => {
-              const affordable = canAfford(reward.points_cost);
+              const affordable = canAfford(reward.points_required);
               return (
                 <div
                   key={reward.id}
@@ -129,7 +129,7 @@ export function CustomerRewards() {
                     <div className="flex items-center justify-between pt-4 border-t border-slate-200">
                       <div className="flex items-center gap-1.5 font-semibold text-emerald-600">
                         <Award className="w-5 h-5" />
-                        <span>{reward.points_cost} pts</span>
+                        <span>{reward.points_required} pts</span>
                       </div>
                       {affordable ? (
                         <div className="px-3 py-1.5 bg-emerald-100 text-emerald-700 text-sm font-medium rounded-full">
@@ -137,7 +137,7 @@ export function CustomerRewards() {
                         </div>
                       ) : (
                         <div className="px-3 py-1.5 bg-slate-100 text-slate-600 text-sm font-medium rounded-full">
-                          {reward.points_cost - (customer?.reward_points || 0)} more pts
+                          {reward.points_required - (customer?.reward_points || 0)} more pts
                         </div>
                       )}
                     </div>

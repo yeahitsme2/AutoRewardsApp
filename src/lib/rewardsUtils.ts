@@ -135,16 +135,16 @@ export function calculateProgressToNextReward(
 ): NextRewardInfo | null {
   const activeRewards = rewards.filter((r) => r.is_active);
 
-  const affordableRewards = activeRewards.filter((r) => r.points_cost > currentPoints);
+  const affordableRewards = activeRewards.filter((r) => r.points_required > currentPoints);
 
   if (affordableRewards.length === 0) {
     return null;
   }
 
-  affordableRewards.sort((a, b) => a.points_cost - b.points_cost);
+  affordableRewards.sort((a, b) => a.points_required - b.points_required);
   const nextReward = affordableRewards[0];
-  const pointsNeeded = nextReward.points_cost - currentPoints;
-  const progressPercent = (currentPoints / nextReward.points_cost) * 100;
+  const pointsNeeded = nextReward.points_required - currentPoints;
+  const progressPercent = (currentPoints / nextReward.points_required) * 100;
 
   return {
     reward: nextReward,
