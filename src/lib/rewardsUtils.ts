@@ -114,7 +114,7 @@ export function calculateSpendingToNextTier(customer: Customer): {
 
   // Calculate how much they need to spend to earn those points
   // Assuming 1 point per dollar spent with their current multiplier
-  const cashNeeded = pointsNeeded / customer.tier_multiplier;
+  const cashNeeded = pointsNeeded / currentTier.multiplier;
 
   return {
     currentTier,

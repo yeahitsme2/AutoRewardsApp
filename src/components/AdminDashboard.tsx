@@ -428,12 +428,12 @@ export function AdminDashboard() {
                         <p className="text-2xl font-bold" style={{ color: brandSettings.primary_color }}>
                           {cust.reward_points} points
                         </p>
-                        <p className="text-xs text-slate-500">{cust.tier_multiplier}x multiplier</p>
+                        <p className="text-xs text-slate-500">{getTierInfo(cust.tier).multiplier}x multiplier</p>
                       </div>
                       <div>
                         <p className="text-sm text-slate-600">Lifetime Spending</p>
                         <p className="text-xl font-semibold text-slate-900">
-                          ${Number(cust.total_lifetime_spending).toFixed(2)}
+                          ${Number(cust.lifetime_spending).toFixed(2)}
                         </p>
                       </div>
                       {(() => {

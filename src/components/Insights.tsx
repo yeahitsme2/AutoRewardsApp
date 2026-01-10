@@ -49,7 +49,7 @@ export function Insights() {
 
       const { data: customers, error: customersError } = await supabase
         .from('customers')
-        .select('id, created_at, reward_points, total_lifetime_spending, has_account, tier');
+        .select('id, created_at, reward_points, lifetime_spending, has_account, tier');
 
       if (customersError) throw customersError;
 
@@ -75,7 +75,7 @@ export function Insights() {
 
       const totalPointsEarned = services?.reduce((sum, s) => sum + (s.points_earned || 0), 0) || 0;
       const totalPointsRedeemed = redemptions?.reduce((sum, r) => sum + (r.points_spent || 0), 0) || 0;
-      const totalLifetimeRevenue = customers?.reduce((sum, c) => sum + Number(c.total_lifetime_spending || 0), 0) || 0;
+      const totalLifetimeRevenue = customers?.reduce((sum, c) => sum + Number(c.lifetime_spending || 0), 0) || 0;
       const averagePointsPerCustomer = totalCustomers > 0
         ? Math.round(customers!.reduce((sum, c) => sum + (c.reward_points || 0), 0) / totalCustomers)
         : 0;
