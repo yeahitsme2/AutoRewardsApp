@@ -52,9 +52,28 @@ function getShopSlugFromUrl(): string {
 }
 
 export function ShopProvider({ children }: { children: ReactNode }) {
-  const [shop, setShop] = useState<Shop | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [shop, setShop] = useState<Shop | null>(() => {
+    const stored = localStorage.getItem('currentShop');
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  });
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const updateShop = (shopData: Shop | null) => {
+    setShop(shopData);
+    if (shopData) {
+      localStorage.setItem('currentShop', JSON.stringify(shopData));
+    } else {
+      localStorage.removeItem('currentShop');
+    }
+  };
 
   const loadShop = async (slug: string) => {
     try {
@@ -83,14 +102,14 @@ export function ShopProvider({ children }: { children: ReactNode }) {
           .maybeSingle();
 
         if (firstShop) {
-          setShop(firstShop);
+          updateShop(firstShop);
           return;
         }
         setError('Shop not found');
         return;
       }
 
-      setShop(data);
+      updateShop(data);
     } catch (err) {
       console.error('Error loading shop:', err);
       setError('Failed to load shop');
@@ -122,7 +141,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      setShop(data);
+      updateShop(data);
     } catch (err) {
       console.error('Error loading shop by ID:', err);
       setError('Failed to load shop');

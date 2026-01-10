@@ -10,7 +10,7 @@ import type { ShopSettings } from '../types/database';
 export function Settings() {
   const { customer } = useAuth();
   const { refreshBrand } = useBrand();
-  const { shop } = useShop();
+  const { shop, setShopById } = useShop();
   const [settings, setSettings] = useState<ShopSettings | null>(null);
   const [shopName, setShopName] = useState('');
   const [pointsPerDollar, setPointsPerDollar] = useState<number>(10);
@@ -159,8 +159,13 @@ export function Settings() {
       if (error) throw error;
 
       showMessage('success', 'Settings saved successfully');
-      loadSettings();
-      refreshBrand();
+
+      if (shopName !== shop?.name && shop?.id) {
+        await setShopById(shop.id);
+      }
+
+      await loadSettings();
+      await refreshBrand();
     } catch (error) {
       console.error('Error saving settings:', error);
       showMessage('error', 'Failed to save settings');

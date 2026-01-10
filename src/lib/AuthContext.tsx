@@ -189,6 +189,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCustomer(null);
     setSuperAdmin(null);
     setAuthError(null);
+    localStorage.removeItem('currentShop');
   };
 
   const refreshCustomer = async () => {
