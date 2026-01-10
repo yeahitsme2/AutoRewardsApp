@@ -27,7 +27,7 @@ export function PromotionsManagement() {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    discount_type: 'percentage' as 'percentage' | 'fixed_amount' | 'points_bonus' | 'free_service',
+    discount_type: 'percentage' as 'percentage' | 'fixed' | 'points_multiplier',
     discount_value: 0,
     valid_until: '',
   });
@@ -212,12 +212,10 @@ export function PromotionsManagement() {
     switch (type) {
       case 'percentage':
         return <Percent className="w-5 h-5" />;
-      case 'fixed_amount':
+      case 'fixed':
         return <DollarSign className="w-5 h-5" />;
-      case 'points_bonus':
+      case 'points_multiplier':
         return <Sparkles className="w-5 h-5" />;
-      case 'free_service':
-        return <Gift className="w-5 h-5" />;
       default:
         return <Tag className="w-5 h-5" />;
     }
@@ -227,12 +225,10 @@ export function PromotionsManagement() {
     switch (promo.discount_type) {
       case 'percentage':
         return `${promo.discount_value}% off`;
-      case 'fixed_amount':
+      case 'fixed':
         return `$${promo.discount_value} off`;
-      case 'points_bonus':
+      case 'points_multiplier':
         return `${promo.discount_value}x points multiplier`;
-      case 'free_service':
-        return 'Free service';
       default:
         return '';
     }
@@ -408,9 +404,8 @@ export function PromotionsManagement() {
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
                   >
                     <option value="percentage">Percentage Off</option>
-                    <option value="fixed_amount">Fixed Amount Off</option>
-                    <option value="points_bonus">Points Multiplier</option>
-                    <option value="free_service">Free Service</option>
+                    <option value="fixed">Fixed Amount Off</option>
+                    <option value="points_multiplier">Points Multiplier</option>
                   </select>
                 </div>
 
