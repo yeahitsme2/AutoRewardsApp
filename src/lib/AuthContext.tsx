@@ -179,7 +179,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('Sign out error (ignored):', error);
+    }
+    setUser(null);
+    setSession(null);
     setCustomer(null);
     setSuperAdmin(null);
     setAuthError(null);
