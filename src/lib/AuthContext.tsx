@@ -151,6 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           data: {
             full_name: fullName,
             shop_id: shopId,
+            phone: phone || null,
           },
         },
       });
@@ -168,22 +169,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (authData.user.identities && authData.user.identities.length === 0) {
         setAuthError('An account with this email already exists.');
         return { error: new Error('An account with this email already exists.') };
-      }
-
-      const { error: customerError } = await supabase
-        .from('customers')
-        .insert({
-          auth_user_id: authData.user.id,
-          shop_id: shopId,
-          email,
-          full_name: fullName,
-          phone: phone || null,
-        });
-
-      if (customerError) {
-        console.error('Error creating customer:', customerError);
-        setAuthError(customerError.message);
-        return { error: customerError as Error };
       }
 
       return { error: null };
