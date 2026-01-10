@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { Users, Shield, Lock, XCircle, Check, Eye, EyeOff } from 'lucide-react';
-import type { Customer } from '../types/database';
+import type { Admin } from '../types/database';
 
 export function UserManagement() {
-  const { customer } = useAuth();
-  const [users, setUsers] = useState<Customer[]>([]);
+  const { admin } = useAuth();
+  const [users, setUsers] = useState<Admin[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [newPassword, setNewPassword] = useState('');
@@ -15,15 +15,22 @@ export function UserManagement() {
   const [changingPassword, setChangingPassword] = useState(false);
 
   useEffect(() => {
-    loadUsers();
-  }, []);
+    if (admin) {
+      loadUsers();
+    }
+  }, [admin]);
 
   const loadUsers = async () => {
     try {
+      if (!admin?.shop_id) {
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
-        .from('customers')
+        .from('admins')
         .select('*')
-        .eq('is_admin', true)
+        .eq('shop_id', admin.shop_id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -69,20 +76,20 @@ export function UserManagement() {
 
 
   const toggleDeactivateUser = async (userId: string, currentStatus: boolean) => {
-    if (userId === customer?.id) {
+    if (userId === admin?.id) {
       showMessage('error', 'You cannot deactivate your own account');
       return;
     }
 
     try {
       const { error } = await supabase
-        .from('customers')
-        .update({ is_deactivated: !currentStatus })
+        .from('admins')
+        .update({ is_active: !currentStatus })
         .eq('id', userId);
 
       if (error) throw error;
 
-      showMessage('success', `User ${!currentStatus ? 'deactivated' : 'reactivated'}`);
+      showMessage('success', `User ${!currentStatus ? 'reactivated' : 'deactivated'}`);
       loadUsers();
     } catch (error) {
       console.error('Error updating user status:', error);
@@ -206,12 +213,12 @@ export function UserManagement() {
             </thead>
             <tbody className="bg-white divide-y divide-slate-200">
               {users.map((user) => (
-                <tr key={user.id} className={user.is_deactivated ? 'bg-slate-50 opacity-60' : ''}>
+                <tr key={user.id} className={!user.is_active ? 'bg-slate-50 opacity-60' : ''}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div>
-                        <div className="text-sm font-medium text-slate-900">{user.name}</div>
-                        {user.id === customer?.id && (
+                        <div className="text-sm font-medium text-slate-900">{user.full_name}</div>
+                        {user.id === admin?.id && (
                           <div className="text-xs text-emerald-600 font-medium">You</div>
                         )}
                       </div>
@@ -219,12 +226,9 @@ export function UserManagement() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-slate-900">{user.email}</div>
-                    {user.phone && (
-                      <div className="text-xs text-slate-500">{user.phone}</div>
-                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {user.is_deactivated ? (
+                    {!user.is_active ? (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                         <XCircle className="w-3 h-3" />
                         Deactivated
@@ -238,11 +242,11 @@ export function UserManagement() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <button
-                      onClick={() => toggleDeactivateUser(user.id, user.is_deactivated)}
-                      disabled={user.id === customer?.id}
+                      onClick={() => toggleDeactivateUser(user.id, user.is_active)}
+                      disabled={user.id === admin?.id}
                       className="text-red-600 hover:text-red-900 disabled:text-slate-400 disabled:cursor-not-allowed"
                     >
-                      {user.is_deactivated ? 'Reactivate' : 'Deactivate'}
+                      {!user.is_active ? 'Reactivate' : 'Deactivate'}
                     </button>
                   </td>
                 </tr>
