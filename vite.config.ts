@@ -15,5 +15,15 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL),
       'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY),
     },
+    server: {
+      proxy: {
+        '/supabase': {
+          target: env.VITE_SUPABASE_URL,
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/supabase/, ''),
+          secure: true,
+        },
+      },
+    },
   };
 });
