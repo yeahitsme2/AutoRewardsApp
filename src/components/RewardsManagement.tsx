@@ -102,9 +102,18 @@ export function RewardsManagement() {
       const { error } = await supabase.from('reward_items').delete().eq('id', id);
 
       if (error) throw error;
-      loadData();
-    } catch (error) {
+
+      await loadData();
+    } catch (error: any) {
       console.error('Error deleting reward:', error);
+
+      await loadData();
+
+      const stillExists = rewardItems.some(r => r.id === id);
+      if (!stillExists) {
+        return;
+      }
+
       alert('Failed to delete reward. It may have existing redemptions.');
     }
   };
