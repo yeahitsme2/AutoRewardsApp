@@ -204,6 +204,11 @@ export interface Database {
           color: string | null;
           notes: string | null;
           picture_url: string | null;
+          current_mileage: number;
+          last_service_date: string | null;
+          last_service_mileage: number | null;
+          next_service_due_date: string | null;
+          next_service_due_mileage: number | null;
           created_at: string;
         };
         Insert: {
@@ -218,6 +223,11 @@ export interface Database {
           color?: string | null;
           notes?: string | null;
           picture_url?: string | null;
+          current_mileage?: number;
+          last_service_date?: string | null;
+          last_service_mileage?: number | null;
+          next_service_due_date?: string | null;
+          next_service_due_mileage?: number | null;
           created_at?: string;
         };
         Update: {
@@ -232,6 +242,11 @@ export interface Database {
           color?: string | null;
           notes?: string | null;
           picture_url?: string | null;
+          current_mileage?: number;
+          last_service_date?: string | null;
+          last_service_mileage?: number | null;
+          next_service_due_date?: string | null;
+          next_service_due_mileage?: number | null;
           created_at?: string;
         };
       };

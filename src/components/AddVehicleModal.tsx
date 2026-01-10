@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useBrand } from '../lib/BrandContext';
+import { useShop } from '../lib/ShopContext';
 import type { Customer } from '../types/database';
 
 interface AddVehicleModalProps {
@@ -11,6 +12,7 @@ interface AddVehicleModalProps {
 
 export function AddVehicleModal({ customer, onClose }: AddVehicleModalProps) {
   const { brandSettings } = useBrand();
+  const { shop } = useShop();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -36,15 +38,20 @@ export function AddVehicleModal({ customer, onClose }: AddVehicleModalProps) {
         throw new Error('Please enter a valid year');
       }
 
+      if (!shop?.id) {
+        throw new Error('Shop information is not available');
+      }
+
       const { error: insertError } = await supabase.from('vehicles').insert({
         customer_id: customer.id,
+        shop_id: shop.id,
         make: formData.make,
         model: formData.model,
         year,
         vin: formData.vin || null,
         license_plate: formData.licensePlate || null,
         color: formData.color || null,
-        mileage: formData.mileage ? parseInt(formData.mileage) : 0,
+        current_mileage: formData.mileage ? parseInt(formData.mileage) : 0,
         picture_url: formData.pictureUrl || null,
       });
 

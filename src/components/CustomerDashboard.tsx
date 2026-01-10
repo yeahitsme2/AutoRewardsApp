@@ -300,7 +300,7 @@ export function CustomerDashboard() {
                       </h3>
                     </div>
                     <span className="text-sm text-slate-600">
-                      {vehicle.mileage.toLocaleString()} miles
+                      {vehicle.current_mileage?.toLocaleString() || '0'} miles
                     </span>
                   </div>
                   <div className="text-sm text-slate-600 mt-1 space-y-0.5">
