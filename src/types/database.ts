@@ -56,11 +56,15 @@ export interface Database {
           logo_url: string | null;
           welcome_message: string;
           points_per_dollar: number;
-          tier_thresholds: {
-            silver: number;
-            gold: number;
-            platinum: number;
-          };
+          bronze_points_min: number;
+          bronze_multiplier: number;
+          silver_points_min: number;
+          silver_multiplier: number;
+          gold_points_min: number;
+          gold_multiplier: number;
+          platinum_points_min: number;
+          platinum_multiplier: number;
+          updated_by: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -72,11 +76,15 @@ export interface Database {
           logo_url?: string | null;
           welcome_message?: string;
           points_per_dollar?: number;
-          tier_thresholds?: {
-            silver: number;
-            gold: number;
-            platinum: number;
-          };
+          bronze_points_min?: number;
+          bronze_multiplier?: number;
+          silver_points_min?: number;
+          silver_multiplier?: number;
+          gold_points_min?: number;
+          gold_multiplier?: number;
+          platinum_points_min?: number;
+          platinum_multiplier?: number;
+          updated_by?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -88,11 +96,15 @@ export interface Database {
           logo_url?: string | null;
           welcome_message?: string;
           points_per_dollar?: number;
-          tier_thresholds?: {
-            silver: number;
-            gold: number;
-            platinum: number;
-          };
+          bronze_points_min?: number;
+          bronze_multiplier?: number;
+          silver_points_min?: number;
+          silver_multiplier?: number;
+          gold_points_min?: number;
+          gold_multiplier?: number;
+          platinum_points_min?: number;
+          platinum_multiplier?: number;
+          updated_by?: string | null;
           created_at?: string;
           updated_at?: string;
         };

@@ -84,7 +84,10 @@ export function Settings() {
   };
 
   const loadSettings = async () => {
-    if (!shop?.id) return;
+    if (!shop?.id) {
+      setLoading(false);
+      return;
+    }
 
     try {
       setShopName(shop.name);
@@ -101,14 +104,14 @@ export function Settings() {
         setSettings(data);
         setPointsPerDollar(Number(data.points_per_dollar));
         setTierSettings({
-          bronze_points_min: Number(data.bronze_points_min),
-          bronze_multiplier: Number(data.bronze_multiplier),
-          silver_points_min: Number(data.silver_points_min),
-          silver_multiplier: Number(data.silver_multiplier),
-          gold_points_min: Number(data.gold_points_min),
-          gold_multiplier: Number(data.gold_multiplier),
-          platinum_points_min: Number(data.platinum_points_min),
-          platinum_multiplier: Number(data.platinum_multiplier),
+          bronze_points_min: Number(data.bronze_points_min || 0),
+          bronze_multiplier: Number(data.bronze_multiplier || 1.0),
+          silver_points_min: Number(data.silver_points_min || 500),
+          silver_multiplier: Number(data.silver_multiplier || 1.25),
+          gold_points_min: Number(data.gold_points_min || 1500),
+          gold_multiplier: Number(data.gold_multiplier || 1.5),
+          platinum_points_min: Number(data.platinum_points_min || 3000),
+          platinum_multiplier: Number(data.platinum_multiplier || 2.0),
         });
         setBrandSettings({
           logo_url: data.logo_url || '',
