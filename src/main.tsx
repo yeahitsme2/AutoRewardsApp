@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import { ShopProvider } from './lib/ShopContext';
 import { AuthProvider } from './lib/AuthContext';
 import { BrandProvider } from './lib/BrandContext';
 
@@ -19,10 +20,12 @@ if ('serviceWorker' in navigator) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrandProvider>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
-    </BrandProvider>
+    <ShopProvider>
+      <BrandProvider>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </BrandProvider>
+    </ShopProvider>
   </StrictMode>
 );

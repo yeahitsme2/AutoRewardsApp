@@ -2,13 +2,16 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
-import { Settings as SettingsIcon, Save, DollarSign, Award, Palette, Image } from 'lucide-react';
+import { useShop } from '../lib/ShopContext';
+import { Settings as SettingsIcon, Save, DollarSign, Award, Palette, Image, Store } from 'lucide-react';
 import type { ShopSettings } from '../types/database';
 
 export function Settings() {
   const { customer } = useAuth();
   const { refreshBrand } = useBrand();
+  const { shop } = useShop();
   const [settings, setSettings] = useState<ShopSettings | null>(null);
+  const [shopName, setShopName] = useState('');
   const [pointsPerDollar, setPointsPerDollar] = useState<number>(10);
   const [tierSettings, setTierSettings] = useState({
     bronze_points_min: 0,
@@ -33,14 +36,21 @@ export function Settings() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
-    loadSettings();
-  }, []);
+    if (shop?.id) {
+      loadSettings();
+    }
+  }, [shop?.id]);
 
   const loadSettings = async () => {
+    if (!shop?.id) return;
+
     try {
+      setShopName(shop.name);
+
       const { data, error } = await supabase
         .from('shop_settings')
         .select('*')
+        .eq('shop_id', shop.id)
         .maybeSingle();
 
       if (error) throw error;
@@ -76,12 +86,21 @@ export function Settings() {
   };
 
   const handleSave = async () => {
-    if (!settings || !customer) return;
+    if (!settings || !customer || !shop?.id) return;
 
     setSaving(true);
     setMessage(null);
 
     try {
+      if (shopName !== shop.name) {
+        const { error: shopError } = await supabase
+          .from('shops')
+          .update({ name: shopName })
+          .eq('id', shop.id);
+
+        if (shopError) throw shopError;
+      }
+
       const { error } = await supabase
         .from('shop_settings')
         .update({
@@ -137,6 +156,43 @@ export function Settings() {
 
         <div className="p-6 space-y-8">
           <div>
+            <h4 className="text-base font-semibold text-slate-900 mb-4 flex items-center gap-2">
+              <Store className="w-5 h-5 text-slate-700" />
+              Shop Details
+            </h4>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Shop Name
+                </label>
+                <input
+                  type="text"
+                  value={shopName}
+                  onChange={(e) => setShopName(e.target.value)}
+                  placeholder="Your Auto Shop Name"
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                />
+                <p className="mt-2 text-sm text-slate-500">
+                  This is your business name displayed throughout the app.
+                </p>
+              </div>
+
+              {shop?.slug && (
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                  <div className="text-sm text-slate-600">
+                    <span className="font-medium">Shop URL Identifier:</span>{' '}
+                    <code className="bg-slate-200 px-2 py-1 rounded text-slate-800">{shop.slug}</code>
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500">
+                    This identifier is used to access your shop. Share your unique URL with customers.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="border-t border-slate-200 pt-6">
             <h4 className="text-base font-semibold text-slate-900 mb-4 flex items-center gap-2">
               <Palette className="w-5 h-5 text-slate-700" />
               Brand Customization

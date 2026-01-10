@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase } from './supabase';
+import { useShop } from './ShopContext';
 
 interface BrandSettings {
   shop_logo_url: string | null;
@@ -36,19 +37,26 @@ export function useBrand() {
 }
 
 export function BrandProvider({ children }: { children: ReactNode }) {
+  const { shop } = useShop();
   const [brandSettings, setBrandSettings] = useState<BrandSettings>(defaultBrand);
   const [loading, setLoading] = useState(true);
 
   const loadBrand = async () => {
+    if (!shop?.id) {
+      applyBrandStyles(defaultBrand);
+      setLoading(false);
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from('shop_settings')
         .select('shop_logo_url, primary_color, secondary_color, accent_color, header_text, welcome_message')
+        .eq('shop_id', shop.id)
         .maybeSingle();
 
       if (error) {
         console.error('Error loading brand settings:', error);
-        // Use defaults on error
         applyBrandStyles(defaultBrand);
         return;
       }
@@ -84,7 +92,7 @@ export function BrandProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     loadBrand();
-  }, []);
+  }, [shop?.id]);
 
   return (
     <BrandContext.Provider value={{ brandSettings, loading, refreshBrand: loadBrand }}>

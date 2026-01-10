@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
+import { useShop } from './ShopContext';
 import type { Customer } from '../types/database';
 
 interface AuthContextType {
@@ -19,6 +20,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const { shop } = useShop();
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -119,12 +121,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data.user) {
         const { data: customerData } = await supabase
           .from('customers')
-          .select('is_deactivated, is_admin')
+          .select('is_deactivated, is_admin, shop_id')
           .eq('id', data.user.id)
           .maybeSingle();
 
         if (customerData?.is_deactivated) {
           const errorMsg = 'Your account has been deactivated. Please contact support.';
+          setAuthError(errorMsg);
+          await supabase.auth.signOut();
+          return { error: new Error(errorMsg) };
+        }
+
+        if (shop && customerData?.shop_id && customerData.shop_id !== shop.id) {
+          const errorMsg = 'This account is not associated with this shop.';
           setAuthError(errorMsg);
           await supabase.auth.signOut();
           return { error: new Error(errorMsg) };
@@ -160,6 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           data: {
             full_name: fullName,
             phone: phone || null,
+            shop_id: shop?.id || null,
           },
           emailRedirectTo: window.location.origin,
         },
