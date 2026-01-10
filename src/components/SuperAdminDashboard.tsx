@@ -262,9 +262,10 @@ function CreateAdminModal({ isOpen, onClose, shop, onCreated }: CreateAdminModal
 
       const result = await response.json();
       console.log('Create admin response:', result);
+      console.log('Response status:', response.status);
 
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to create admin');
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || result.message || result.msg || `Server error: ${response.status}`);
       }
 
       setSuccess(`Admin account created for ${email}. They can now log in.`);
