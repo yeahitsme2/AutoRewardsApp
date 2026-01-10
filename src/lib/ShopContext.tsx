@@ -13,6 +13,7 @@ interface ShopContextType {
   loading: boolean;
   error: string | null;
   setShopBySlug: (slug: string) => Promise<void>;
+  setShopById: (shopId: string) => Promise<void>;
 }
 
 const ShopContext = createContext<ShopContextType>({
@@ -20,6 +21,7 @@ const ShopContext = createContext<ShopContextType>({
   loading: true,
   error: null,
   setShopBySlug: async () => {},
+  setShopById: async () => {},
 });
 
 export function useShop() {
@@ -97,8 +99,44 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const loadShopById = async (shopId: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const { data, error: fetchError } = await supabase
+        .from('shops')
+        .select('id, name, slug, is_active')
+        .eq('id', shopId)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (fetchError) {
+        console.error('Error loading shop by ID:', fetchError);
+        setError('Failed to load shop');
+        return;
+      }
+
+      if (!data) {
+        setError('Shop not found');
+        return;
+      }
+
+      setShop(data);
+    } catch (err) {
+      console.error('Error loading shop by ID:', err);
+      setError('Failed to load shop');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const setShopBySlug = async (slug: string) => {
     await loadShop(slug);
+  };
+
+  const setShopById = async (shopId: string) => {
+    await loadShopById(shopId);
   };
 
   useEffect(() => {
@@ -107,7 +145,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <ShopContext.Provider value={{ shop, loading, error, setShopBySlug }}>
+    <ShopContext.Provider value={{ shop, loading, error, setShopBySlug, setShopById }}>
       {children}
     </ShopContext.Provider>
   );

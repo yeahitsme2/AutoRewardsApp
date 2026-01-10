@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { useAuth } from './lib/AuthContext';
+import { useShop } from './lib/ShopContext';
 import { Auth } from './components/Auth';
 import { CustomerDashboard } from './components/CustomerDashboard';
 import { AdminDashboard } from './components/AdminDashboard';
@@ -6,6 +8,13 @@ import { SuperAdminDashboard } from './components/SuperAdminDashboard';
 
 function App() {
   const { user, customer, superAdmin, loading, signOut } = useAuth();
+  const { setShopById } = useShop();
+
+  useEffect(() => {
+    if (customer?.shop_id) {
+      setShopById(customer.shop_id);
+    }
+  }, [customer?.shop_id]);
 
   if (loading) {
     return (
