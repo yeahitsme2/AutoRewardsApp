@@ -145,6 +145,18 @@ export function Settings() {
         if (shopError) throw shopError;
       }
 
+      let updatedById = null;
+      if (customer?.id) {
+        updatedById = customer.id;
+      } else if (admin?.auth_user_id) {
+        const { data: adminCustomer } = await supabase
+          .from('customers')
+          .select('id')
+          .eq('auth_user_id', admin.auth_user_id)
+          .maybeSingle();
+        updatedById = adminCustomer?.id || null;
+      }
+
       const { error } = await supabase
         .from('shop_settings')
         .update({
@@ -153,7 +165,7 @@ export function Settings() {
           ...brandSettings,
           logo_url: brandSettings.logo_url || null,
           updated_at: new Date().toISOString(),
-          updated_by: customer?.id || null,
+          updated_by: updatedById,
         })
         .eq('id', settings.id);
 
