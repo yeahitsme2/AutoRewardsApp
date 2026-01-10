@@ -114,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data.user) {
         const { data: customerData } = await supabase
           .from('customers')
-          .select('is_deactivated, role')
+          .select('is_deactivated, is_admin')
           .eq('id', data.user.id)
           .maybeSingle();
 
@@ -123,14 +123,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return { error: new Error('Your account has been deactivated. Please contact support.') };
         }
 
-        const isAdmin = customerData?.role === 'admin';
-
-        if (isAdminLogin && !isAdmin) {
+        if (isAdminLogin && !customerData?.is_admin) {
           await supabase.auth.signOut();
           return { error: new Error('This login is for administrators only. Please use the customer login.') };
         }
 
-        if (!isAdminLogin && isAdmin) {
+        if (!isAdminLogin && customerData?.is_admin) {
           await supabase.auth.signOut();
           return { error: new Error('Admin accounts must use the Admin Login page.') };
         }
