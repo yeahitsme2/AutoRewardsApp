@@ -174,13 +174,13 @@ function CreateAdminModal({ isOpen, onClose, shop, onCreated }: CreateAdminModal
 
       const { error: customerError } = await supabase
         .from('customers')
-        .insert({
-          auth_user_id: authData.user.id,
+        .update({
           shop_id: shop.id,
           email,
           full_name: fullName,
           is_admin: true,
-        });
+        })
+        .eq('auth_user_id', authData.user.id);
 
       if (customerError) throw customerError;
 
