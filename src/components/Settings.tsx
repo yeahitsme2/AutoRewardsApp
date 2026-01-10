@@ -157,19 +157,30 @@ export function Settings() {
         updatedById = adminCustomer?.id || null;
       }
 
-      const { error } = await supabase
-        .from('shop_settings')
-        .update({
-          points_per_dollar: pointsPerDollar,
-          ...tierSettings,
-          ...brandSettings,
-          logo_url: brandSettings.logo_url || null,
-          updated_at: new Date().toISOString(),
-          updated_by: updatedById,
-        })
-        .eq('id', settings.id);
+      const updateData = {
+        points_per_dollar: pointsPerDollar,
+        ...tierSettings,
+        ...brandSettings,
+        logo_url: brandSettings.logo_url || null,
+        updated_at: new Date().toISOString(),
+        updated_by: updatedById,
+      };
 
-      if (error) throw error;
+      console.log('Updating shop_settings with:', updateData);
+      console.log('Settings ID:', settings.id);
+
+      const { data, error } = await supabase
+        .from('shop_settings')
+        .update(updateData)
+        .eq('id', settings.id)
+        .select();
+
+      console.log('Update result:', { data, error });
+
+      if (error) {
+        console.error('Update error details:', error);
+        throw error;
+      }
 
       showMessage('success', 'Settings saved successfully');
 
