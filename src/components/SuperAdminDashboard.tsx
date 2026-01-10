@@ -184,16 +184,16 @@ function CreateAdminModal({ isOpen, onClose, shop, onCreated }: CreateAdminModal
         throw new Error(result.error || 'Failed to create admin');
       }
 
-      setSuccess(`Admin account created for ${email}`);
+      setSuccess(`Admin account created for ${email}. They can now log in.`);
       setEmail('');
       setFullName('');
       setPassword('');
-      onCreated();
 
       setTimeout(() => {
+        onCreated();
         setSuccess('');
         onClose();
-      }, 2000);
+      }, 1500);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create admin');
     } finally {
