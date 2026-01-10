@@ -153,7 +153,7 @@ export function Settings() {
           ...brandSettings,
           logo_url: brandSettings.logo_url || null,
           updated_at: new Date().toISOString(),
-          updated_by: currentUser.id,
+          updated_by: customer?.id || null,
         })
         .eq('id', settings.id);
 
