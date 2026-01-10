@@ -31,7 +31,7 @@ function getShopSlugFromUrl(): string {
 
 function App() {
   const { user, customer, admin, superAdmin, loading, signOut } = useAuth();
-  const { shop, setShopById, setShopBySlug } = useShop();
+  const { shop, loading: shopLoading, setShopById, setShopBySlug } = useShop();
 
   useEffect(() => {
     if (loading) return;
@@ -48,7 +48,7 @@ function App() {
     }
   }, [admin?.shop_id, customer?.shop_id, loading, user]);
 
-  if (loading) {
+  if (loading || (user && (admin || customer) && shopLoading)) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
         <div className="text-center">

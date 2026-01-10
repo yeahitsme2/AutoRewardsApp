@@ -119,9 +119,16 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   };
 
   const loadShopById = async (shopId: string) => {
+    if (!shopId) {
+      console.warn('loadShopById called with empty shopId');
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
+      console.log('Loading shop by ID:', shopId);
 
       const { data, error: fetchError } = await supabase
         .from('shops')
@@ -133,14 +140,18 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       if (fetchError) {
         console.error('Error loading shop by ID:', fetchError);
         setError('Failed to load shop');
+        setLoading(false);
         return;
       }
 
       if (!data) {
+        console.error('Shop not found for ID:', shopId);
         setError('Shop not found');
+        setLoading(false);
         return;
       }
 
+      console.log('Shop loaded successfully:', data);
       updateShop(data);
     } catch (err) {
       console.error('Error loading shop by ID:', err);

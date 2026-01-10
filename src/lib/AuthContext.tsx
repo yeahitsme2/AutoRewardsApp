@@ -93,6 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (adminData) {
+        console.log('Admin data loaded:', { id: adminData.id, shop_id: adminData.shop_id, email: adminData.email });
         if (!adminData.is_active) {
           await supabase.auth.signOut();
           setAdmin(null);
