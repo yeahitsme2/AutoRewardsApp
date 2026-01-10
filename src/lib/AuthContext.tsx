@@ -8,7 +8,7 @@ interface AuthContextType {
   session: Session | null;
   customer: Customer | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password: string, isAdminLogin?: boolean) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, fullName: string, phone?: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshCustomer: () => Promise<void>;
@@ -102,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (email: string, password: string, isAdminLogin: boolean = false) => {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -114,13 +114,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data.user) {
         const { data: customerData } = await supabase
           .from('customers')
-          .select('is_deactivated')
+          .select('is_deactivated, role')
           .eq('id', data.user.id)
           .maybeSingle();
 
         if (customerData?.is_deactivated) {
           await supabase.auth.signOut();
           return { error: new Error('Your account has been deactivated. Please contact support.') };
+        }
+
+        const isAdmin = customerData?.role === 'admin';
+
+        if (isAdminLogin && !isAdmin) {
+          await supabase.auth.signOut();
+          return { error: new Error('This login is for administrators only. Please use the customer login.') };
+        }
+
+        if (!isAdminLogin && isAdmin) {
+          await supabase.auth.signOut();
+          return { error: new Error('Admin accounts must use the Admin Login page.') };
         }
       }
 

@@ -34,8 +34,8 @@ export function Auth() {
     setLoading(true);
 
     try {
-      if (isLogin) {
-        const { error } = await signIn(email, password);
+      if (isLogin || isAdminLogin) {
+        const { error } = await signIn(email, password, isAdminLogin);
         if (error) throw error;
       } else {
         if (!fullName.trim()) {
