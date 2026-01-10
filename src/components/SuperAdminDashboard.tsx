@@ -261,6 +261,7 @@ function CreateAdminModal({ isOpen, onClose, shop, onCreated }: CreateAdminModal
       );
 
       const result = await response.json();
+      console.log('Create admin response:', result);
 
       if (!result.success) {
         throw new Error(result.error || 'Failed to create admin');
