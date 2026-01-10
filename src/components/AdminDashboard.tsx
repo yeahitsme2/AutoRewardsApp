@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
 import { supabase } from '../lib/supabase';
-import { LogOut, Wrench, Users, UserCheck, UserX, Search, Gift, Crown, Settings as SettingsIcon, Tag, Calendar, Bell } from 'lucide-react';
+import { LogOut, Wrench, Users, UserCheck, UserX, Search, Gift, Crown, Settings as SettingsIcon, Tag, Calendar, TrendingUp, X } from 'lucide-react';
 import { AddServiceModal } from './AddServiceModal';
 import { AddVehicleModal } from './AddVehicleModal';
 import { RewardsManagement } from './RewardsManagement';
@@ -10,6 +10,7 @@ import { PromotionsManagement } from './PromotionsManagement';
 import { AppointmentsManagement } from './AppointmentsManagement';
 import { Settings } from './Settings';
 import { UserManagement } from './UserManagement';
+import { Insights } from './Insights';
 import { getTierInfo, calculateSpendingToNextTier } from '../lib/rewardsUtils';
 import type { Customer, Vehicle } from '../types/database';
 
@@ -17,7 +18,7 @@ interface CustomerWithVehicles extends Customer {
   vehicles: Vehicle[];
 }
 
-type TabType = 'customers' | 'appointments' | 'rewards' | 'promotions' | 'users' | 'settings';
+type TabType = 'customers' | 'appointments' | 'rewards' | 'promotions' | 'insights' | 'users' | 'settings';
 
 export function AdminDashboard() {
   const { customer, signOut } = useAuth();
@@ -26,6 +27,8 @@ export function AdminDashboard() {
   const [customers, setCustomers] = useState<CustomerWithVehicles[]>([]);
   const [filteredCustomers, setFilteredCustomers] = useState<CustomerWithVehicles[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [dateFilter, setDateFilter] = useState('');
+  const [showAllCustomers, setShowAllCustomers] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showAddService, setShowAddService] = useState(false);
   const [showAddVehicle, setShowAddVehicle] = useState(false);
@@ -48,22 +51,35 @@ export function AdminDashboard() {
   }, []);
 
   useEffect(() => {
-    if (!searchQuery.trim()) {
-      setFilteredCustomers(customers);
+    let filtered = customers;
+
+    if (dateFilter) {
+      filtered = filtered.filter((cust) => {
+        const createdDate = new Date(cust.created_at).toISOString().split('T')[0];
+        return createdDate === dateFilter;
+      });
+      setFilteredCustomers(filtered);
       return;
     }
 
-    const query = searchQuery.toLowerCase();
-    const filtered = customers.filter((cust) => {
-      const fullName = cust.full_name?.toLowerCase() || '';
-      const email = cust.email?.toLowerCase() || '';
-      const phone = cust.phone?.toLowerCase() || '';
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter((cust) => {
+        const fullName = cust.full_name?.toLowerCase() || '';
+        const email = cust.email?.toLowerCase() || '';
+        const phone = cust.phone?.toLowerCase() || '';
+        return fullName.includes(query) || email.includes(query) || phone.includes(query);
+      });
+      setFilteredCustomers(filtered);
+      return;
+    }
 
-      return fullName.includes(query) || email.includes(query) || phone.includes(query);
-    });
+    if (!showAllCustomers) {
+      filtered = filtered.slice(0, 10);
+    }
 
     setFilteredCustomers(filtered);
-  }, [searchQuery, customers]);
+  }, [searchQuery, dateFilter, showAllCustomers, customers]);
 
   const loadData = async () => {
     try {
@@ -236,6 +252,17 @@ export function AdminDashboard() {
               <span className="text-sm sm:text-base">Promotions</span>
             </button>
             <button
+              onClick={() => setActiveTab('insights')}
+              className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-3 font-medium transition-colors border-b-2 whitespace-nowrap flex-shrink-0"
+              style={activeTab === 'insights' ? {
+                borderBottomColor: brandSettings.primary_color,
+                color: brandSettings.primary_color
+              } : { borderBottomColor: 'transparent', color: '#475569' }}
+            >
+              <TrendingUp className="w-5 h-5" />
+              <span className="text-sm sm:text-base">Insights</span>
+            </button>
+            <button
               onClick={() => setActiveTab('users')}
               className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-3 font-medium transition-colors border-b-2 whitespace-nowrap flex-shrink-0"
               style={activeTab === 'users' ? {
@@ -262,23 +289,86 @@ export function AdminDashboard() {
 
         {activeTab === 'customers' && (
           <>
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-2">
-                <Users className="w-6 h-6 text-slate-700" />
-                <h2 className="text-2xl font-bold text-slate-900">Customers</h2>
-                <span className="text-slate-500 text-lg">({customers.length})</span>
+            <div className="space-y-4 mb-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Users className="w-6 h-6 text-slate-700" />
+                  <h2 className="text-2xl font-bold text-slate-900">Customers</h2>
+                  <span className="text-slate-500 text-lg">({customers.length})</span>
+                </div>
               </div>
 
-              <div className="relative w-full max-w-md">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search by name, email, or phone..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
-                />
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search by name, email, or phone..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setDateFilter('');
+                      if (e.target.value) setShowAllCustomers(true);
+                    }}
+                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                  />
+                </div>
+
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input
+                    type="date"
+                    value={dateFilter}
+                    onChange={(e) => {
+                      setDateFilter(e.target.value);
+                      setSearchQuery('');
+                      if (e.target.value) setShowAllCustomers(true);
+                    }}
+                    className="w-full sm:w-48 pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                  />
+                </div>
+
+                {(searchQuery || dateFilter) && (
+                  <button
+                    onClick={() => {
+                      setSearchQuery('');
+                      setDateFilter('');
+                      setShowAllCustomers(false);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:text-slate-900 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                    Clear
+                  </button>
+                )}
               </div>
+
+              {!searchQuery && !dateFilter && (
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-slate-600">
+                    {showAllCustomers ? `Showing all ${customers.length} customers` : `Showing last 10 customers`}
+                  </p>
+                  <button
+                    onClick={() => setShowAllCustomers(!showAllCustomers)}
+                    className="text-sm font-medium transition-colors"
+                    style={{ color: brandSettings.primary_color }}
+                  >
+                    {showAllCustomers ? 'Show Last 10' : `Show All (${customers.length})`}
+                  </button>
+                </div>
+              )}
+
+              {dateFilter && (
+                <p className="text-sm text-slate-600">
+                  Showing {filteredCustomers.length} customer{filteredCustomers.length !== 1 ? 's' : ''} from {new Date(dateFilter + 'T00:00:00').toLocaleDateString()}
+                </p>
+              )}
+
+              {searchQuery && (
+                <p className="text-sm text-slate-600">
+                  Found {filteredCustomers.length} customer{filteredCustomers.length !== 1 ? 's' : ''} matching "{searchQuery}"
+                </p>
+              )}
             </div>
 
         {customers.length === 0 ? (
@@ -437,6 +527,8 @@ export function AdminDashboard() {
         {activeTab === 'rewards' && <RewardsManagement />}
 
         {activeTab === 'promotions' && <PromotionsManagement />}
+
+        {activeTab === 'insights' && <Insights />}
 
         {activeTab === 'users' && <UserManagement />}
 
