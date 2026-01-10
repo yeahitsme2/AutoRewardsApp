@@ -13,8 +13,20 @@ export function Auth() {
   const [showPassword, setShowPassword] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [shopId, setShopId] = useState<string>(DEMO_SHOP_ID);
+  const [showStorageWarning, setShowStorageWarning] = useState(false);
 
   const { signIn, signUp, authError, clearAuthError } = useAuth();
+
+  useEffect(() => {
+    try {
+      const test = '__test__';
+      localStorage.setItem(test, test);
+      localStorage.removeItem(test);
+      setShowStorageWarning(false);
+    } catch {
+      setShowStorageWarning(true);
+    }
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -60,6 +72,12 @@ export function Auth() {
             {isSignUp ? 'Create your account' : 'Sign in to continue'}
           </p>
         </div>
+
+        {showStorageWarning && (
+          <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg text-sm mb-4">
+            <strong>Note:</strong> Your browser's privacy settings may prevent session persistence. If you're using Safari, try disabling "Prevent Cross-Site Tracking" in Settings &gt; Safari, or use a different browser.
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {isSignUp && (

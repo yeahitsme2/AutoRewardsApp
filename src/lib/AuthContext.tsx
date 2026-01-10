@@ -225,7 +225,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAdmin(null);
     setSuperAdmin(null);
     setAuthError(null);
-    localStorage.removeItem('currentShop');
+    try {
+      localStorage.removeItem('currentShop');
+    } catch (e) {
+      console.warn('Failed to clear localStorage:', e);
+    }
   };
 
   const refreshCustomer = async () => {

@@ -53,13 +53,17 @@ function getShopSlugFromUrl(): string {
 
 export function ShopProvider({ children }: { children: ReactNode }) {
   const [shop, setShop] = useState<Shop | null>(() => {
-    const stored = localStorage.getItem('currentShop');
-    if (stored) {
-      try {
-        return JSON.parse(stored);
-      } catch {
-        return null;
+    try {
+      const stored = localStorage.getItem('currentShop');
+      if (stored) {
+        try {
+          return JSON.parse(stored);
+        } catch {
+          return null;
+        }
       }
+    } catch {
+      console.warn('localStorage not accessible');
     }
     return null;
   });
@@ -68,10 +72,14 @@ export function ShopProvider({ children }: { children: ReactNode }) {
 
   const updateShop = (shopData: Shop | null) => {
     setShop(shopData);
-    if (shopData) {
-      localStorage.setItem('currentShop', JSON.stringify(shopData));
-    } else {
-      localStorage.removeItem('currentShop');
+    try {
+      if (shopData) {
+        localStorage.setItem('currentShop', JSON.stringify(shopData));
+      } else {
+        localStorage.removeItem('currentShop');
+      }
+    } catch (e) {
+      console.warn('Failed to update localStorage:', e);
     }
   };
 
