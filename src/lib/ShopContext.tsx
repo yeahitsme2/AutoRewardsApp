@@ -73,18 +73,16 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       }
 
       if (!data) {
-        if (slug !== 'default') {
-          const { data: defaultShop } = await supabase
-            .from('shops')
-            .select('id, name, slug, is_active')
-            .eq('slug', 'default')
-            .eq('is_active', true)
-            .maybeSingle();
+        const { data: firstShop } = await supabase
+          .from('shops')
+          .select('id, name, slug, is_active')
+          .eq('is_active', true)
+          .limit(1)
+          .maybeSingle();
 
-          if (defaultShop) {
-            setShop(defaultShop);
-            return;
-          }
+        if (firstShop) {
+          setShop(firstShop);
+          return;
         }
         setError('Shop not found');
         return;
