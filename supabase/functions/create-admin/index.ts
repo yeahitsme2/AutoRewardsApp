@@ -60,6 +60,12 @@ Deno.serve(async (req: Request) => {
       throw new Error('Missing required fields');
     }
 
+    const { data: existingUser } = await supabaseAdmin.auth.admin.listUsers();
+    const userExists = existingUser?.users.some(u => u.email === email);
+    if (userExists) {
+      throw new Error(`An account with email ${email} already exists`);
+    }
+
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -70,7 +76,10 @@ Deno.serve(async (req: Request) => {
       },
     });
 
-    if (authError) throw authError;
+    if (authError) {
+      console.error('Auth error:', authError);
+      throw new Error(`Failed to create user account: ${authError.message}`);
+    }
     if (!authData.user) throw new Error('Failed to create user');
 
     const { data: adminRecord, error: adminError } = await supabaseAdmin
@@ -85,7 +94,11 @@ Deno.serve(async (req: Request) => {
       .select()
       .single();
 
-    if (adminError) throw adminError;
+    if (adminError) {
+      console.error('Admin record error:', adminError);
+      await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+      throw new Error(`Failed to create admin record: ${adminError.message}`);
+    }
 
     return new Response(
       JSON.stringify({
@@ -103,6 +116,7 @@ Deno.serve(async (req: Request) => {
     );
   } catch (err) {
     const error = err as Error;
+    console.error('Edge function error:', error);
     return new Response(
       JSON.stringify({ 
         success: false, 
