@@ -120,16 +120,24 @@ export function PromotionsManagement() {
 
   const handleToggleActive = async (promotion: Promotion) => {
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('promotions')
         .update({ is_active: !promotion.is_active })
-        .eq('id', promotion.id);
+        .eq('id', promotion.id)
+        .select();
 
       if (error) {
         console.error('Error updating promotion:', error);
-        alert('Failed to update promotion: ' + error.message);
+        console.error('Error details:', JSON.stringify(error, null, 2));
+        alert('Failed to update promotion: ' + (error.message || error.hint || 'Permission denied or unknown error'));
         return;
       }
+
+      if (!data || data.length === 0) {
+        alert('No promotion was updated. You may not have permission to update this promotion.');
+        return;
+      }
+
       loadPromotions();
     } catch (error: any) {
       console.error('Error updating promotion:', error);
@@ -143,16 +151,24 @@ export function PromotionsManagement() {
     }
 
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('promotions')
         .delete()
-        .eq('id', promotion.id);
+        .eq('id', promotion.id)
+        .select();
 
       if (error) {
         console.error('Error deleting promotion:', error);
-        alert('Failed to delete promotion: ' + error.message);
+        console.error('Error details:', JSON.stringify(error, null, 2));
+        alert('Failed to delete promotion: ' + (error.message || error.hint || 'Permission denied or unknown error'));
         return;
       }
+
+      if (!data || data.length === 0) {
+        alert('No promotion was deleted. You may not have permission to delete this promotion.');
+        return;
+      }
+
       loadPromotions();
     } catch (error: any) {
       console.error('Error deleting promotion:', error);
