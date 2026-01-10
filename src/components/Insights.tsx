@@ -55,7 +55,7 @@ export function Insights() {
 
       const { data: services, error: servicesError } = await supabase
         .from('services')
-        .select('id, cost, created_at, points_earned');
+        .select('id, amount, created_at, points_earned');
 
       if (servicesError) throw servicesError;
 
@@ -86,11 +86,11 @@ export function Insights() {
 
       const revenueThisMonth = services?.filter(s =>
         new Date(s.created_at) >= startOfMonth
-      ).reduce((sum, s) => sum + Number(s.cost || 0), 0) || 0;
+      ).reduce((sum, s) => sum + Number(s.amount || 0), 0) || 0;
 
       const revenueLast30Days = services?.filter(s =>
         new Date(s.created_at) >= thirtyDaysAgo
-      ).reduce((sum, s) => sum + Number(s.cost || 0), 0) || 0;
+      ).reduce((sum, s) => sum + Number(s.amount || 0), 0) || 0;
 
       const tierCounts: Record<string, number> = {};
       customers?.forEach(c => {
