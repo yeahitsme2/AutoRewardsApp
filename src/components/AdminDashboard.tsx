@@ -21,7 +21,7 @@ interface CustomerWithVehicles extends Customer {
 type TabType = 'customers' | 'appointments' | 'rewards' | 'promotions' | 'insights' | 'users' | 'settings';
 
 export function AdminDashboard() {
-  const { customer, signOut } = useAuth();
+  const { admin, signOut } = useAuth();
   const { brandSettings } = useBrand();
   const [activeTab, setActiveTab] = useState<TabType>('customers');
   const [customers, setCustomers] = useState<CustomerWithVehicles[]>([]);
@@ -182,7 +182,7 @@ export function AdminDashboard() {
               </div>
               <div className="min-w-0">
                 <h1 className="text-lg sm:text-2xl font-bold truncate">Admin Dashboard</h1>
-                <p className="text-xs sm:text-sm text-slate-300 truncate">{customer?.full_name}</p>
+                <p className="text-xs sm:text-sm text-slate-300 truncate">{admin?.full_name}</p>
               </div>
             </div>
             <button

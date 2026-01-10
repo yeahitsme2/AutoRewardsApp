@@ -67,42 +67,31 @@ Deno.serve(async (req: Request) => {
       user_metadata: {
         full_name,
         shop_id,
-        is_admin: true,
       },
     });
 
     if (authError) throw authError;
     if (!authData.user) throw new Error('Failed to create user');
 
-    let retries = 0;
-    const maxRetries = 10;
-    let customerRecord = null;
+    const { data: adminRecord, error: adminError } = await supabaseAdmin
+      .from('admins')
+      .insert({
+        auth_user_id: authData.user.id,
+        shop_id,
+        email,
+        full_name,
+        is_active: true,
+      })
+      .select()
+      .single();
 
-    while (retries < maxRetries) {
-      const { data: customer, error: customerError } = await supabaseAdmin
-        .from('customers')
-        .select('*')
-        .eq('auth_user_id', authData.user.id)
-        .maybeSingle();
-
-      if (customer) {
-        customerRecord = customer;
-        break;
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 500));
-      retries++;
-    }
-
-    if (!customerRecord) {
-      throw new Error('Customer record was not created. Please try logging in.');
-    }
+    if (adminError) throw adminError;
 
     return new Response(
       JSON.stringify({
         success: true,
         user: authData.user,
-        customer: customerRecord,
+        admin: adminRecord,
         message: `Admin account created for ${email}`,
       }),
       {

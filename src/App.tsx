@@ -30,13 +30,15 @@ function getShopSlugFromUrl(): string {
 }
 
 function App() {
-  const { user, customer, superAdmin, loading, signOut } = useAuth();
+  const { user, customer, admin, superAdmin, loading, signOut } = useAuth();
   const { shop, setShopById, setShopBySlug } = useShop();
 
   useEffect(() => {
     if (loading) return;
 
-    if (customer?.shop_id) {
+    if (admin?.shop_id) {
+      setShopById(admin.shop_id);
+    } else if (customer?.shop_id) {
       setShopById(customer.shop_id);
     } else if (!user) {
       const slug = getShopSlugFromUrl();
@@ -44,7 +46,7 @@ function App() {
         setShopBySlug(slug);
       }
     }
-  }, [customer?.shop_id, loading, user]);
+  }, [admin?.shop_id, customer?.shop_id, loading, user]);
 
   if (loading) {
     return (
@@ -65,6 +67,10 @@ function App() {
     return <SuperAdminDashboard superAdmin={superAdmin} onSignOut={signOut} />;
   }
 
+  if (admin) {
+    return <AdminDashboard />;
+  }
+
   if (!customer) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
@@ -82,10 +88,6 @@ function App() {
         </div>
       </div>
     );
-  }
-
-  if (customer.is_admin) {
-    return <AdminDashboard />;
   }
 
   return <CustomerDashboard />;

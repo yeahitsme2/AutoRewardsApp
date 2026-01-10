@@ -8,9 +8,10 @@ import QRCodeLib from 'qrcode';
 import type { ShopSettings } from '../types/database';
 
 export function Settings() {
-  const { customer } = useAuth();
+  const { customer, admin } = useAuth();
   const { refreshBrand } = useBrand();
   const { shop, setShopById } = useShop();
+  const currentUser = admin || customer;
   const [settings, setSettings] = useState<ShopSettings | null>(null);
   const [shopName, setShopName] = useState('');
   const [pointsPerDollar, setPointsPerDollar] = useState<number>(10);
@@ -129,7 +130,7 @@ export function Settings() {
   };
 
   const handleSave = async () => {
-    if (!settings || !customer || !shop?.id) return;
+    if (!settings || !currentUser || !shop?.id) return;
 
     setSaving(true);
     setMessage(null);
@@ -152,7 +153,7 @@ export function Settings() {
           ...brandSettings,
           logo_url: brandSettings.logo_url || null,
           updated_at: new Date().toISOString(),
-          updated_by: customer.id,
+          updated_by: currentUser.id,
         })
         .eq('id', settings.id);
 

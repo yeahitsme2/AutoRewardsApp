@@ -32,6 +32,9 @@ interface CreateShopModalProps {
 function CreateShopModal({ isOpen, onClose, onCreated }: CreateShopModalProps) {
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminName, setAdminName] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -50,16 +53,48 @@ function CreateShopModal({ isOpen, onClose, onCreated }: CreateShopModalProps) {
     setLoading(true);
 
     try {
-      const { error: insertError } = await supabase
+      const { data: shopData, error: insertError } = await supabase
         .from('shops')
-        .insert({ name, slug });
+        .insert({ name, slug })
+        .select()
+        .single();
 
       if (insertError) throw insertError;
+      if (!shopData) throw new Error('Failed to create shop');
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-admin`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: adminEmail,
+            password: adminPassword,
+            full_name: adminName,
+            shop_id: shopData.id,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to create admin account');
+      }
 
       onCreated();
       onClose();
       setName('');
       setSlug('');
+      setAdminEmail('');
+      setAdminName('');
+      setAdminPassword('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create shop');
     } finally {
@@ -80,29 +115,76 @@ function CreateShopModal({ isOpen, onClose, onCreated }: CreateShopModalProps) {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Shop Name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => handleNameChange(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              placeholder="My Auto Shop"
-              required
-            />
+          <div className="pb-4 border-b border-slate-200">
+            <h3 className="font-medium text-slate-900 mb-3">Shop Details</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Shop Name</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => handleNameChange(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                  placeholder="My Auto Shop"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">URL Slug</label>
+                <input
+                  type="text"
+                  value={slug}
+                  onChange={(e) => setSlug(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                  placeholder="my-auto-shop"
+                  required
+                />
+                <p className="mt-1 text-xs text-slate-500">Used in URLs: yoursite.com/{slug}</p>
+              </div>
+            </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">URL Slug</label>
-            <input
-              type="text"
-              value={slug}
-              onChange={(e) => setSlug(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              placeholder="my-auto-shop"
-              required
-            />
-            <p className="mt-1 text-xs text-slate-500">Used in URLs: yoursite.com/{slug}</p>
+            <h3 className="font-medium text-slate-900 mb-3">Admin Account</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Admin Name</label>
+                <input
+                  type="text"
+                  value={adminName}
+                  onChange={(e) => setAdminName(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                  placeholder="John Doe"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Admin Email</label>
+                <input
+                  type="email"
+                  value={adminEmail}
+                  onChange={(e) => setAdminEmail(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                  placeholder="admin@example.com"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Admin Password</label>
+                <input
+                  type="password"
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                  placeholder="Min 6 characters"
+                  minLength={6}
+                  required
+                />
+              </div>
+            </div>
           </div>
 
           {error && (
@@ -125,7 +207,7 @@ function CreateShopModal({ isOpen, onClose, onCreated }: CreateShopModalProps) {
               disabled={loading}
               className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50"
             >
-              {loading ? 'Creating...' : 'Create Shop'}
+              {loading ? 'Creating...' : 'Create Shop & Admin'}
             </button>
           </div>
         </form>

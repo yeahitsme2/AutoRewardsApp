@@ -21,6 +21,38 @@ export interface Database {
           created_at?: string;
         };
       };
+      admins: {
+        Row: {
+          id: string;
+          auth_user_id: string;
+          shop_id: string | null;
+          email: string;
+          full_name: string;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          auth_user_id: string;
+          shop_id?: string | null;
+          email: string;
+          full_name: string;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          auth_user_id?: string;
+          shop_id?: string | null;
+          email?: string;
+          full_name?: string;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
       shops: {
         Row: {
           id: string;
@@ -421,6 +453,7 @@ export interface Database {
 }
 
 export type SuperAdmin = Database['public']['Tables']['super_admins']['Row'];
+export type Admin = Database['public']['Tables']['admins']['Row'];
 export type Shop = Database['public']['Tables']['shops']['Row'];
 export type ShopSettings = Database['public']['Tables']['shop_settings']['Row'];
 export type Customer = Database['public']['Tables']['customers']['Row'];

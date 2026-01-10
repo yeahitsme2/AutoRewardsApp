@@ -66,22 +66,6 @@ export function UserManagement() {
     }
   };
 
-  const toggleAdminStatus = async (userId: string, currentStatus: boolean) => {
-    try {
-      const { error } = await supabase
-        .from('customers')
-        .update({ is_admin: !currentStatus })
-        .eq('id', userId);
-
-      if (error) throw error;
-
-      showMessage('success', `User ${!currentStatus ? 'promoted to' : 'removed from'} admin`);
-      loadUsers();
-    } catch (error) {
-      console.error('Error updating admin status:', error);
-      showMessage('error', 'Failed to update admin status');
-    }
-  };
 
   const toggleDeactivateUser = async (userId: string, currentStatus: boolean) => {
     if (userId === customer?.id) {
@@ -212,9 +196,6 @@ export function UserManagement() {
                   Contact
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
-                  Role
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
                   Status
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-slate-700 uppercase tracking-wider">
@@ -242,18 +223,6 @@ export function UserManagement() {
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {user.is_admin ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                        <Shield className="w-3 h-3" />
-                        Admin
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
-                        Customer
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
                     {user.is_deactivated ? (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                         <XCircle className="w-3 h-3" />
@@ -267,23 +236,13 @@ export function UserManagement() {
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => toggleAdminStatus(user.id, user.is_admin)}
-                        disabled={user.id === customer?.id}
-                        className="text-emerald-600 hover:text-emerald-900 disabled:text-slate-400 disabled:cursor-not-allowed"
-                      >
-                        {user.is_admin ? 'Remove Admin' : 'Make Admin'}
-                      </button>
-                      <span className="text-slate-300">|</span>
-                      <button
-                        onClick={() => toggleDeactivateUser(user.id, user.is_deactivated)}
-                        disabled={user.id === customer?.id}
-                        className="text-red-600 hover:text-red-900 disabled:text-slate-400 disabled:cursor-not-allowed"
-                      >
-                        {user.is_deactivated ? 'Reactivate' : 'Deactivate'}
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => toggleDeactivateUser(user.id, user.is_deactivated)}
+                      disabled={user.id === customer?.id}
+                      className="text-red-600 hover:text-red-900 disabled:text-slate-400 disabled:cursor-not-allowed"
+                    >
+                      {user.is_deactivated ? 'Reactivate' : 'Deactivate'}
+                    </button>
                   </td>
                 </tr>
               ))}

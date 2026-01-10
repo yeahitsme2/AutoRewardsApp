@@ -1,12 +1,13 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
-import type { Customer, SuperAdmin } from '../types/database';
+import type { Customer, SuperAdmin, Admin } from '../types/database';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   customer: Customer | null;
+  admin: Admin | null;
   superAdmin: SuperAdmin | null;
   loading: boolean;
   authError: string | null;
@@ -23,6 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
+  const [admin, setAdmin] = useState<Admin | null>(null);
   const [superAdmin, setSuperAdmin] = useState<SuperAdmin | null>(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -74,7 +76,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (superAdminData) {
         setSuperAdmin(superAdminData);
+        setAdmin(null);
         setCustomer(null);
+        setLoading(false);
+        return;
+      }
+
+      const { data: adminData, error: adminError } = await supabase
+        .from('admins')
+        .select('*')
+        .eq('auth_user_id', userId)
+        .maybeSingle();
+
+      if (adminError) {
+        console.error('Error checking admin:', adminError);
+      }
+
+      if (adminData) {
+        if (!adminData.is_active) {
+          await supabase.auth.signOut();
+          setAdmin(null);
+          setCustomer(null);
+          setSuperAdmin(null);
+          setUser(null);
+          setSession(null);
+          setAuthError('Your admin account has been deactivated.');
+          setLoading(false);
+          return;
+        }
+        setAdmin(adminData);
+        setCustomer(null);
+        setSuperAdmin(null);
         setLoading(false);
         return;
       }
@@ -90,8 +122,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (!customerData) {
-        if (!superAdminData && !superAdminError) {
+        if (!superAdminData && !adminData) {
           setCustomer(null);
+          setAdmin(null);
           setSuperAdmin(null);
         }
         setLoading(false);
@@ -101,6 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (customerData.is_deactivated) {
         await supabase.auth.signOut();
         setCustomer(null);
+        setAdmin(null);
         setSuperAdmin(null);
         setUser(null);
         setSession(null);
@@ -187,6 +221,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setSession(null);
     setCustomer(null);
+    setAdmin(null);
     setSuperAdmin(null);
     setAuthError(null);
     localStorage.removeItem('currentShop');
@@ -203,6 +238,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       session,
       customer,
+      admin,
       superAdmin,
       loading,
       authError,
