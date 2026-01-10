@@ -23,13 +23,14 @@ export function UserManagement() {
       const { data, error } = await supabase
         .from('customers')
         .select('*')
+        .eq('is_admin', true)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       setUsers(data || []);
     } catch (error) {
-      console.error('Error loading users:', error);
-      showMessage('error', 'Failed to load users');
+      console.error('Error loading admin users:', error);
+      showMessage('error', 'Failed to load admin users');
     } finally {
       setLoading(false);
     }
@@ -97,7 +98,7 @@ export function UserManagement() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="text-slate-600">Loading users...</div>
+        <div className="text-slate-600">Loading admin users...</div>
       </div>
     );
   }
@@ -176,11 +177,11 @@ export function UserManagement() {
         <div className="px-6 py-4 bg-slate-50 border-b border-slate-200">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center">
-              <Users className="w-5 h-5 text-slate-700" />
+              <Shield className="w-5 h-5 text-slate-700" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-slate-900">User Management</h3>
-              <p className="text-sm text-slate-600">Manage admin access and user accounts</p>
+              <h3 className="text-lg font-semibold text-slate-900">Admin Management</h3>
+              <p className="text-sm text-slate-600">Manage admin user accounts</p>
             </div>
           </div>
         </div>
@@ -253,7 +254,7 @@ export function UserManagement() {
         {users.length === 0 && (
           <div className="px-6 py-12 text-center">
             <Users className="w-12 h-12 text-slate-400 mx-auto mb-3" />
-            <p className="text-slate-600">No users found</p>
+            <p className="text-slate-600">No admin users found</p>
           </div>
         )}
       </div>
@@ -261,8 +262,7 @@ export function UserManagement() {
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <h4 className="text-sm font-semibold text-blue-900 mb-2">Important Notes</h4>
         <div className="text-sm text-blue-800 space-y-1">
-          <p>• The first user to register automatically becomes an admin</p>
-          <p>• Admins can promote other users to admin or demote them to customers</p>
+          <p>• This page shows only admin users, not customers</p>
           <p>• You cannot deactivate your own account</p>
           <p>• Deactivated accounts cannot log in but their data is preserved</p>
           <p>• Always ensure at least one admin account remains active</p>
