@@ -8,6 +8,8 @@ interface AuthContextType {
   session: Session | null;
   customer: Customer | null;
   loading: boolean;
+  authError: string | null;
+  clearAuthError: () => void;
   signIn: (email: string, password: string, isAdminLogin?: boolean) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, fullName: string, phone?: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -21,6 +23,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  const clearAuthError = () => setAuthError(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -119,18 +124,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .maybeSingle();
 
         if (customerData?.is_deactivated) {
+          const errorMsg = 'Your account has been deactivated. Please contact support.';
+          setAuthError(errorMsg);
           await supabase.auth.signOut();
-          return { error: new Error('Your account has been deactivated. Please contact support.') };
+          return { error: new Error(errorMsg) };
         }
 
         if (isAdminLogin && !customerData?.is_admin) {
+          const errorMsg = 'This login is for administrators only. Please use the customer login.';
+          setAuthError(errorMsg);
           await supabase.auth.signOut();
-          return { error: new Error('This login is for administrators only. Please use the customer login.') };
+          return { error: new Error(errorMsg) };
         }
 
         if (!isAdminLogin && customerData?.is_admin) {
+          const errorMsg = 'Admin accounts must use the Admin Login page.';
+          setAuthError(errorMsg);
           await supabase.auth.signOut();
-          return { error: new Error('Admin accounts must use the Admin Login page.') };
+          return { error: new Error(errorMsg) };
         }
       }
 
@@ -199,7 +210,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, customer, loading, signIn, signUp, signOut, refreshCustomer }}>
+    <AuthContext.Provider value={{ user, session, customer, loading, authError, clearAuthError, signIn, signUp, signOut, refreshCustomer }}>
       {children}
     </AuthContext.Provider>
   );

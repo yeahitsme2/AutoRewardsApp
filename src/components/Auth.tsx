@@ -15,7 +15,7 @@ export function Auth() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, authError, clearAuthError } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,6 +55,7 @@ export function Auth() {
     setIsLogin(login);
     setIsAdminLogin(admin);
     setError('');
+    clearAuthError();
     setPassword('');
     setConfirmPassword('');
     setShowPassword(false);
@@ -213,9 +214,9 @@ export function Auth() {
             </div>
           )}
 
-          {error && (
+          {(error || authError) && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-              {error}
+              {error || authError}
             </div>
           )}
 
