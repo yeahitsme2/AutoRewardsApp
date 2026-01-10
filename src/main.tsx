@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import { AuthProvider } from './lib/AuthContext';
+import { ShopProvider } from './lib/ShopContext';
+import { BrandProvider } from './lib/BrandContext';
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -18,8 +20,12 @@ if ('serviceWorker' in navigator) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AuthProvider>
-      <App />
-    </AuthProvider>
+    <ShopProvider>
+      <BrandProvider>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </BrandProvider>
+    </ShopProvider>
   </StrictMode>
 );

@@ -57,7 +57,6 @@ export function AppointmentsManagement() {
       setAppointments(appointmentsWithDetails);
     } catch (error) {
       console.error('Error loading appointments:', error);
-      showMessage('error', 'Failed to load appointments');
     } finally {
       setLoading(false);
     }
