@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
 import { useShop } from '../lib/ShopContext';
-import { Percent, DollarSign, Sparkles, Gift, Plus, Users, X, Check, Crown, Calendar, Tag } from 'lucide-react';
+import { Percent, DollarSign, Sparkles, Gift, Plus, Users, X, Check, Crown, Calendar, Tag, Trash2 } from 'lucide-react';
 import { getTierInfo } from '../lib/rewardsUtils';
 import type { Promotion, Customer } from '../types/database';
 
@@ -122,13 +122,41 @@ export function PromotionsManagement() {
     try {
       const { error } = await supabase
         .from('promotions')
-        .update({ is_active: !promotion.is_active, updated_at: new Date().toISOString() })
+        .update({ is_active: !promotion.is_active })
         .eq('id', promotion.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error updating promotion:', error);
+        alert('Failed to update promotion: ' + error.message);
+        return;
+      }
       loadPromotions();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating promotion:', error);
+      alert('Failed to update promotion: ' + (error?.message || 'Unknown error'));
+    }
+  };
+
+  const handleDeletePromotion = async (promotion: Promotion) => {
+    if (!confirm(`Are you sure you want to delete "${promotion.title}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('promotions')
+        .delete()
+        .eq('id', promotion.id);
+
+      if (error) {
+        console.error('Error deleting promotion:', error);
+        alert('Failed to delete promotion: ' + error.message);
+        return;
+      }
+      loadPromotions();
+    } catch (error: any) {
+      console.error('Error deleting promotion:', error);
+      alert('Failed to delete promotion: ' + (error?.message || 'Unknown error'));
     }
   };
 
@@ -338,6 +366,13 @@ export function PromotionsManagement() {
                     }`}
                   >
                     {promo.is_active ? 'Deactivate' : 'Activate'}
+                  </button>
+                  <button
+                    onClick={() => handleDeletePromotion(promo)}
+                    className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-medium transition-colors flex items-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete
                   </button>
                 </div>
               </div>
