@@ -165,6 +165,7 @@ function CreateAdminModal({ isOpen, onClose, shop, onCreated }: CreateAdminModal
           data: {
             full_name: fullName,
             shop_id: shop.id,
+            is_admin: true,
           },
         },
       });
@@ -172,17 +173,9 @@ function CreateAdminModal({ isOpen, onClose, shop, onCreated }: CreateAdminModal
       if (authError) throw authError;
       if (!authData.user) throw new Error('Failed to create user');
 
-      const { error: customerError } = await supabase
-        .from('customers')
-        .update({
-          shop_id: shop.id,
-          email,
-          full_name: fullName,
-          is_admin: true,
-        })
-        .eq('auth_user_id', authData.user.id);
-
-      if (customerError) throw customerError;
+      if (authData.user.identities && authData.user.identities.length === 0) {
+        throw new Error('An account with this email already exists.');
+      }
 
       setSuccess(`Admin account created for ${email}`);
       setEmail('');
