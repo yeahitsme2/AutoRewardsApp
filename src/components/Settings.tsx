@@ -224,10 +224,11 @@ export function Settings() {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label htmlFor="shop-name" className="block text-sm font-medium text-slate-700 mb-2">
                   Shop Name
                 </label>
                 <input
+                  id="shop-name"
                   type="text"
                   value={shopName}
                   onChange={(e) => setShopName(e.target.value)}
@@ -319,13 +320,14 @@ export function Settings() {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label htmlFor="logo-url" className="block text-sm font-medium text-slate-700 mb-2">
                   Shop Logo URL
                 </label>
                 <div className="flex items-start gap-3">
                   <div className="relative flex-1">
                     <Image className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
                     <input
+                      id="logo-url"
                       type="url"
                       value={brandSettings.logo_url}
                       onChange={(e) => setBrandSettings({ ...brandSettings, logo_url: e.target.value })}
@@ -352,10 +354,11 @@ export function Settings() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label htmlFor="welcome-message" className="block text-sm font-medium text-slate-700 mb-2">
                   Welcome Message
                 </label>
                 <input
+                  id="welcome-message"
                   type="text"
                   value={brandSettings.welcome_message}
                   onChange={(e) => setBrandSettings({ ...brandSettings, welcome_message: e.target.value })}
@@ -369,44 +372,52 @@ export function Settings() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                  <label htmlFor="primary-color" className="block text-sm font-medium text-slate-700 mb-2">
                     Primary Color
                   </label>
                   <div className="flex items-center gap-2">
                     <input
+                      id="primary-color"
                       type="color"
                       value={brandSettings.primary_color}
                       onChange={(e) => setBrandSettings({ ...brandSettings, primary_color: e.target.value })}
                       className="w-12 h-10 border border-slate-300 rounded-lg cursor-pointer"
+                      aria-label="Primary color picker"
                     />
                     <input
+                      id="primary-color-text"
                       type="text"
                       value={brandSettings.primary_color}
                       onChange={(e) => setBrandSettings({ ...brandSettings, primary_color: e.target.value })}
                       placeholder="#10b981"
                       className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none font-mono text-sm"
+                      aria-label="Primary color hex code"
                     />
                   </div>
                   <p className="mt-1 text-xs text-slate-500">Main buttons & accents</p>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                  <label htmlFor="secondary-color" className="block text-sm font-medium text-slate-700 mb-2">
                     Secondary Color
                   </label>
                   <div className="flex items-center gap-2">
                     <input
+                      id="secondary-color"
                       type="color"
                       value={brandSettings.secondary_color}
                       onChange={(e) => setBrandSettings({ ...brandSettings, secondary_color: e.target.value })}
                       className="w-12 h-10 border border-slate-300 rounded-lg cursor-pointer"
+                      aria-label="Secondary color picker"
                     />
                     <input
+                      id="secondary-color-text"
                       type="text"
                       value={brandSettings.secondary_color}
                       onChange={(e) => setBrandSettings({ ...brandSettings, secondary_color: e.target.value })}
                       placeholder="#059669"
                       className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none font-mono text-sm"
+                      aria-label="Secondary color hex code"
                     />
                   </div>
                   <p className="mt-1 text-xs text-slate-500">Hover states</p>
@@ -441,13 +452,14 @@ export function Settings() {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label htmlFor="points-per-dollar" className="block text-sm font-medium text-slate-700 mb-2">
                   Points Per Dollar Spent
                 </label>
                 <div className="flex items-center gap-3">
                   <div className="relative flex-1 max-w-xs">
                     <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
                     <input
+                      id="points-per-dollar"
                       type="number"
                       min="0"
                       step="0.1"
@@ -488,10 +500,11 @@ export function Settings() {
                 </h5>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                    <label htmlFor="bronze-points-min" className="block text-sm font-medium text-slate-700 mb-1">
                       Minimum Points
                     </label>
                     <input
+                      id="bronze-points-min"
                       type="number"
                       min="0"
                       value={tierSettings.bronze_points_min}
@@ -500,10 +513,11 @@ export function Settings() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                    <label htmlFor="bronze-multiplier" className="block text-sm font-medium text-slate-700 mb-1">
                       Points Multiplier
                     </label>
                     <input
+                      id="bronze-multiplier"
                       type="number"
                       min="1"
                       step="0.1"
@@ -522,10 +536,11 @@ export function Settings() {
                 </h5>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                    <label htmlFor="silver-points-min" className="block text-sm font-medium text-slate-700 mb-1">
                       Minimum Points
                     </label>
                     <input
+                      id="silver-points-min"
                       type="number"
                       min="0"
                       value={tierSettings.silver_points_min}
@@ -534,10 +549,11 @@ export function Settings() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                    <label htmlFor="silver-multiplier" className="block text-sm font-medium text-slate-700 mb-1">
                       Points Multiplier
                     </label>
                     <input
+                      id="silver-multiplier"
                       type="number"
                       min="1"
                       step="0.1"
@@ -556,10 +572,11 @@ export function Settings() {
                 </h5>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                    <label htmlFor="gold-points-min" className="block text-sm font-medium text-slate-700 mb-1">
                       Minimum Points
                     </label>
                     <input
+                      id="gold-points-min"
                       type="number"
                       min="0"
                       value={tierSettings.gold_points_min}
@@ -568,10 +585,11 @@ export function Settings() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                    <label htmlFor="gold-multiplier" className="block text-sm font-medium text-slate-700 mb-1">
                       Points Multiplier
                     </label>
                     <input
+                      id="gold-multiplier"
                       type="number"
                       min="1"
                       step="0.1"
@@ -590,10 +608,11 @@ export function Settings() {
                 </h5>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                    <label htmlFor="platinum-points-min" className="block text-sm font-medium text-slate-700 mb-1">
                       Minimum Points
                     </label>
                     <input
+                      id="platinum-points-min"
                       type="number"
                       min="0"
                       value={tierSettings.platinum_points_min}
@@ -602,10 +621,11 @@ export function Settings() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                    <label htmlFor="platinum-multiplier" className="block text-sm font-medium text-slate-700 mb-1">
                       Points Multiplier
                     </label>
                     <input
+                      id="platinum-multiplier"
                       type="number"
                       min="1"
                       step="0.1"
