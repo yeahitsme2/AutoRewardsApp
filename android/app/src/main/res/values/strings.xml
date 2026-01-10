@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Auto Shop Manager</string>
-    <string name="title_activity_main">Auto Shop Manager</string>
-    <string name="package_name">com.autoshop.manager</string>
-    <string name="custom_url_scheme">com.autoshop.manager</string>
+    <string name="app_name">DriveRewards</string>
+    <string name="title_activity_main">DriveRewards</string>
+    <string name="package_name">com.driverewards.app</string>
+    <string name="custom_url_scheme">com.driverewards.app</string>
 </resources>

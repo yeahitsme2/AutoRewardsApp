@@ -1,11 +1,11 @@
 {
-  "name": "Auto Shop Manager",
-  "short_name": "Shop Manager",
-  "description": "Complete auto shop management system with customer loyalty rewards",
+  "name": "DriveRewards",
+  "short_name": "DriveRewards",
+  "description": "Auto shop management and customer loyalty rewards platform",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#1e40af",
+  "theme_color": "#0f172a",
   "orientation": "portrait-primary",
   "icons": [
     {
