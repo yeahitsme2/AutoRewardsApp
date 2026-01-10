@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useBrand } from '../lib/BrandContext';
+import { useShop } from '../lib/ShopContext';
 import { Gift, Plus, Edit2, Trash2, Award } from 'lucide-react';
 import type { RewardItem, Customer } from '../types/database';
 
@@ -10,6 +11,7 @@ interface RewardItemWithEdit extends RewardItem {
 
 export function RewardsManagement() {
   const { brandSettings } = useBrand();
+  const { shop } = useShop();
   const [rewardItems, setRewardItems] = useState<RewardItemWithEdit[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,8 +56,14 @@ export function RewardsManagement() {
   const handleAddReward = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!shop?.id) {
+      alert('Shop not loaded. Please refresh and try again.');
+      return;
+    }
+
     try {
       const { error } = await supabase.from('reward_items').insert({
+        shop_id: shop.id,
         name: formData.name,
         description: formData.description,
         points_required: parseInt(formData.points_required),
