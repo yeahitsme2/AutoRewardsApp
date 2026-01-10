@@ -1,18 +1,18 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
-import { useShop } from './ShopContext';
-import type { Customer } from '../types/database';
+import type { Customer, SuperAdmin } from '../types/database';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   customer: Customer | null;
+  superAdmin: SuperAdmin | null;
   loading: boolean;
   authError: string | null;
   clearAuthError: () => void;
-  signIn: (email: string, password: string, isAdminLogin?: boolean) => Promise<{ error: Error | null }>;
-  signUp: (email: string, password: string, fullName: string, phone?: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, fullName: string, shopId: string, phone?: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshCustomer: () => Promise<void>;
 }
@@ -20,10 +20,10 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { shop } = useShop();
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
+  const [superAdmin, setSuperAdmin] = useState<SuperAdmin | null>(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -31,11 +31,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('Initial session check:', session?.user?.id || 'No session');
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        loadCustomer(session.user.id);
+        loadUserData(session.user.id);
       } else {
         setLoading(false);
       }
@@ -45,14 +44,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('Auth state change:', event, session?.user?.id || 'No session');
       (async () => {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          await loadCustomer(session.user.id);
+          await loadUserData(session.user.id);
         } else {
           setCustomer(null);
+          setSuperAdmin(null);
           setLoading(false);
         }
       })();
@@ -61,149 +60,131 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const loadCustomer = async (userId: string) => {
-    console.log('Loading customer for user:', userId);
+  const loadUserData = async (userId: string) => {
     try {
-      const { data, error } = await supabase
-        .from('customers')
+      const { data: superAdminData } = await supabase
+        .from('super_admins')
         .select('*')
         .eq('id', userId)
         .maybeSingle();
 
-      if (error) {
-        console.error('Database error loading customer:', error);
-        throw error;
-      }
-
-      if (!data) {
-        console.error('Customer record not found for user:', userId);
-        console.log('Signing out user without customer record...');
-        await supabase.auth.signOut();
+      if (superAdminData) {
+        setSuperAdmin(superAdminData);
         setCustomer(null);
-        setUser(null);
-        setSession(null);
         setLoading(false);
         return;
       }
 
-      if (data.is_deactivated) {
-        console.log('Account is deactivated, signing out...');
-        await supabase.auth.signOut();
-        setCustomer(null);
-        setUser(null);
-        setSession(null);
-        setLoading(false);
-        throw new Error('Account has been deactivated');
+      const { data: customerData, error: customerError } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('auth_user_id', userId)
+        .maybeSingle();
+
+      if (customerError) {
+        console.error('Error loading customer:', customerError);
+        throw customerError;
       }
 
-      console.log('Customer loaded successfully:', data.email);
-      setCustomer(data);
-    } catch (error) {
-      console.error('Error loading customer:', error);
-      if ((error as Error).message === 'Account has been deactivated') {
-        throw error;
+      if (!customerData) {
+        console.error('No customer record found for user:', userId);
+        setCustomer(null);
+        setSuperAdmin(null);
+        setLoading(false);
+        return;
       }
+
+      if (customerData.is_deactivated) {
+        await supabase.auth.signOut();
+        setCustomer(null);
+        setSuperAdmin(null);
+        setUser(null);
+        setSession(null);
+        setAuthError('Your account has been deactivated.');
+        setLoading(false);
+        return;
+      }
+
+      setCustomer(customerData);
+      setSuperAdmin(null);
+    } catch (error) {
+      console.error('Error loading user data:', error);
       setCustomer(null);
+      setSuperAdmin(null);
     } finally {
       setLoading(false);
     }
   };
 
-  const signIn = async (email: string, password: string, isAdminLogin: boolean = false) => {
+  const signIn = async (email: string, password: string) => {
     try {
+      setAuthError(null);
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) return { error: error as Error };
-
-      if (data.user) {
-        const { data: customerData } = await supabase
-          .from('customers')
-          .select('is_deactivated, is_admin, shop_id')
-          .eq('id', data.user.id)
-          .maybeSingle();
-
-        if (customerData?.is_deactivated) {
-          const errorMsg = 'Your account has been deactivated. Please contact support.';
-          setAuthError(errorMsg);
-          await supabase.auth.signOut();
-          return { error: new Error(errorMsg) };
-        }
-
-        if (shop && customerData?.shop_id && customerData.shop_id !== shop.id) {
-          const errorMsg = 'This account is not associated with this shop.';
-          setAuthError(errorMsg);
-          await supabase.auth.signOut();
-          return { error: new Error(errorMsg) };
-        }
-
-        if (isAdminLogin && !customerData?.is_admin) {
-          const errorMsg = 'This login is for administrators only. Please use the customer login.';
-          setAuthError(errorMsg);
-          await supabase.auth.signOut();
-          return { error: new Error(errorMsg) };
-        }
-
-        if (!isAdminLogin && customerData?.is_admin) {
-          const errorMsg = 'Admin accounts must use the Admin Login page.';
-          setAuthError(errorMsg);
-          await supabase.auth.signOut();
-          return { error: new Error(errorMsg) };
-        }
+      if (error) {
+        setAuthError(error.message);
+        return { error: error as Error };
       }
 
       return { error: null };
     } catch (error) {
+      setAuthError((error as Error).message);
       return { error: error as Error };
     }
   };
 
-  const signUp = async (email: string, password: string, fullName: string, phone?: string) => {
+  const signUp = async (email: string, password: string, fullName: string, shopId: string, phone?: string) => {
     try {
+      setAuthError(null);
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
             full_name: fullName,
-            phone: phone || null,
-            shop_id: shop?.id || null,
+            shop_id: shopId,
           },
-          emailRedirectTo: window.location.origin,
         },
       });
 
-      console.log('Full signup response:', { authData, authError });
-
       if (authError) {
-        console.error('Signup error:', authError);
-        throw authError;
+        setAuthError(authError.message);
+        return { error: authError as Error };
       }
 
       if (!authData.user) {
-        throw new Error('User creation failed');
+        setAuthError('Failed to create account');
+        return { error: new Error('Failed to create account') };
       }
 
-      // Check if user already exists (identities will be empty)
-      if (authData.user && authData.user.identities && authData.user.identities.length === 0) {
-        throw new Error('An account with this email already exists. Please sign in instead.');
+      if (authData.user.identities && authData.user.identities.length === 0) {
+        setAuthError('An account with this email already exists.');
+        return { error: new Error('An account with this email already exists.') };
       }
 
-      console.log('User created successfully:', authData.user.id);
+      const { error: customerError } = await supabase
+        .from('customers')
+        .insert({
+          auth_user_id: authData.user.id,
+          shop_id: shopId,
+          email,
+          full_name: fullName,
+          phone: phone || null,
+        });
 
-      // If email confirmation is required, the user won't be in a session yet
-      if (authData.session) {
-        console.log('User is already authenticated (email confirmation disabled)');
-      } else {
-        console.log('Email confirmation required - user needs to check their email');
-        throw new Error('Please check your email to confirm your account before signing in.');
+      if (customerError) {
+        console.error('Error creating customer:', customerError);
+        setAuthError(customerError.message);
+        return { error: customerError as Error };
       }
 
       return { error: null };
     } catch (error) {
-      console.error('Signup catch error:', error);
+      setAuthError((error as Error).message);
       return { error: error as Error };
     }
   };
@@ -211,16 +192,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     await supabase.auth.signOut();
     setCustomer(null);
+    setSuperAdmin(null);
+    setAuthError(null);
   };
 
   const refreshCustomer = async () => {
     if (user) {
-      await loadCustomer(user.id);
+      await loadUserData(user.id);
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, customer, loading, authError, clearAuthError, signIn, signUp, signOut, refreshCustomer }}>
+    <AuthContext.Provider value={{
+      user,
+      session,
+      customer,
+      superAdmin,
+      loading,
+      authError,
+      clearAuthError,
+      signIn,
+      signUp,
+      signOut,
+      refreshCustomer
+    }}>
       {children}
     </AuthContext.Provider>
   );
