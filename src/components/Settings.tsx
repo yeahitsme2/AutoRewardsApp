@@ -44,9 +44,9 @@ export function Settings() {
   }, [shop?.id]);
 
   const generateQRCode = async () => {
-    if (!shop?.id) return;
+    if (!shop?.slug) return;
 
-    const signupUrl = `${window.location.origin}/?shop=${shop.id}`;
+    const signupUrl = `${window.location.origin}/?shop=${shop.slug}`;
 
     try {
       if (qrCanvasRef.current) {
@@ -285,7 +285,7 @@ export function Settings() {
                   <div className="bg-white border border-slate-200 rounded-lg p-3">
                     <p className="text-xs text-slate-500 mb-1">Signup URL:</p>
                     <code className="text-xs text-slate-700 break-all">
-                      {window.location.origin}/?shop={shop?.id}
+                      {window.location.origin}/?shop={shop?.slug}
                     </code>
                   </div>
                 </div>
