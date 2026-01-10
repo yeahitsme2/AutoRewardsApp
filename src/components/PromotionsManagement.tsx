@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
+import { useShop } from '../lib/ShopContext';
 import { Percent, DollarSign, Sparkles, Gift, Plus, Users, X, Check, Crown, Calendar, Tag } from 'lucide-react';
 import { getTierInfo } from '../lib/rewardsUtils';
 import type { Promotion, Customer } from '../types/database';
@@ -13,6 +14,7 @@ interface PromotionWithRecipients extends Promotion {
 export function PromotionsManagement() {
   const { customer } = useAuth();
   const { brandSettings } = useBrand();
+  const { shop } = useShop();
   const [promotions, setPromotions] = useState<PromotionWithRecipients[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -27,7 +29,6 @@ export function PromotionsManagement() {
     description: '',
     discount_type: 'percentage' as 'percentage' | 'fixed_amount' | 'points_bonus' | 'free_service',
     discount_value: 0,
-    promo_code: '',
     valid_until: '',
   });
 
@@ -84,16 +85,20 @@ export function PromotionsManagement() {
   const handleCreatePromotion = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!shop?.id) {
+      alert('Shop not loaded. Please refresh and try again.');
+      return;
+    }
+
     try {
       const { error } = await supabase.from('promotions').insert({
+        shop_id: shop.id,
         title: formData.title,
         description: formData.description,
         discount_type: formData.discount_type,
         discount_value: formData.discount_value,
-        promo_code: formData.promo_code || null,
         valid_until: formData.valid_until,
         is_active: true,
-        created_by: customer?.id,
       });
 
       if (error) throw error;
@@ -103,7 +108,6 @@ export function PromotionsManagement() {
         description: '',
         discount_type: 'percentage',
         discount_value: 0,
-        promo_code: '',
         valid_until: '',
       });
       setShowCreateForm(false);
@@ -155,6 +159,11 @@ export function PromotionsManagement() {
   const handleSendToCustomers = async () => {
     if (!selectedPromotion || selectedCustomers.size === 0) return;
 
+    if (!shop?.id) {
+      alert('Shop not loaded. Please refresh and try again.');
+      return;
+    }
+
     setSending(true);
     try {
       const existingPromotions = await supabase
@@ -180,6 +189,7 @@ export function PromotionsManagement() {
         newCustomerIds.map((customerId) => ({
           customer_id: customerId,
           promotion_id: selectedPromotion.id,
+          shop_id: shop.id,
         }))
       );
 
@@ -291,12 +301,6 @@ export function PromotionsManagement() {
                     <p className="text-slate-700 mb-3">{promo.description}</p>
 
                     <div className="flex items-center gap-4 text-sm text-slate-600">
-                      {promo.promo_code && (
-                        <div className="flex items-center gap-1">
-                          <Tag className="w-4 h-4" />
-                          <span className="font-mono font-semibold">{promo.promo_code}</span>
-                        </div>
-                      )}
                       <div className="flex items-center gap-1">
                         <Calendar className="w-4 h-4" />
                         Valid until {new Date(promo.valid_until).toLocaleDateString()}
@@ -427,19 +431,6 @@ export function PromotionsManagement() {
                     placeholder={formData.discount_type === 'percentage' ? '10' : '25.00'}
                   />
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Promo Code (optional)
-                </label>
-                <input
-                  type="text"
-                  value={formData.promo_code}
-                  onChange={(e) => setFormData({ ...formData, promo_code: e.target.value })}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
-                  placeholder="e.g., SPRING2024"
-                />
               </div>
 
               <div>
