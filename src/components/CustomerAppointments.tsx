@@ -18,8 +18,8 @@ export function CustomerAppointments() {
   const [showBooking, setShowBooking] = useState(false);
   const [formData, setFormData] = useState({
     vehicle_id: '',
-    requested_date: '',
-    requested_time: '',
+    scheduled_date: '',
+    scheduled_time: '',
     service_type: '',
     description: '',
   });
@@ -39,7 +39,7 @@ export function CustomerAppointments() {
           .from('appointments')
           .select('*')
           .eq('customer_id', customer!.id)
-          .order('requested_date', { ascending: false }),
+          .order('scheduled_date', { ascending: false }),
         supabase
           .from('vehicles')
           .select('*')
@@ -68,7 +68,7 @@ export function CustomerAppointments() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.vehicle_id || !formData.requested_date || !formData.requested_time || !formData.service_type) {
+    if (!formData.vehicle_id || !formData.scheduled_date || !formData.scheduled_time || !formData.service_type) {
       showMessage('error', 'Please fill in all required fields');
       return;
     }
@@ -78,8 +78,8 @@ export function CustomerAppointments() {
       const { error } = await supabase.from('appointments').insert({
         customer_id: customer!.id,
         vehicle_id: formData.vehicle_id,
-        requested_date: formData.requested_date,
-        requested_time: formData.requested_time,
+        scheduled_date: formData.scheduled_date,
+        scheduled_time: formData.scheduled_time,
         service_type: formData.service_type,
         description: formData.description || null,
       });
@@ -90,8 +90,8 @@ export function CustomerAppointments() {
       setShowBooking(false);
       setFormData({
         vehicle_id: '',
-        requested_date: '',
-        requested_time: '',
+        scheduled_date: '',
+        scheduled_time: '',
         service_type: '',
         description: '',
       });
@@ -272,8 +272,8 @@ export function CustomerAppointments() {
                 <input
                   type="date"
                   min={getMinDate()}
-                  value={formData.requested_date}
-                  onChange={(e) => setFormData({ ...formData, requested_date: e.target.value })}
+                  value={formData.scheduled_date}
+                  onChange={(e) => setFormData({ ...formData, scheduled_date: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
                   required
                 />
@@ -285,8 +285,8 @@ export function CustomerAppointments() {
                 </label>
                 <input
                   type="time"
-                  value={formData.requested_time}
-                  onChange={(e) => setFormData({ ...formData, requested_time: e.target.value })}
+                  value={formData.scheduled_time}
+                  onChange={(e) => setFormData({ ...formData, scheduled_time: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
                   required
                 />
@@ -368,11 +368,11 @@ export function CustomerAppointments() {
                   <div className="space-y-2 text-sm text-slate-600">
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4" />
-                      <span>{formatDate(appointment.requested_date)}</span>
+                      <span>{formatDate(appointment.scheduled_date)}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Clock className="w-4 h-4" />
-                      <span>{formatTime(appointment.requested_time)}</span>
+                      <span>{formatTime(appointment.scheduled_time)}</span>
                     </div>
                     {appointment.vehicle && (
                       <div className="flex items-center gap-2">

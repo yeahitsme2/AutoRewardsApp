@@ -32,8 +32,8 @@ export function AppointmentsManagement() {
       const { data: appointmentsData, error: appointmentsError } = await supabase
         .from('appointments')
         .select('*')
-        .order('requested_date', { ascending: true })
-        .order('requested_time', { ascending: true });
+        .order('scheduled_date', { ascending: true })
+        .order('scheduled_time', { ascending: true });
 
       if (appointmentsError) throw appointmentsError;
 
@@ -287,11 +287,11 @@ export function AppointmentsManagement() {
                     <div className="space-y-2 text-sm">
                       <div className="flex items-center gap-2">
                         <Calendar className="w-4 h-4 text-slate-500" />
-                        <span className="text-slate-900">{formatDate(appointment.requested_date)}</span>
+                        <span className="text-slate-900">{formatDate(appointment.scheduled_date)}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Clock className="w-4 h-4 text-slate-500" />
-                        <span className="text-slate-900">{formatTime(appointment.requested_time)}</span>
+                        <span className="text-slate-900">{formatTime(appointment.scheduled_time)}</span>
                       </div>
                       {appointment.vehicle && (
                         <div className="flex items-center gap-2">
