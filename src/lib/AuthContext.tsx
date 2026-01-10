@@ -62,11 +62,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadUserData = async (userId: string) => {
     try {
-      const { data: superAdminData } = await supabase
+      const { data: superAdminData, error: superAdminError } = await supabase
         .from('super_admins')
         .select('*')
         .eq('id', userId)
         .maybeSingle();
+
+      if (superAdminError) {
+        console.error('Error checking super admin:', superAdminError);
+      }
 
       if (superAdminData) {
         setSuperAdmin(superAdminData);
@@ -83,13 +87,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (customerError) {
         console.error('Error loading customer:', customerError);
-        throw customerError;
       }
 
       if (!customerData) {
-        console.error('No customer record found for user:', userId);
-        setCustomer(null);
-        setSuperAdmin(null);
+        if (!superAdminData && !superAdminError) {
+          setCustomer(null);
+          setSuperAdmin(null);
+        }
         setLoading(false);
         return;
       }

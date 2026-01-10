@@ -108,8 +108,8 @@ export function Auth() {
         </form>
 
         <div className="mt-6 text-center text-sm text-slate-500">
-          <p>Super Admin: super@admin.com</p>
-          <p>Password: SuperAdmin123!</p>
+          <p>Super Admin: admin@test.com</p>
+          <p>Password: password123</p>
         </div>
       </div>
     </div>
