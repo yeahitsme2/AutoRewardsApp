@@ -139,11 +139,6 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     await loadShopById(shopId);
   };
 
-  useEffect(() => {
-    const slug = getShopSlugFromUrl();
-    loadShop(slug);
-  }, []);
-
   return (
     <ShopContext.Provider value={{ shop, loading, error, setShopBySlug, setShopById }}>
       {children}

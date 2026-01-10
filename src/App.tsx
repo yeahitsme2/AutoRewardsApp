@@ -6,15 +6,45 @@ import { CustomerDashboard } from './components/CustomerDashboard';
 import { AdminDashboard } from './components/AdminDashboard';
 import { SuperAdminDashboard } from './components/SuperAdminDashboard';
 
+function getShopSlugFromUrl(): string {
+  const hostname = window.location.hostname;
+  const pathname = window.location.pathname;
+
+  const pathMatch = pathname.match(/^\/shop\/([^/]+)/);
+  if (pathMatch) {
+    return pathMatch[1];
+  }
+
+  const parts = hostname.split('.');
+  if (parts.length >= 3 && parts[0] !== 'www') {
+    return parts[0];
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const shopParam = params.get('shop');
+  if (shopParam) {
+    return shopParam;
+  }
+
+  return '';
+}
+
 function App() {
   const { user, customer, superAdmin, loading, signOut } = useAuth();
-  const { setShopById } = useShop();
+  const { shop, setShopById, setShopBySlug } = useShop();
 
   useEffect(() => {
+    if (loading) return;
+
     if (customer?.shop_id) {
       setShopById(customer.shop_id);
+    } else if (!user) {
+      const slug = getShopSlugFromUrl();
+      if (slug) {
+        setShopBySlug(slug);
+      }
     }
-  }, [customer?.shop_id]);
+  }, [customer?.shop_id, loading, user]);
 
   if (loading) {
     return (
