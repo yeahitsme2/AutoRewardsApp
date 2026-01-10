@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
+import { useShop } from '../lib/ShopContext';
 import { supabase } from '../lib/supabase';
 import { Car, Calendar, Award, LogOut, Wrench, Gift, Tag, Plus } from 'lucide-react';
 import { CustomerRewards } from './CustomerRewards';
@@ -22,6 +23,7 @@ type TabType = 'vehicles' | 'services' | 'appointments' | 'rewards' | 'offers';
 export function CustomerDashboard() {
   const { customer, signOut, refreshCustomer } = useAuth();
   const { brandSettings } = useBrand();
+  const { shop } = useShop();
   const [activeTab, setActiveTab] = useState<TabType>('vehicles');
   const [vehicles, setVehicles] = useState<VehicleWithServices[]>([]);
   const [loading, setLoading] = useState(true);
@@ -103,11 +105,11 @@ export function CustomerDashboard() {
             <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
               <div
                 className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                style={{ backgroundColor: brandSettings.shop_logo_url ? 'transparent' : brandSettings.primary_color }}
+                style={{ backgroundColor: brandSettings.logo_url ? 'transparent' : brandSettings.primary_color }}
               >
-                {brandSettings.shop_logo_url ? (
+                {brandSettings.logo_url ? (
                   <img
-                    src={brandSettings.shop_logo_url}
+                    src={brandSettings.logo_url}
                     alt="Shop logo"
                     className="w-full h-full object-contain"
                     onError={(e) => {
@@ -122,7 +124,7 @@ export function CustomerDashboard() {
                 )}
               </div>
               <div className="min-w-0">
-                <h1 className="text-lg sm:text-2xl font-bold text-slate-900 truncate">{brandSettings.header_text}</h1>
+                <h1 className="text-lg sm:text-2xl font-bold text-slate-900 truncate">{shop?.name || 'Rewards Dashboard'}</h1>
                 <p className="text-xs sm:text-sm text-slate-600 truncate">{brandSettings.welcome_message}, {customer?.full_name}</p>
               </div>
             </div>

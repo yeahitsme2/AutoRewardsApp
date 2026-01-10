@@ -162,11 +162,11 @@ export function AdminDashboard() {
             <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
               <div
                 className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                style={{ backgroundColor: brandSettings.shop_logo_url ? 'transparent' : brandSettings.primary_color }}
+                style={{ backgroundColor: brandSettings.logo_url ? 'transparent' : brandSettings.primary_color }}
               >
-                {brandSettings.shop_logo_url ? (
+                {brandSettings.logo_url ? (
                   <img
-                    src={brandSettings.shop_logo_url}
+                    src={brandSettings.logo_url}
                     alt="Shop logo"
                     className="w-full h-full object-contain"
                     onError={(e) => {

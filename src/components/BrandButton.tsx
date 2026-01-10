@@ -2,7 +2,7 @@ import { ButtonHTMLAttributes } from 'react';
 import { useBrand } from '../lib/BrandContext';
 
 interface BrandButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'accent';
+  variant?: 'primary' | 'secondary';
   children: React.ReactNode;
 }
 
@@ -17,28 +17,19 @@ export function BrandButton({
 
   const getBackgroundColor = () => {
     if (disabled) return '#cbd5e1';
-    switch (variant) {
-      case 'secondary':
-        return brandSettings.secondary_color;
-      case 'accent':
-        return brandSettings.accent_color;
-      default:
-        return brandSettings.primary_color;
-    }
+    return variant === 'secondary' ? brandSettings.secondary_color : brandSettings.primary_color;
   };
 
   const getHoverColor = () => {
     if (disabled) return '#cbd5e1';
-    switch (variant) {
-      case 'primary':
-        return brandSettings.secondary_color;
-      case 'secondary':
-        return brandSettings.accent_color;
-      case 'accent':
-        return brandSettings.primary_color;
-      default:
-        return brandSettings.secondary_color;
-    }
+    const lightenColor = (color: string) => {
+      const hex = color.replace('#', '');
+      const r = Math.min(255, parseInt(hex.substr(0, 2), 16) + 20);
+      const g = Math.min(255, parseInt(hex.substr(2, 2), 16) + 20);
+      const b = Math.min(255, parseInt(hex.substr(4, 2), 16) + 20);
+      return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+    };
+    return lightenColor(getBackgroundColor());
   };
 
   return (

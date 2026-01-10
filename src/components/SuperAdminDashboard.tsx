@@ -158,23 +158,30 @@ function CreateAdminModal({ isOpen, onClose, shop, onCreated }: CreateAdminModal
     setLoading(true);
 
     try {
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-admin`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email,
+            password,
             full_name: fullName,
             shop_id: shop.id,
-            is_admin: true,
-          },
-        },
-      });
+          }),
+        }
+      );
 
-      if (authError) throw authError;
-      if (!authData.user) throw new Error('Failed to create user');
+      const result = await response.json();
 
-      if (authData.user.identities && authData.user.identities.length === 0) {
-        throw new Error('An account with this email already exists.');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to create admin');
       }
 
       setSuccess(`Admin account created for ${email}`);

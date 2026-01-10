@@ -25,11 +25,9 @@ export function Settings() {
     platinum_multiplier: 2.0,
   });
   const [brandSettings, setBrandSettings] = useState({
-    shop_logo_url: '',
+    logo_url: '',
     primary_color: '#10b981',
-    secondary_color: '#059669',
-    accent_color: '#047857',
-    header_text: 'Auto Shop Rewards',
+    secondary_color: '#0f172a',
     welcome_message: 'Welcome back',
   });
   const [loading, setLoading] = useState(true);
@@ -113,11 +111,9 @@ export function Settings() {
           platinum_multiplier: Number(data.platinum_multiplier),
         });
         setBrandSettings({
-          shop_logo_url: data.shop_logo_url || '',
+          logo_url: data.logo_url || '',
           primary_color: data.primary_color || '#10b981',
-          secondary_color: data.secondary_color || '#059669',
-          accent_color: data.accent_color || '#047857',
-          header_text: data.header_text || 'Auto Shop Rewards',
+          secondary_color: data.secondary_color || '#0f172a',
           welcome_message: data.welcome_message || 'Welcome back',
         });
       }
@@ -151,7 +147,7 @@ export function Settings() {
           points_per_dollar: pointsPerDollar,
           ...tierSettings,
           ...brandSettings,
-          shop_logo_url: brandSettings.shop_logo_url || null,
+          logo_url: brandSettings.logo_url || null,
           updated_at: new Date().toISOString(),
           updated_by: customer.id,
         })
@@ -310,16 +306,16 @@ export function Settings() {
                     <Image className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
                     <input
                       type="url"
-                      value={brandSettings.shop_logo_url}
-                      onChange={(e) => setBrandSettings({ ...brandSettings, shop_logo_url: e.target.value })}
+                      value={brandSettings.logo_url}
+                      onChange={(e) => setBrandSettings({ ...brandSettings, logo_url: e.target.value })}
                       placeholder="https://example.com/logo.png"
                       className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
                     />
                   </div>
-                  {brandSettings.shop_logo_url && (
+                  {brandSettings.logo_url && (
                     <div className="w-12 h-12 border-2 border-slate-200 rounded-lg overflow-hidden flex-shrink-0">
                       <img
-                        src={brandSettings.shop_logo_url}
+                        src={brandSettings.logo_url}
                         alt="Shop logo preview"
                         className="w-full h-full object-contain"
                         onError={(e) => {
@@ -331,22 +327,6 @@ export function Settings() {
                 </div>
                 <p className="mt-2 text-sm text-slate-500">
                   Enter the URL of your shop logo. This will replace the default icon throughout the app.
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Header Text
-                </label>
-                <input
-                  type="text"
-                  value={brandSettings.header_text}
-                  onChange={(e) => setBrandSettings({ ...brandSettings, header_text: e.target.value })}
-                  placeholder="Auto Shop Rewards"
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
-                />
-                <p className="mt-2 text-sm text-slate-500">
-                  This text appears as the main header in the dashboard.
                 </p>
               </div>
 
@@ -411,27 +391,6 @@ export function Settings() {
                   <p className="mt-1 text-xs text-slate-500">Hover states</p>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Accent Color
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={brandSettings.accent_color}
-                      onChange={(e) => setBrandSettings({ ...brandSettings, accent_color: e.target.value })}
-                      className="w-12 h-10 border border-slate-300 rounded-lg cursor-pointer"
-                    />
-                    <input
-                      type="text"
-                      value={brandSettings.accent_color}
-                      onChange={(e) => setBrandSettings({ ...brandSettings, accent_color: e.target.value })}
-                      placeholder="#047857"
-                      className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none font-mono text-sm"
-                    />
-                  </div>
-                  <p className="mt-1 text-xs text-slate-500">Highlights & badges</p>
-                </div>
               </div>
 
               <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
@@ -451,12 +410,6 @@ export function Settings() {
                   >
                     Secondary Button
                   </button>
-                  <span
-                    style={{ backgroundColor: brandSettings.accent_color }}
-                    className="px-3 py-1 text-white text-sm font-medium rounded-full"
-                  >
-                    Accent Badge
-                  </span>
                 </div>
               </div>
             </div>

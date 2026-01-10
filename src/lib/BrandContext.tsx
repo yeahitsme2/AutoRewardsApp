@@ -3,11 +3,9 @@ import { supabase } from './supabase';
 import { useShop } from './ShopContext';
 
 interface BrandSettings {
-  shop_logo_url: string | null;
+  logo_url: string | null;
   primary_color: string;
   secondary_color: string;
-  accent_color: string;
-  header_text: string;
   welcome_message: string;
 }
 
@@ -18,11 +16,9 @@ interface BrandContextType {
 }
 
 const defaultBrand: BrandSettings = {
-  shop_logo_url: null,
+  logo_url: null,
   primary_color: '#10b981',
-  secondary_color: '#059669',
-  accent_color: '#047857',
-  header_text: 'Auto Shop Rewards',
+  secondary_color: '#0f172a',
   welcome_message: 'Welcome back',
 };
 
@@ -51,7 +47,7 @@ export function BrandProvider({ children }: { children: ReactNode }) {
     try {
       const { data, error } = await supabase
         .from('shop_settings')
-        .select('shop_logo_url, primary_color, secondary_color, accent_color, header_text, welcome_message')
+        .select('logo_url, primary_color, secondary_color, welcome_message')
         .eq('shop_id', shop.id)
         .maybeSingle();
 
@@ -63,11 +59,9 @@ export function BrandProvider({ children }: { children: ReactNode }) {
 
       if (data) {
         const settings = {
-          shop_logo_url: data.shop_logo_url,
+          logo_url: data.logo_url,
           primary_color: data.primary_color || defaultBrand.primary_color,
           secondary_color: data.secondary_color || defaultBrand.secondary_color,
-          accent_color: data.accent_color || defaultBrand.accent_color,
-          header_text: data.header_text || defaultBrand.header_text,
           welcome_message: data.welcome_message || defaultBrand.welcome_message,
         };
         setBrandSettings(settings);
@@ -87,7 +81,6 @@ export function BrandProvider({ children }: { children: ReactNode }) {
     const root = document.documentElement;
     root.style.setProperty('--brand-primary', settings.primary_color);
     root.style.setProperty('--brand-secondary', settings.secondary_color);
-    root.style.setProperty('--brand-accent', settings.accent_color);
   };
 
   useEffect(() => {
