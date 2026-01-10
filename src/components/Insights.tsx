@@ -61,7 +61,7 @@ export function Insights() {
 
       const { data: redemptions, error: redemptionsError } = await supabase
         .from('reward_redemptions')
-        .select('points_used');
+        .select('points_spent');
 
       if (redemptionsError) throw redemptionsError;
 
@@ -74,7 +74,7 @@ export function Insights() {
       ).length || 0;
 
       const totalPointsEarned = services?.reduce((sum, s) => sum + (s.points_earned || 0), 0) || 0;
-      const totalPointsRedeemed = redemptions?.reduce((sum, r) => sum + (r.points_used || 0), 0) || 0;
+      const totalPointsRedeemed = redemptions?.reduce((sum, r) => sum + (r.points_spent || 0), 0) || 0;
       const totalLifetimeRevenue = customers?.reduce((sum, c) => sum + Number(c.total_lifetime_spending || 0), 0) || 0;
       const averagePointsPerCustomer = totalCustomers > 0
         ? Math.round(customers!.reduce((sum, c) => sum + (c.reward_points || 0), 0) / totalCustomers)
