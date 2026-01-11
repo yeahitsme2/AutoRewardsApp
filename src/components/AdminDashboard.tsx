@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
 import { supabase } from '../lib/supabase';
-import { LogOut, Wrench, Users, UserCheck, UserX, Search, Gift, Crown, Settings as SettingsIcon, Tag, Calendar, TrendingUp, X } from 'lucide-react';
+import { LogOut, Wrench, Users, UserCheck, UserX, Search, Gift, Crown, Settings as SettingsIcon, Tag, Calendar, TrendingUp, X, Car, Award } from 'lucide-react';
 import { AddServiceModal } from './AddServiceModal';
 import { AddVehicleModal } from './AddVehicleModal';
 import { RewardsManagement } from './RewardsManagement';
