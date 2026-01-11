@@ -86,7 +86,7 @@ export function AddServiceModal({ customer, onClose }: AddServiceModalProps) {
         shop_id: customer.shop_id,
         service_type: formData.description || 'General Service',
         description: formData.notes || formData.description,
-        service_date: formData.serviceDate,
+        service_date: new Date(formData.serviceDate).toISOString(),
         amount,
         points_earned: pointsEarned,
       });
@@ -99,12 +99,15 @@ export function AddServiceModal({ customer, onClose }: AddServiceModalProps) {
           .from('vehicles')
           .update({
             current_mileage: mileage,
-            last_service_date: formData.serviceDate,
+            last_service_date: new Date(formData.serviceDate).toISOString(),
             last_service_mileage: mileage,
           })
           .eq('id', formData.vehicleId);
 
-        if (vehicleUpdateError) throw vehicleUpdateError;
+        if (vehicleUpdateError) {
+          console.error('Vehicle update error:', vehicleUpdateError);
+          throw vehicleUpdateError;
+        }
       }
 
       onClose();
