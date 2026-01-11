@@ -12,10 +12,11 @@ import { Settings } from './Settings';
 import { UserManagement } from './UserManagement';
 import { Insights } from './Insights';
 import { getTierInfo, calculateSpendingToNextTier } from '../lib/rewardsUtils';
-import type { Customer, Vehicle } from '../types/database';
+import type { Customer, Vehicle, Service } from '../types/database';
 
 interface CustomerWithVehicles extends Customer {
   vehicles: Vehicle[];
+  services: Service[];
 }
 
 type TabType = 'customers' | 'appointments' | 'rewards' | 'promotions' | 'insights' | 'users' | 'settings';
@@ -97,9 +98,17 @@ export function AdminDashboard() {
 
       if (vehiclesError) throw vehiclesError;
 
+      const { data: servicesData, error: servicesError } = await supabase
+        .from('services')
+        .select('*')
+        .order('service_date', { ascending: false });
+
+      if (servicesError) throw servicesError;
+
       const customersWithVehicles: CustomerWithVehicles[] = (customersData || []).map((customer) => ({
         ...customer,
         vehicles: (vehiclesData || []).filter((vehicle) => vehicle.customer_id === customer.id),
+        services: (servicesData || []).filter((service) => service.customer_id === customer.id),
       }));
 
       setCustomers(customersWithVehicles);
@@ -496,6 +505,59 @@ export function AdminDashboard() {
                             </div>
                           </div>
                         ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="border-t border-slate-200 pt-4 mt-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-semibold text-slate-900">Service History ({cust.services.length})</h4>
+                    </div>
+
+                    {cust.services.length === 0 ? (
+                      <p className="text-slate-600 text-sm">No service records yet.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {cust.services.slice(0, 5).map((service) => {
+                          const vehicle = cust.vehicles.find(v => v.id === service.vehicle_id);
+                          return (
+                            <div key={service.id} className="bg-slate-50 rounded-lg p-3">
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Wrench className="w-4 h-4 text-slate-600" />
+                                    <p className="font-medium text-slate-900">{service.service_type}</p>
+                                  </div>
+                                  {service.description && (
+                                    <p className="text-sm text-slate-600 ml-6">{service.description}</p>
+                                  )}
+                                  {vehicle && (
+                                    <div className="flex items-center gap-1 text-xs text-slate-500 mt-1 ml-6">
+                                      <Car className="w-3 h-3" />
+                                      {vehicle.year} {vehicle.make} {vehicle.model}
+                                    </div>
+                                  )}
+                                  <div className="flex items-center gap-1 text-xs text-slate-500 mt-1 ml-6">
+                                    <Calendar className="w-3 h-3" />
+                                    {new Date(service.service_date).toLocaleDateString()}
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-semibold text-slate-900">${Number(service.amount).toFixed(2)}</p>
+                                  <div className="flex items-center gap-1 text-xs mt-1" style={{ color: brandSettings.primary_color }}>
+                                    <Award className="w-3 h-3" />
+                                    +{service.points_earned} pts
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {cust.services.length > 5 && (
+                          <p className="text-xs text-slate-500 text-center">
+                            Showing 5 of {cust.services.length} services
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
