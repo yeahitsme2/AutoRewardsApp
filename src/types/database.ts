@@ -433,6 +433,12 @@ export interface Database {
           scheduled_time: string;
           status: string;
           notes: string | null;
+          description: string | null;
+          admin_notes: string | null;
+          cancelled_reason: string | null;
+          cancellation_type: 'cancelled' | 'no-show' | null;
+          confirmed_by: string | null;
+          confirmed_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -446,6 +452,12 @@ export interface Database {
           scheduled_time: string;
           status?: string;
           notes?: string | null;
+          description?: string | null;
+          admin_notes?: string | null;
+          cancelled_reason?: string | null;
+          cancellation_type?: 'cancelled' | 'no-show' | null;
+          confirmed_by?: string | null;
+          confirmed_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -459,6 +471,12 @@ export interface Database {
           scheduled_time?: string;
           status?: string;
           notes?: string | null;
+          description?: string | null;
+          admin_notes?: string | null;
+          cancelled_reason?: string | null;
+          cancellation_type?: 'cancelled' | 'no-show' | null;
+          confirmed_by?: string | null;
+          confirmed_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };

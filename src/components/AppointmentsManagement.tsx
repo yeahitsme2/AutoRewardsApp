@@ -62,7 +62,7 @@ export function AppointmentsManagement() {
     }
   };
 
-  const handleUpdateStatus = async (appointmentId: string, newStatus: 'confirmed' | 'cancelled' | 'completed', notes?: string) => {
+  const handleUpdateStatus = async (appointmentId: string, newStatus: 'confirmed' | 'cancelled' | 'completed', notes?: string, cancellationType?: 'cancelled' | 'no-show') => {
     try {
       const updateData: any = {
         status: newStatus,
@@ -73,8 +73,9 @@ export function AppointmentsManagement() {
         updateData.confirmed_by = admin!.id;
         updateData.confirmed_at = new Date().toISOString();
         if (notes) updateData.admin_notes = notes;
-      } else if (newStatus === 'cancelled' && notes) {
-        updateData.cancelled_reason = notes;
+      } else if (newStatus === 'cancelled') {
+        if (notes) updateData.cancelled_reason = notes;
+        if (cancellationType) updateData.cancellation_type = cancellationType;
       }
 
       const { error } = await supabase
@@ -128,7 +129,7 @@ export function AppointmentsManagement() {
     setTimeout(() => setMessage(null), 3000);
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, cancellationType?: 'cancelled' | 'no-show' | null) => {
     switch (status) {
       case 'pending':
         return (
@@ -154,7 +155,7 @@ export function AppointmentsManagement() {
         return (
           <span className="inline-flex items-center gap-1 px-3 py-1 bg-red-100 text-red-800 text-sm font-medium rounded-full">
             <XCircle className="w-4 h-4" />
-            Cancelled
+            {cancellationType === 'no-show' ? 'No Show' : 'Cancelled'}
           </span>
         );
       case 'completed':
@@ -265,7 +266,7 @@ export function AppointmentsManagement() {
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-3">
                     <h3 className="text-lg font-semibold text-slate-900">{appointment.service_type}</h3>
-                    {getStatusBadge(appointment.status)}
+                    {getStatusBadge(appointment.status, appointment.cancellation_type)}
                   </div>
 
                   <div className="grid grid-cols-2 gap-4 mb-4">
@@ -394,7 +395,7 @@ export function AppointmentsManagement() {
                   <button
                     onClick={() => {
                       const reason = prompt('Enter cancellation reason:');
-                      if (reason) handleUpdateStatus(appointment.id, 'cancelled', reason);
+                      if (reason) handleUpdateStatus(appointment.id, 'cancelled', reason, 'cancelled');
                     }}
                     className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg transition-colors"
                   >
@@ -412,6 +413,26 @@ export function AppointmentsManagement() {
                   >
                     <CheckCircle className="w-4 h-4" />
                     Mark Complete
+                  </button>
+                  <button
+                    onClick={() => {
+                      const reason = prompt('Enter cancellation reason (optional):');
+                      handleUpdateStatus(appointment.id, 'cancelled', reason || undefined, 'cancelled');
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg transition-colors"
+                  >
+                    <XCircle className="w-4 h-4" />
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      const reason = prompt('Enter reason for no-show (optional):');
+                      handleUpdateStatus(appointment.id, 'cancelled', reason || undefined, 'no-show');
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg transition-colors"
+                  >
+                    <AlertCircle className="w-4 h-4" />
+                    No Show
                   </button>
                 </div>
               )}
