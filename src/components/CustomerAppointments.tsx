@@ -78,6 +78,7 @@ export function CustomerAppointments() {
       const { error } = await supabase.from('appointments').insert({
         customer_id: customer!.id,
         vehicle_id: formData.vehicle_id,
+        shop_id: customer!.shop_id,
         scheduled_date: formData.scheduled_date,
         scheduled_time: formData.scheduled_time,
         service_type: formData.service_type,
