@@ -54,6 +54,7 @@ export function AddServiceModal({ customer, onClose }: AddServiceModalProps) {
       const { data, error } = await supabase
         .from('shop_settings')
         .select('points_per_dollar')
+        .eq('shop_id', customer.shop_id)
         .maybeSingle();
 
       if (error) throw error;
@@ -82,13 +83,12 @@ export function AddServiceModal({ customer, onClose }: AddServiceModalProps) {
       const { error: insertError } = await supabase.from('services').insert({
         vehicle_id: formData.vehicleId,
         customer_id: customer.id,
+        shop_id: customer.shop_id,
+        service_type: formData.description || 'General Service',
+        description: formData.notes || formData.description,
         service_date: formData.serviceDate,
-        description: formData.description,
         amount,
         points_earned: pointsEarned,
-        mileage_at_service: formData.mileageAtService ? parseInt(formData.mileageAtService) : null,
-        notes: formData.notes || null,
-        created_by: admin?.id || null,
       });
 
       if (insertError) throw insertError;
