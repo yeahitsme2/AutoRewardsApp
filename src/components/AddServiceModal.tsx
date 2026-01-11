@@ -106,7 +106,6 @@ export function AddServiceModal({ customer, onClose }: AddServiceModalProps) {
 
         if (vehicleUpdateError) {
           console.error('Vehicle update error:', vehicleUpdateError);
-          throw vehicleUpdateError;
         }
       }
 
