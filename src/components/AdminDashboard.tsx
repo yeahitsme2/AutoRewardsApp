@@ -491,7 +491,7 @@ export function AdminDashboard() {
                                 {vehicle.color && <p>Color: {vehicle.color}</p>}
                                 {vehicle.license_plate && <p>Plate: {vehicle.license_plate}</p>}
                                 {vehicle.vin && <p>VIN: {vehicle.vin}</p>}
-                                <p>Mileage: {vehicle.mileage.toLocaleString()}</p>
+                                {vehicle.current_mileage && <p>Mileage: {vehicle.current_mileage.toLocaleString()}</p>}
                               </div>
                             </div>
                           </div>
