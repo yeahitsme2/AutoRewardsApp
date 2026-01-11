@@ -11,7 +11,7 @@ interface AppointmentWithDetails extends Appointment {
 }
 
 export function AppointmentsManagement() {
-  const { customer: admin } = useAuth();
+  const { admin } = useAuth();
   const { brandSettings } = useBrand();
   const [appointments, setAppointments] = useState<AppointmentWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
