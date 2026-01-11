@@ -110,7 +110,12 @@ export function AddServiceModal({ customer, onClose }: AddServiceModalProps) {
       onClose();
     } catch (err: unknown) {
       console.error('Error adding service:', err);
-      const errorMessage = err instanceof Error ? err.message : 'An error occurred';
+      console.error('Error type:', typeof err);
+      console.error('Error details:', JSON.stringify(err, null, 2));
+      const errorMessage = err instanceof Error ? err.message :
+        (err && typeof err === 'object' && 'message' in err && typeof err.message === 'string')
+          ? err.message
+          : 'An error occurred while adding the service. Please try again.';
       setError(errorMessage);
     } finally {
       setLoading(false);
