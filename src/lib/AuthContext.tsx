@@ -90,6 +90,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (adminError) {
         console.error('Error checking admin:', adminError);
+        if (adminError.code === 'PGRST301' || adminError.message.includes('infinite recursion')) {
+          console.error('RLS recursion detected - this is a database policy issue');
+          setAuthError('Database configuration error. Please contact support.');
+          setLoading(false);
+          return;
+        }
       }
 
       if (adminData) {
