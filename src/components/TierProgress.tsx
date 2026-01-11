@@ -1,13 +1,15 @@
 import { Award, Crown, TrendingUp } from 'lucide-react';
 import type { Customer } from '../types/database';
 import { calculateProgressToNextTier } from '../lib/rewardsUtils';
+import { useBrand } from '../lib/BrandContext';
 
 interface TierProgressProps {
   customer: Customer;
 }
 
 export function TierProgress({ customer }: TierProgressProps) {
-  const { currentTier, nextTier, progressPercent, pointsNeeded } = calculateProgressToNextTier(customer);
+  const { brandSettings } = useBrand();
+  const { currentTier, nextTier, progressPercent, pointsNeeded } = calculateProgressToNextTier(customer, brandSettings);
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">

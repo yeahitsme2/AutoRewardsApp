@@ -402,7 +402,7 @@ export function AdminDashboard() {
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="text-xl font-semibold text-slate-900">{cust.full_name}</h3>
                         {(() => {
-                          const tierInfo = getTierInfo(cust.tier);
+                          const tierInfo = getTierInfo(cust.tier, brandSettings);
                           return (
                             <span className={`inline-flex items-center gap-1 px-2 py-1 bg-gradient-to-r ${tierInfo.gradient} text-white text-xs font-medium rounded-full`}>
                               <Crown className="w-3 h-3" />
@@ -437,7 +437,7 @@ export function AdminDashboard() {
                         <p className="text-2xl font-bold" style={{ color: brandSettings.primary_color }}>
                           {cust.reward_points} points
                         </p>
-                        <p className="text-xs text-slate-500">{getTierInfo(cust.tier).multiplier}x multiplier</p>
+                        <p className="text-xs text-slate-500">{getTierInfo(cust.tier, brandSettings).multiplier}x multiplier</p>
                       </div>
                       <div>
                         <p className="text-sm text-slate-600">Lifetime Spending</p>
@@ -446,7 +446,7 @@ export function AdminDashboard() {
                         </p>
                       </div>
                       {(() => {
-                        const tierProgress = calculateSpendingToNextTier(cust);
+                        const tierProgress = calculateSpendingToNextTier(cust, brandSettings);
                         if (tierProgress.nextTier) {
                           return (
                             <div className="bg-slate-50 rounded-lg p-2">

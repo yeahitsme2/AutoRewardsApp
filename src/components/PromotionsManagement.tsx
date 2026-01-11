@@ -569,7 +569,7 @@ export function PromotionsManagement() {
                           <div className="flex items-center gap-2">
                             <p className="font-semibold text-slate-900">{cust.full_name}</p>
                             {(() => {
-                              const tierInfo = getTierInfo(cust.tier);
+                              const tierInfo = getTierInfo(cust.tier, brandSettings);
                               return (
                                 <span
                                   className={`inline-flex items-center gap-1 px-2 py-0.5 bg-gradient-to-r ${tierInfo.gradient} text-white text-xs font-medium rounded-full`}

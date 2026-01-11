@@ -7,6 +7,14 @@ interface BrandSettings {
   primary_color: string;
   secondary_color: string;
   welcome_message: string;
+  silver_points_min: number;
+  gold_points_min: number;
+  platinum_points_min: number;
+  bronze_multiplier: number;
+  silver_multiplier: number;
+  gold_multiplier: number;
+  platinum_multiplier: number;
+  points_per_dollar: number;
 }
 
 interface BrandContextType {
@@ -20,6 +28,14 @@ const defaultBrand: BrandSettings = {
   primary_color: '#10b981',
   secondary_color: '#0f172a',
   welcome_message: 'Welcome back',
+  silver_points_min: 500,
+  gold_points_min: 1000,
+  platinum_points_min: 2500,
+  bronze_multiplier: 1.0,
+  silver_multiplier: 1.25,
+  gold_multiplier: 1.5,
+  platinum_multiplier: 2.0,
+  points_per_dollar: 10,
 };
 
 const BrandContext = createContext<BrandContextType>({
@@ -47,7 +63,7 @@ export function BrandProvider({ children }: { children: ReactNode }) {
     try {
       const { data, error } = await supabase
         .from('shop_settings')
-        .select('logo_url, primary_color, secondary_color, welcome_message')
+        .select('logo_url, primary_color, secondary_color, welcome_message, silver_points_min, gold_points_min, platinum_points_min, bronze_multiplier, silver_multiplier, gold_multiplier, platinum_multiplier, points_per_dollar')
         .eq('shop_id', shop.id)
         .maybeSingle();
 
@@ -63,6 +79,14 @@ export function BrandProvider({ children }: { children: ReactNode }) {
           primary_color: data.primary_color || defaultBrand.primary_color,
           secondary_color: data.secondary_color || defaultBrand.secondary_color,
           welcome_message: data.welcome_message || defaultBrand.welcome_message,
+          silver_points_min: data.silver_points_min || defaultBrand.silver_points_min,
+          gold_points_min: data.gold_points_min || defaultBrand.gold_points_min,
+          platinum_points_min: data.platinum_points_min || defaultBrand.platinum_points_min,
+          bronze_multiplier: Number(data.bronze_multiplier) || defaultBrand.bronze_multiplier,
+          silver_multiplier: Number(data.silver_multiplier) || defaultBrand.silver_multiplier,
+          gold_multiplier: Number(data.gold_multiplier) || defaultBrand.gold_multiplier,
+          platinum_multiplier: Number(data.platinum_multiplier) || defaultBrand.platinum_multiplier,
+          points_per_dollar: Number(data.points_per_dollar) || defaultBrand.points_per_dollar,
         };
         setBrandSettings(settings);
         applyBrandStyles(settings);
