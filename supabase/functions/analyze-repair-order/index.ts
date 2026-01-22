@@ -188,14 +188,38 @@ async function analyzeRepairOrderBuffer(buffer: ArrayBuffer): Promise<{ data: An
     console.log('Extracting text from PDF buffer...');
     const pdfText = await extractTextFromPDF(buffer);
     console.log('Extracted text length:', pdfText.length);
+
+    if (pdfText.length === 0) {
+      console.log('No text extracted - PDF may be image-based or encrypted');
+      return {
+        data: getFallbackData(),
+        debug: {
+          textLength: 0,
+          message: 'No text extracted from PDF. This may be an image-based (scanned) PDF that requires OCR, or an encrypted PDF. Please enter data manually.'
+        }
+      };
+    }
+
     console.log('First 1000 chars:', pdfText.substring(0, 1000));
-    console.log('Full text (first 2000 chars):', pdfText.substring(0, 2000));
 
     const data = extractDataFromText(pdfText);
     console.log('Extracted data:', JSON.stringify(data, null, 2));
 
+    const hasData = Object.keys(data).length > 0;
+    if (!hasData) {
+      console.log('No data could be extracted from text');
+      return {
+        data: getFallbackData(),
+        debug: {
+          textLength: pdfText.length,
+          textPreview: pdfText.substring(0, 500),
+          message: 'Text was extracted but no recognizable data patterns were found. Please enter data manually.'
+        }
+      };
+    }
+
     return {
-      data,
+      data: { ...getFallbackData(), ...data },
       debug: {
         textLength: pdfText.length,
         textPreview: pdfText.substring(0, 500),
