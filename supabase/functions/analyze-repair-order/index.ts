@@ -110,7 +110,7 @@ Deno.serve(async (req: Request) => {
     }
 
     console.log('Analyzing PDF from URL:', file_url);
-    const result = await analyzeRepairOrderFromUrl(file_url);
+    const result = await analyzeRepairOrderFromUrl(file_url, supabase);
 
     return new Response(
       JSON.stringify({
@@ -142,20 +142,35 @@ Deno.serve(async (req: Request) => {
   }
 });
 
-async function analyzeRepairOrderFromUrl(fileUrl: string): Promise<{ data: AnalyzedData; debug?: any }> {
+async function analyzeRepairOrderFromUrl(fileUrl: string, supabase: any): Promise<{ data: AnalyzedData; debug?: any }> {
   try {
     console.log('Fetching PDF from URL...');
-    const response = await fetch(fileUrl);
 
-    if (!response.ok) {
-      console.error('Failed to fetch PDF:', response.status, response.statusText);
+    const urlParts = fileUrl.split('/repair-orders/');
+    if (urlParts.length !== 2) {
+      console.error('Invalid URL format');
       return {
         data: getFallbackData(),
-        debug: { error: 'Failed to fetch PDF', status: response.status }
+        debug: { error: 'Invalid URL format' }
       };
     }
 
-    const buffer = await response.arrayBuffer();
+    const filePath = urlParts[1];
+    console.log('Downloading file from storage:', filePath);
+
+    const { data: fileData, error } = await supabase.storage
+      .from('repair-orders')
+      .download(filePath);
+
+    if (error) {
+      console.error('Failed to download file:', error);
+      return {
+        data: getFallbackData(),
+        debug: { error: 'Failed to download file', details: error }
+      };
+    }
+
+    const buffer = await fileData.arrayBuffer();
     console.log('PDF buffer size:', buffer.byteLength);
 
     return await analyzeRepairOrderBuffer(buffer);
