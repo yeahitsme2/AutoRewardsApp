@@ -164,7 +164,8 @@ async function analyzeRepairOrderBuffer(buffer: ArrayBuffer): Promise<AnalyzedDa
     console.log('Extracting text from PDF buffer...');
     const pdfText = await extractTextFromPDF(buffer);
     console.log('Extracted text length:', pdfText.length);
-    console.log('First 500 chars:', pdfText.substring(0, 500));
+    console.log('First 1000 chars:', pdfText.substring(0, 1000));
+    console.log('Full text (first 2000 chars):', pdfText.substring(0, 2000));
 
     const data = extractDataFromText(pdfText);
     console.log('Extracted data:', JSON.stringify(data, null, 2));
