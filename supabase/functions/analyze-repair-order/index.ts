@@ -129,7 +129,9 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({
         success: true,
         data: getFallbackData(),
-        message: 'Analysis failed, returning default data for manual entry'
+        message: 'Analysis failed, returning default data for manual entry',
+        error: error.message || String(error),
+        stack: error.stack
       }),
       {
         status: 200,
