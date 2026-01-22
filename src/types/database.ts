@@ -481,6 +481,53 @@ export interface Database {
           updated_at?: string;
         };
       };
+      repair_orders: {
+        Row: {
+          id: string;
+          shop_id: string;
+          customer_id: string;
+          vehicle_id: string | null;
+          service_date: string;
+          file_url: string;
+          total_amount: number;
+          parts_cost: number;
+          labor_cost: number;
+          service_writer: string;
+          notes: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          shop_id: string;
+          customer_id: string;
+          vehicle_id?: string | null;
+          service_date?: string;
+          file_url: string;
+          total_amount?: number;
+          parts_cost?: number;
+          labor_cost?: number;
+          service_writer?: string;
+          notes?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          shop_id?: string;
+          customer_id?: string;
+          vehicle_id?: string | null;
+          service_date?: string;
+          file_url?: string;
+          total_amount?: number;
+          parts_cost?: number;
+          labor_cost?: number;
+          service_writer?: string;
+          notes?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
   };
 }
@@ -497,3 +544,4 @@ export type RewardRedemption = Database['public']['Tables']['reward_redemptions'
 export type Promotion = Database['public']['Tables']['promotions']['Row'];
 export type CustomerPromotion = Database['public']['Tables']['customer_promotions']['Row'];
 export type Appointment = Database['public']['Tables']['appointments']['Row'];
+export type RepairOrder = Database['public']['Tables']['repair_orders']['Row'];
