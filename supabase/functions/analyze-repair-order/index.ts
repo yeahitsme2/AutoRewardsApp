@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import pdfParse from 'npm:pdf-parse@1.1.1';
+import * as pdfjsLib from 'npm:pdfjs-dist@4.0.379';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -180,14 +180,30 @@ async function analyzeRepairOrderBuffer(buffer: ArrayBuffer): Promise<AnalyzedDa
 async function extractTextFromPDF(buffer: ArrayBuffer): Promise<string> {
   try {
     const uint8Array = new Uint8Array(buffer);
-    const bufferNode = Buffer.from(uint8Array);
 
-    const data = await pdfParse(bufferNode);
-    console.log('PDF parsed successfully. Pages:', data.numpages);
+    const loadingTask = pdfjsLib.getDocument({ data: uint8Array });
+    const pdf = await loadingTask.promise;
 
-    return data.text;
+    console.log('PDF loaded successfully. Pages:', pdf.numPages);
+
+    let fullText = '';
+
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const textContent = await page.getTextContent();
+
+      const pageText = textContent.items
+        .map((item: any) => item.str)
+        .join(' ');
+
+      fullText += pageText + '\n';
+    }
+
+    console.log('Extracted text length:', fullText.length);
+
+    return fullText;
   } catch (error) {
-    console.error('Error extracting text from PDF with pdf-parse:', error);
+    console.error('Error extracting text from PDF with pdfjs-dist:', error);
     return '';
   }
 }
