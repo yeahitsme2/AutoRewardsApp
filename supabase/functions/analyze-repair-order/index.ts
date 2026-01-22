@@ -110,12 +110,13 @@ Deno.serve(async (req: Request) => {
     }
 
     console.log('Analyzing PDF from URL:', file_url);
-    const analyzedData = await analyzeRepairOrderFromUrl(file_url);
+    const result = await analyzeRepairOrderFromUrl(file_url);
 
     return new Response(
       JSON.stringify({
         success: true,
-        data: analyzedData,
+        data: result.data,
+        debug: result.debug,
       }),
       {
         status: 200,
@@ -141,14 +142,17 @@ Deno.serve(async (req: Request) => {
   }
 });
 
-async function analyzeRepairOrderFromUrl(fileUrl: string): Promise<AnalyzedData> {
+async function analyzeRepairOrderFromUrl(fileUrl: string): Promise<{ data: AnalyzedData; debug?: any }> {
   try {
     console.log('Fetching PDF from URL...');
     const response = await fetch(fileUrl);
 
     if (!response.ok) {
       console.error('Failed to fetch PDF:', response.status, response.statusText);
-      return getFallbackData();
+      return {
+        data: getFallbackData(),
+        debug: { error: 'Failed to fetch PDF', status: response.status }
+      };
     }
 
     const buffer = await response.arrayBuffer();
@@ -157,11 +161,14 @@ async function analyzeRepairOrderFromUrl(fileUrl: string): Promise<AnalyzedData>
     return await analyzeRepairOrderBuffer(buffer);
   } catch (error) {
     console.error('Error fetching file:', error);
-    return getFallbackData();
+    return {
+      data: getFallbackData(),
+      debug: { error: String(error) }
+    };
   }
 }
 
-async function analyzeRepairOrderBuffer(buffer: ArrayBuffer): Promise<AnalyzedData> {
+async function analyzeRepairOrderBuffer(buffer: ArrayBuffer): Promise<{ data: AnalyzedData; debug?: any }> {
   try {
     console.log('Extracting text from PDF buffer...');
     const pdfText = await extractTextFromPDF(buffer);
@@ -172,10 +179,20 @@ async function analyzeRepairOrderBuffer(buffer: ArrayBuffer): Promise<AnalyzedDa
     const data = extractDataFromText(pdfText);
     console.log('Extracted data:', JSON.stringify(data, null, 2));
 
-    return data;
+    return {
+      data,
+      debug: {
+        textLength: pdfText.length,
+        textPreview: pdfText.substring(0, 500),
+        extractedData: data
+      }
+    };
   } catch (error) {
     console.error('Error analyzing PDF:', error);
-    return getFallbackData();
+    return {
+      data: getFallbackData(),
+      debug: { error: String(error), message: 'Failed to extract text from PDF' }
+    };
   }
 }
 
