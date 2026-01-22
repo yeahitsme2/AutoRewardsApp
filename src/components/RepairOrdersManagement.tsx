@@ -236,6 +236,8 @@ export function RepairOrdersManagement() {
           .getPublicUrl(filePath);
 
         const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-repair-order`;
+        console.log('Calling analyze function with URL:', urlData.publicUrl);
+
         const response = await fetch(apiUrl, {
           method: 'POST',
           headers: {
@@ -248,12 +250,17 @@ export function RepairOrdersManagement() {
           })
         });
 
+        console.log('Response status:', response.status);
+        const responseText = await response.text();
+        console.log('Response body:', responseText);
+
         if (!response.ok) {
-          throw new Error('Failed to analyze PDF');
+          throw new Error(`Failed to analyze PDF: ${response.status} - ${responseText}`);
         }
 
-        const result = await response.json();
+        const result = JSON.parse(responseText);
         const analyzedData: AnalyzedData = result.data;
+        console.log('Analyzed data:', analyzedData);
 
         let matchedCustomer: Customer | undefined;
         let matchedVehicle: Vehicle | undefined;

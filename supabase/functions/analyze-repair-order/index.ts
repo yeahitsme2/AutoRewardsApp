@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import * as pdfjsLib from 'npm:pdfjs-dist@4.0.379';
+import { extractText } from 'npm:unpdf@0.11.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -180,30 +180,16 @@ async function analyzeRepairOrderBuffer(buffer: ArrayBuffer): Promise<AnalyzedDa
 async function extractTextFromPDF(buffer: ArrayBuffer): Promise<string> {
   try {
     const uint8Array = new Uint8Array(buffer);
+    console.log('Attempting to extract text from PDF using unpdf...');
 
-    const loadingTask = pdfjsLib.getDocument({ data: uint8Array });
-    const pdf = await loadingTask.promise;
+    const { text } = await extractText(uint8Array);
 
-    console.log('PDF loaded successfully. Pages:', pdf.numPages);
+    console.log('Successfully extracted text, length:', text.length);
+    console.log('Text preview:', text.substring(0, 500));
 
-    let fullText = '';
-
-    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-      const page = await pdf.getPage(pageNum);
-      const textContent = await page.getTextContent();
-
-      const pageText = textContent.items
-        .map((item: any) => item.str)
-        .join(' ');
-
-      fullText += pageText + '\n';
-    }
-
-    console.log('Extracted text length:', fullText.length);
-
-    return fullText;
+    return text;
   } catch (error) {
-    console.error('Error extracting text from PDF with pdfjs-dist:', error);
+    console.error('Error extracting text from PDF with unpdf:', error);
     return '';
   }
 }
