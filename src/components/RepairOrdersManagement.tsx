@@ -49,6 +49,7 @@ export function RepairOrdersManagement() {
   const [uploadItems, setUploadItems] = useState<UploadItem[]>([]);
   const [processing, setProcessing] = useState(false);
   const [splitMultiPagePDFs, setSplitMultiPagePDFs] = useState(true);
+  const [filterStatus, setFilterStatus] = useState<'all' | 'matched' | 'unmatched'>('all');
 
   useEffect(() => {
     loadRepairOrders();
@@ -345,12 +346,7 @@ export function RepairOrdersManagement() {
       const item = uploadItems[i];
 
       if (item.status === 'complete' || item.status === 'error') continue;
-      if (!item.selectedCustomerId) {
-        setUploadItems(prev => prev.map((itm, idx) =>
-          idx === i ? { ...itm, status: 'error', error: 'No customer selected' } : itm
-        ));
-        continue;
-      }
+      const isOrphaned = !item.selectedCustomerId;
 
       setUploadItems(prev => prev.map((itm, idx) =>
         idx === i ? { ...itm, status: 'uploading' } : itm
@@ -377,7 +373,7 @@ export function RepairOrdersManagement() {
 
         const { error: insertError } = await supabase.from('repair_orders').insert({
           shop_id: shop?.id!,
-          customer_id: item.selectedCustomerId,
+          customer_id: item.selectedCustomerId || null,
           vehicle_id: item.selectedVehicleId || null,
           service_date: item.analyzed?.service_date || new Date().toISOString().split('T')[0],
           file_url: item.fileUrl,
@@ -386,6 +382,15 @@ export function RepairOrdersManagement() {
           labor_cost: item.analyzed?.labor_cost || 0,
           service_writer: item.analyzed?.service_writer || '',
           notes: '',
+          temp_customer_name: isOrphaned ? item.analyzed?.customer_name || null : null,
+          temp_customer_phone: isOrphaned ? item.analyzed?.customer_phone || null : null,
+          temp_customer_email: isOrphaned ? item.analyzed?.customer_email || null : null,
+          temp_vin: isOrphaned ? item.analyzed?.vin || null : null,
+          temp_license_plate: isOrphaned ? item.analyzed?.license_plate || null : null,
+          temp_vehicle_year: isOrphaned ? item.analyzed?.vehicle_year || null : null,
+          temp_vehicle_make: isOrphaned ? item.analyzed?.vehicle_make || null : null,
+          temp_vehicle_model: isOrphaned ? item.analyzed?.vehicle_model || null : null,
+          is_matched: !isOrphaned,
         });
 
         if (insertError) throw insertError;
@@ -519,6 +524,39 @@ export function RepairOrdersManagement() {
         </button>
       </div>
 
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={() => setFilterStatus('all')}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            filterStatus === 'all'
+              ? 'bg-blue-500 text-white'
+              : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
+          }`}
+        >
+          All Orders ({repairOrders.length})
+        </button>
+        <button
+          onClick={() => setFilterStatus('matched')}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            filterStatus === 'matched'
+              ? 'bg-blue-500 text-white'
+              : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
+          }`}
+        >
+          Matched ({repairOrders.filter(ro => ro.is_matched).length})
+        </button>
+        <button
+          onClick={() => setFilterStatus('unmatched')}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            filterStatus === 'unmatched'
+              ? 'bg-blue-500 text-white'
+              : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
+          }`}
+        >
+          Pending Match ({repairOrders.filter(ro => !ro.is_matched).length})
+        </button>
+      </div>
+
       {repairOrders.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
           <FileText className="w-16 h-16 text-slate-300 mx-auto mb-4" />
@@ -534,7 +572,13 @@ export function RepairOrdersManagement() {
         </div>
       ) : (
         <div className="space-y-4">
-          {repairOrders.map((order) => (
+          {repairOrders
+            .filter(order => {
+              if (filterStatus === 'matched') return order.is_matched;
+              if (filterStatus === 'unmatched') return !order.is_matched;
+              return true;
+            })
+            .map((order) => (
             <div
               key={order.id}
               className="bg-white rounded-xl shadow-sm border border-slate-200 p-6"
@@ -546,17 +590,41 @@ export function RepairOrdersManagement() {
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-bold text-slate-900">{order.customer.full_name}</h3>
+                      {order.is_matched ? (
+                        <h3 className="text-lg font-bold text-slate-900">{order.customer?.full_name || 'Unknown Customer'}</h3>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-lg font-bold text-orange-600">
+                            {order.temp_customer_name || 'Pending Customer Match'}
+                          </h3>
+                          <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-medium rounded">
+                            Unmatched
+                          </span>
+                        </div>
+                      )}
                       <span className="text-sm text-slate-500">|</span>
                       <div className="flex items-center gap-1 text-slate-600">
                         <Calendar className="w-4 h-4" />
                         {new Date(order.service_date).toLocaleDateString()}
                       </div>
                     </div>
-                    {order.vehicle && (
+                    {order.is_matched && order.vehicle && (
                       <p className="text-slate-600 mb-2">
                         {order.vehicle.year} {order.vehicle.make} {order.vehicle.model}
                       </p>
+                    )}
+                    {!order.is_matched && (
+                      <div className="text-sm text-slate-600 mb-2 space-y-1">
+                        {order.temp_customer_phone && <div>Phone: {order.temp_customer_phone}</div>}
+                        {order.temp_customer_email && <div>Email: {order.temp_customer_email}</div>}
+                        {order.temp_vin && <div>VIN: {order.temp_vin}</div>}
+                        {order.temp_vehicle_year && order.temp_vehicle_make && order.temp_vehicle_model && (
+                          <div>Vehicle: {order.temp_vehicle_year} {order.temp_vehicle_make} {order.temp_vehicle_model}</div>
+                        )}
+                        <div className="text-orange-600 font-medium mt-2">
+                          This order will auto-match when customer signs up
+                        </div>
+                      </div>
                     )}
                     {order.notes && (
                       <p className="text-sm text-slate-500 mb-2">{order.notes}</p>
@@ -722,15 +790,16 @@ export function RepairOrdersManagement() {
                                 <div className="grid grid-cols-2 gap-2">
                                   <div>
                                     <label className="block text-xs font-medium text-slate-700 mb-1">
-                                      Customer {!item.matchedCustomer && '*'}
+                                      Customer
                                     </label>
                                     <select
-                                      value={item.selectedCustomerId || ''}
-                                      onChange={(e) => updateItemCustomer(index, e.target.value)}
+                                      value={item.selectedCustomerId || 'orphan'}
+                                      onChange={(e) => updateItemCustomer(index, e.target.value === 'orphan' ? '' : e.target.value)}
                                       className="w-full px-2 py-1 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
                                       disabled={processing}
                                     >
-                                      <option value="">Select customer</option>
+                                      <option value="orphan">Store for Later Matching</option>
+                                      <option disabled>──────────</option>
                                       {customers.map(c => (
                                         <option key={c.id} value={c.id}>
                                           {c.full_name}
@@ -739,28 +808,41 @@ export function RepairOrdersManagement() {
                                     </select>
                                   </div>
 
-                                  {item.selectedCustomerId && (
-                                    <div>
-                                      <label className="block text-xs font-medium text-slate-700 mb-1">
-                                        Vehicle (Optional)
-                                      </label>
-                                      <select
-                                        value={item.selectedVehicleId || ''}
-                                        onChange={(e) => updateItemVehicle(index, e.target.value)}
-                                        className="w-full px-2 py-1 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
-                                        disabled={processing}
-                                      >
-                                        <option value="">No vehicle</option>
-                                        {allVehicles
-                                          .filter(v => v.customer_id === item.selectedCustomerId)
+                                  <div>
+                                    {item.selectedCustomerId ? (
+                                      <>
+                                        <label className="block text-xs font-medium text-slate-700 mb-1">
+                                          Vehicle (Optional)
+                                        </label>
+                                        <select
+                                          value={item.selectedVehicleId || ''}
+                                          onChange={(e) => updateItemVehicle(index, e.target.value)}
+                                          className="w-full px-2 py-1 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                                          disabled={processing}
+                                        >
+                                          <option value="">No vehicle</option>
+                                          {allVehicles
+                                            .filter(v => v.customer_id === item.selectedCustomerId)
                                           .map(v => (
                                             <option key={v.id} value={v.id}>
                                               {v.year} {v.make} {v.model}
                                             </option>
                                           ))}
-                                      </select>
-                                    </div>
-                                  )}
+                                        </select>
+                                      </>
+                                    ) : (
+                                      <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
+                                        <p className="font-medium mb-1">Will store for later matching:</p>
+                                        {item.analyzed?.customer_name && <div>• Name: {item.analyzed.customer_name}</div>}
+                                        {item.analyzed?.customer_phone && <div>• Phone: {item.analyzed.customer_phone}</div>}
+                                        {item.analyzed?.customer_email && <div>• Email: {item.analyzed.customer_email}</div>}
+                                        {item.analyzed?.vin && <div>• VIN: {item.analyzed.vin}</div>}
+                                        {item.analyzed?.vehicle_year && item.analyzed?.vehicle_make && item.analyzed?.vehicle_model && (
+                                          <div>• Vehicle: {item.analyzed.vehicle_year} {item.analyzed.vehicle_make} {item.analyzed.vehicle_model}</div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
 
                                 <div className="text-xs text-slate-600 bg-slate-50 p-2 rounded">

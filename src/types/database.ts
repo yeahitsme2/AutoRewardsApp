@@ -485,7 +485,7 @@ export interface Database {
         Row: {
           id: string;
           shop_id: string;
-          customer_id: string;
+          customer_id: string | null;
           vehicle_id: string | null;
           service_date: string;
           file_url: string;
@@ -494,13 +494,22 @@ export interface Database {
           labor_cost: number;
           service_writer: string;
           notes: string;
+          temp_customer_name: string | null;
+          temp_customer_phone: string | null;
+          temp_customer_email: string | null;
+          temp_vin: string | null;
+          temp_license_plate: string | null;
+          temp_vehicle_year: number | null;
+          temp_vehicle_make: string | null;
+          temp_vehicle_model: string | null;
+          is_matched: boolean;
           created_at: string;
           updated_at: string;
         };
         Insert: {
           id?: string;
           shop_id: string;
-          customer_id: string;
+          customer_id?: string | null;
           vehicle_id?: string | null;
           service_date?: string;
           file_url: string;
@@ -509,13 +518,22 @@ export interface Database {
           labor_cost?: number;
           service_writer?: string;
           notes?: string;
+          temp_customer_name?: string | null;
+          temp_customer_phone?: string | null;
+          temp_customer_email?: string | null;
+          temp_vin?: string | null;
+          temp_license_plate?: string | null;
+          temp_vehicle_year?: number | null;
+          temp_vehicle_make?: string | null;
+          temp_vehicle_model?: string | null;
+          is_matched?: boolean;
           created_at?: string;
           updated_at?: string;
         };
         Update: {
           id?: string;
           shop_id?: string;
-          customer_id?: string;
+          customer_id?: string | null;
           vehicle_id?: string | null;
           service_date?: string;
           file_url?: string;
@@ -524,6 +542,15 @@ export interface Database {
           labor_cost?: number;
           service_writer?: string;
           notes?: string;
+          temp_customer_name?: string | null;
+          temp_customer_phone?: string | null;
+          temp_customer_email?: string | null;
+          temp_vin?: string | null;
+          temp_license_plate?: string | null;
+          temp_vehicle_year?: number | null;
+          temp_vehicle_make?: string | null;
+          temp_vehicle_model?: string | null;
+          is_matched?: boolean;
           created_at?: string;
           updated_at?: string;
         };
