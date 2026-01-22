@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useShop } from '../lib/ShopContext';
-import { FileText, Upload, X, Plus, Calendar, DollarSign, Wrench, Trash2, Download, Eye, CheckCircle, AlertCircle, Loader, Edit2 } from 'lucide-react';
+import { FileText, Upload, X, Plus, Calendar, DollarSign, Wrench, Trash2, Download, Eye, CheckCircle, AlertCircle, Loader, CreditCard as Edit2 } from 'lucide-react';
 import type { RepairOrder, Customer, Vehicle } from '../types/database';
 
 interface RepairOrderWithDetails extends RepairOrder {
