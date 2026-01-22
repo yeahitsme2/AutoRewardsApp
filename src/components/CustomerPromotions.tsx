@@ -8,6 +8,10 @@ interface PromotionWithStatus extends Promotion {
   customer_promotion: CustomerPromotion;
 }
 
+interface CustomerPromotionWithPromotion extends CustomerPromotion {
+  promotion: Promotion | null;
+}
+
 export function CustomerPromotions() {
   const { customer } = useAuth();
   const [promotions, setPromotions] = useState<PromotionWithStatus[]>([]);
@@ -32,9 +36,8 @@ export function CustomerPromotions() {
     try {
       const { data: customerPromos, error: cpError } = await supabase
         .from('customer_promotions')
-        .select('*')
-        .eq('customer_id', customer.id)
-        .order('assigned_at', { ascending: false });
+        .select('*, promotion:promotions(*)')
+        .eq('customer_id', customer.id);
 
       if (cpError) throw cpError;
 
@@ -44,25 +47,24 @@ export function CustomerPromotions() {
         return;
       }
 
-      const promoIds = customerPromos.map((cp) => cp.promotion_id);
-      const { data: promoData, error: promoError } = await supabase
-        .from('promotions')
-        .select('*')
-        .in('id', promoIds);
-
-      if (promoError) throw promoError;
-
-      const promosWithStatus: PromotionWithStatus[] = (promoData || [])
-        .map((promo) => {
-          const cp = customerPromos.find((cp) => cp.promotion_id === promo.id);
-          return cp ? { ...promo, customer_promotion: cp } : null;
-        })
+      const promosWithStatus: PromotionWithStatus[] = (customerPromos as CustomerPromotionWithPromotion[])
+        .map((cp) => (cp.promotion ? { ...cp.promotion, customer_promotion: cp } : null))
         .filter((p): p is PromotionWithStatus => p !== null)
-        .sort(
-          (a, b) =>
-            new Date(b.customer_promotion.assigned_at).getTime() -
-            new Date(a.customer_promotion.assigned_at).getTime()
-        );
+        .sort((a, b) => {
+          const aDate = new Date(
+            a.customer_promotion.assigned_at ||
+              (a.customer_promotion as any).sent_at ||
+              a.customer_promotion.used_at ||
+              0
+          ).getTime();
+          const bDate = new Date(
+            b.customer_promotion.assigned_at ||
+              (b.customer_promotion as any).sent_at ||
+              b.customer_promotion.used_at ||
+              0
+          ).getTime();
+          return bDate - aDate;
+        });
 
       setPromotions(promosWithStatus);
     } catch (error) {
@@ -94,9 +96,13 @@ export function CustomerPromotions() {
       case 'percentage':
         return <Percent className="w-5 h-5" />;
       case 'fixed':
+      case 'fixed_amount':
         return <DollarSign className="w-5 h-5" />;
       case 'points_multiplier':
+      case 'points_bonus':
         return <Sparkles className="w-5 h-5" />;
+      case 'free_service':
+        return <Tag className="w-5 h-5" />;
       default:
         return <Tag className="w-5 h-5" />;
     }
@@ -107,9 +113,13 @@ export function CustomerPromotions() {
       case 'percentage':
         return `${promo.discount_value}% off`;
       case 'fixed':
+      case 'fixed_amount':
         return `$${promo.discount_value} off`;
       case 'points_multiplier':
+      case 'points_bonus':
         return `${promo.discount_value}x points multiplier`;
+      case 'free_service':
+        return 'Free service';
       default:
         return '';
     }

@@ -25,23 +25,28 @@ export function CustomerRewards() {
 
   const loadData = async () => {
     try {
-      const [rewardsResult, redemptionsResult] = await Promise.all([
-        supabase
-          .from('reward_items')
-          .select('*')
-          .eq('is_active', true)
-          .order('points_required', { ascending: true }),
-        supabase
-          .from('reward_redemptions')
-          .select('*, reward_item:reward_items(*)')
-          .order('created_at', { ascending: false }),
-      ]);
+      const rewardsResult = await supabase
+        .from('reward_items')
+        .select('*')
+        .eq('is_active', true)
+        .order('points_required', { ascending: true });
 
-      if (rewardsResult.error) throw rewardsResult.error;
-      if (redemptionsResult.error) throw redemptionsResult.error;
+      if (rewardsResult.error) {
+        console.error('Error loading rewards:', rewardsResult.error);
+      } else {
+        setRewards(rewardsResult.data || []);
+      }
 
-      setRewards(rewardsResult.data || []);
-      setRedemptions(redemptionsResult.data as RedemptionWithReward[] || []);
+      const redemptionsResult = await supabase
+        .from('reward_redemptions')
+        .select('*, reward_item:reward_items(*)')
+        .order('created_at', { ascending: false });
+
+      if (redemptionsResult.error) {
+        console.error('Error loading redemptions:', redemptionsResult.error);
+      } else {
+        setRedemptions(redemptionsResult.data as RedemptionWithReward[] || []);
+      }
     } catch (error) {
       console.error('Error loading rewards:', error);
     } finally {
