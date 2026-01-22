@@ -48,6 +48,7 @@ export function RepairOrdersManagement() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadItems, setUploadItems] = useState<UploadItem[]>([]);
   const [processing, setProcessing] = useState(false);
+  const [splitMultiPagePDFs, setSplitMultiPagePDFs] = useState(true);
 
   useEffect(() => {
     loadRepairOrders();
@@ -99,7 +100,7 @@ export function RepairOrdersManagement() {
     }
   };
 
-  const handleFilesSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFilesSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     const pdfFiles = files.filter(file => file.type === 'application/pdf');
 
@@ -108,12 +109,101 @@ export function RepairOrdersManagement() {
       return;
     }
 
-    const newItems: UploadItem[] = pdfFiles.map(file => ({
-      file,
-      status: 'pending'
-    }));
+    if (splitMultiPagePDFs) {
+      setProcessing(true);
 
-    setUploadItems(prev => [...prev, ...newItems]);
+      for (const file of pdfFiles) {
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('shop_id', shop?.id || '');
+
+          const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/split-repair-order-pdf`;
+          const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            },
+            body: formData
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to split PDF');
+          }
+
+          const result = await response.json();
+
+          if (result.success && result.results) {
+            const newItems: UploadItem[] = result.results.map((item: any) => ({
+              file: new File([], `split_${file.name}`, { type: 'application/pdf' }),
+              status: 'matched',
+              analyzed: item.analyzed,
+              fileUrl: item.file_url,
+              selectedCustomerId: undefined,
+              selectedVehicleId: undefined
+            }));
+
+            for (const item of newItems) {
+              if (item.analyzed?.vin) {
+                const vehicle = allVehicles.find(v =>
+                  v.vin?.toLowerCase() === item.analyzed?.vin?.toLowerCase()
+                );
+                if (vehicle) {
+                  item.matchedVehicle = vehicle;
+                  item.matchedCustomer = customers.find(c => c.id === vehicle.customer_id);
+                  item.selectedCustomerId = item.matchedCustomer?.id;
+                  item.selectedVehicleId = vehicle.id;
+                }
+              }
+
+              if (!item.matchedCustomer && item.analyzed?.customer_phone) {
+                const phone = item.analyzed.customer_phone.replace(/\D/g, '');
+                const customer = customers.find(c =>
+                  c.phone?.replace(/\D/g, '') === phone
+                );
+                if (customer) {
+                  item.matchedCustomer = customer;
+                  item.selectedCustomerId = customer.id;
+                }
+              }
+
+              if (!item.matchedCustomer && item.analyzed?.customer_email) {
+                const customer = customers.find(c =>
+                  c.email?.toLowerCase() === item.analyzed?.customer_email?.toLowerCase()
+                );
+                if (customer) {
+                  item.matchedCustomer = customer;
+                  item.selectedCustomerId = customer.id;
+                }
+              }
+
+              if (!item.selectedCustomerId) {
+                item.status = 'manual';
+              }
+            }
+
+            setUploadItems(prev => [...prev, ...newItems]);
+          }
+        } catch (error: any) {
+          console.error('Error splitting PDF:', error);
+          const newItems: UploadItem[] = [{
+            file,
+            status: 'error',
+            error: 'Failed to split PDF. Try uploading without split option.'
+          }];
+          setUploadItems(prev => [...prev, ...newItems]);
+        }
+      }
+
+      setProcessing(false);
+    } else {
+      const newItems: UploadItem[] = pdfFiles.map(file => ({
+        file,
+        status: 'pending'
+      }));
+
+      setUploadItems(prev => [...prev, ...newItems]);
+    }
   };
 
   const analyzeAndMatch = async () => {
@@ -323,6 +413,7 @@ export function RepairOrdersManagement() {
       alert('All repair orders uploaded successfully!');
       setShowUploadModal(false);
       setUploadItems([]);
+      setSplitMultiPagePDFs(true);
       loadRepairOrders();
     }
   };
@@ -529,6 +620,7 @@ export function RepairOrdersManagement() {
                 onClick={() => {
                   setShowUploadModal(false);
                   setUploadItems([]);
+                  setSplitMultiPagePDFs(true);
                 }}
                 className="text-slate-400 hover:text-slate-600"
               >
@@ -549,11 +641,30 @@ export function RepairOrdersManagement() {
                     multiple
                     onChange={handleFilesSelect}
                     className="hidden"
+                    disabled={processing}
                   />
                 </label>
                 <p className="text-sm text-slate-500 mt-2">
                   Upload multiple repair orders at once
                 </p>
+
+                <div className="mt-4 pt-4 border-t border-slate-200">
+                  <label className="flex items-center justify-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={splitMultiPagePDFs}
+                      onChange={(e) => setSplitMultiPagePDFs(e.target.checked)}
+                      disabled={processing || uploadItems.length > 0}
+                      className="w-4 h-4 text-blue-500 rounded border-slate-300 focus:ring-2 focus:ring-blue-500"
+                    />
+                    <span className="text-sm font-medium text-slate-700">
+                      Automatically split multi-page PDFs into individual repair orders
+                    </span>
+                  </label>
+                  <p className="text-xs text-slate-500 mt-2">
+                    Enable this if your PDF contains multiple repair orders scanned together
+                  </p>
+                </div>
               </div>
 
               {uploadItems.length > 0 && (
@@ -696,6 +807,7 @@ export function RepairOrdersManagement() {
                       onClick={() => {
                         setShowUploadModal(false);
                         setUploadItems([]);
+                        setSplitMultiPagePDFs(true);
                       }}
                       disabled={processing}
                       className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors"
