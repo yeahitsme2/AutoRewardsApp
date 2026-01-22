@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
-import { Tag, Calendar, Percent, DollarSign, Sparkles, Gift, Check, X } from 'lucide-react';
+import { Tag, Calendar, Percent, DollarSign, Sparkles, Check, X } from 'lucide-react';
 import type { Promotion, CustomerPromotion } from '../types/database';
 
 interface PromotionWithStatus extends Promotion {
@@ -14,26 +14,17 @@ export function CustomerPromotions() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadPromotions();
-    markPromotionsAsRead();
-  }, [customer]);
-
-  const markPromotionsAsRead = async () => {
-    if (!customer) return;
-
-    try {
-      await supabase
-        .from('customer_promotions')
-        .update({
-          is_read: true,
-          read_at: new Date().toISOString()
-        })
-        .eq('customer_id', customer.id)
-        .eq('is_read', false);
-    } catch (error) {
-      console.error('Error marking promotions as read:', error);
+    if (!customer) {
+      return;
     }
-  };
+
+    loadPromotions();
+    const interval = setInterval(() => {
+      loadPromotions();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [customer]);
 
   const loadPromotions = async () => {
     if (!customer) return;
@@ -43,7 +34,7 @@ export function CustomerPromotions() {
         .from('customer_promotions')
         .select('*')
         .eq('customer_id', customer.id)
-        .order('sent_at', { ascending: false });
+        .order('assigned_at', { ascending: false });
 
       if (cpError) throw cpError;
 
@@ -69,8 +60,8 @@ export function CustomerPromotions() {
         .filter((p): p is PromotionWithStatus => p !== null)
         .sort(
           (a, b) =>
-            new Date(b.customer_promotion.sent_at).getTime() -
-            new Date(a.customer_promotion.sent_at).getTime()
+            new Date(b.customer_promotion.assigned_at).getTime() -
+            new Date(a.customer_promotion.assigned_at).getTime()
         );
 
       setPromotions(promosWithStatus);
@@ -102,12 +93,10 @@ export function CustomerPromotions() {
     switch (type) {
       case 'percentage':
         return <Percent className="w-5 h-5" />;
-      case 'fixed_amount':
+      case 'fixed':
         return <DollarSign className="w-5 h-5" />;
-      case 'points_bonus':
+      case 'points_multiplier':
         return <Sparkles className="w-5 h-5" />;
-      case 'free_service':
-        return <Gift className="w-5 h-5" />;
       default:
         return <Tag className="w-5 h-5" />;
     }
@@ -117,18 +106,17 @@ export function CustomerPromotions() {
     switch (promo.discount_type) {
       case 'percentage':
         return `${promo.discount_value}% off`;
-      case 'fixed_amount':
+      case 'fixed':
         return `$${promo.discount_value} off`;
-      case 'points_bonus':
+      case 'points_multiplier':
         return `${promo.discount_value}x points multiplier`;
-      case 'free_service':
-        return 'Free service';
       default:
         return '';
     }
   };
 
-  const isExpired = (validUntil: string) => {
+  const isExpired = (validUntil: string | null) => {
+    if (!validUntil) return false;
     return new Date(validUntil) < new Date();
   };
 
@@ -195,18 +183,12 @@ export function CustomerPromotions() {
                         </p>
                         <p className="text-sm text-slate-700 mb-3">{promo.description}</p>
 
-                        {promo.promo_code && (
-                          <div className="bg-slate-50 rounded-lg px-3 py-2 mb-3">
-                            <p className="text-xs text-slate-600 mb-1">Promo Code</p>
-                            <p className="font-mono font-bold text-slate-900">{promo.promo_code}</p>
-                          </div>
-                        )}
-
                         <div className="flex items-center gap-1 text-sm text-slate-600">
                           <Calendar className="w-4 h-4" />
                           <span>
-                            {expired ? 'Expired' : 'Valid until'}{' '}
-                            {new Date(promo.valid_until).toLocaleDateString()}
+                            {promo.valid_until
+                              ? `${expired ? 'Expired' : 'Valid until'} ${new Date(promo.valid_until).toLocaleDateString()}`
+                              : 'No expiration'}
                           </span>
                         </div>
                       </div>

@@ -80,7 +80,7 @@ export function CustomerDashboard() {
         .from('customer_promotions')
         .select('*', { count: 'exact', head: true })
         .eq('customer_id', customer.id)
-        .eq('is_read', false);
+        .eq('is_used', false);
 
       if (error) throw error;
       setUnreadPromoCount(count || 0);

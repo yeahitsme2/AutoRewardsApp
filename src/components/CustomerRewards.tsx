@@ -5,7 +5,7 @@ import { Gift, Award, Calendar, CheckCircle, XCircle, Clock } from 'lucide-react
 import type { RewardItem, RewardRedemption } from '../types/database';
 
 interface RedemptionWithReward extends RewardRedemption {
-  reward_item: RewardItem;
+  reward_item: RewardItem | null;
 }
 
 export function CustomerRewards() {
@@ -16,6 +16,11 @@ export function CustomerRewards() {
 
   useEffect(() => {
     loadData();
+    const interval = setInterval(() => {
+      loadData();
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const loadData = async () => {
@@ -29,7 +34,7 @@ export function CustomerRewards() {
         supabase
           .from('reward_redemptions')
           .select('*, reward_item:reward_items(*)')
-          .order('redeemed_at', { ascending: false }),
+          .order('created_at', { ascending: false }),
       ]);
 
       if (rewardsResult.error) throw rewardsResult.error;
@@ -51,9 +56,11 @@ export function CustomerRewards() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed':
+      case 'approved':
         return <CheckCircle className="w-5 h-5 text-emerald-600" />;
       case 'pending':
         return <Clock className="w-5 h-5 text-orange-600" />;
+      case 'denied':
       case 'cancelled':
         return <XCircle className="w-5 h-5 text-red-600" />;
       default:
@@ -64,9 +71,11 @@ export function CustomerRewards() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed':
+      case 'approved':
         return 'bg-emerald-100 text-emerald-700';
       case 'pending':
         return 'bg-orange-100 text-orange-700';
+      case 'denied':
       case 'cancelled':
         return 'bg-red-100 text-red-700';
       default:
@@ -179,7 +188,7 @@ export function CustomerRewards() {
                       <div className="flex items-center gap-2 mb-2">
                         {getStatusIcon(redemption.status)}
                         <h4 className="font-semibold text-slate-900">
-                          {redemption.reward_item.name}
+                          {redemption.reward_item?.name || 'Reward removed'}
                         </h4>
                         <span
                           className={`px-2 py-0.5 text-xs font-medium rounded-full ${getStatusColor(
@@ -189,14 +198,13 @@ export function CustomerRewards() {
                           {redemption.status}
                         </span>
                       </div>
-                      <p className="text-sm text-slate-600 mb-1">{redemption.reward_item.description}</p>
+                      {redemption.reward_item?.description && (
+                        <p className="text-sm text-slate-600 mb-1">{redemption.reward_item.description}</p>
+                      )}
                       <div className="flex items-center gap-4 text-sm text-slate-500">
-                        <span>{new Date(redemption.redeemed_at).toLocaleDateString()}</span>
+                        <span>{new Date(redemption.processed_at || redemption.created_at).toLocaleDateString()}</span>
                         <span>{redemption.points_spent} points</span>
                       </div>
-                      {redemption.notes && (
-                        <p className="text-sm text-slate-600 mt-2 italic">{redemption.notes}</p>
-                      )}
                     </div>
                   </div>
                 </div>
