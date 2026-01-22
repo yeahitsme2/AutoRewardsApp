@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useShop } from '../lib/ShopContext';
-import { FileText, Upload, X, Plus, Calendar, DollarSign, Wrench, Trash2, Download, Eye } from 'lucide-react';
+import { FileText, Upload, X, Plus, Calendar, DollarSign, Wrench, Trash2, Download, Eye, CheckCircle, AlertCircle, Loader, Edit2 } from 'lucide-react';
 import type { RepairOrder, Customer, Vehicle } from '../types/database';
 
 interface RepairOrderWithDetails extends RepairOrder {
@@ -10,40 +10,50 @@ interface RepairOrderWithDetails extends RepairOrder {
   vehicle?: Vehicle | null;
 }
 
+interface AnalyzedData {
+  customer_name?: string;
+  customer_phone?: string;
+  customer_email?: string;
+  vin?: string;
+  vehicle_year?: number;
+  vehicle_make?: string;
+  vehicle_model?: string;
+  service_date?: string;
+  total_amount?: number;
+  parts_cost?: number;
+  labor_cost?: number;
+  service_writer?: string;
+  license_plate?: string;
+}
+
+interface UploadItem {
+  file: File;
+  status: 'pending' | 'analyzing' | 'matched' | 'manual' | 'uploading' | 'complete' | 'error';
+  analyzed?: AnalyzedData;
+  matchedCustomer?: Customer;
+  matchedVehicle?: Vehicle;
+  selectedCustomerId?: string;
+  selectedVehicleId?: string;
+  error?: string;
+  fileUrl?: string;
+}
+
 export function RepairOrdersManagement() {
   const { customer } = useAuth();
   const { shop } = useShop();
   const [repairOrders, setRepairOrders] = useState<RepairOrderWithDetails[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [allVehicles, setAllVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-
-  const [formData, setFormData] = useState({
-    customer_id: '',
-    vehicle_id: '',
-    service_date: new Date().toISOString().split('T')[0],
-    total_amount: '',
-    parts_cost: '',
-    labor_cost: '',
-    service_writer: '',
-    notes: '',
-  });
+  const [uploadItems, setUploadItems] = useState<UploadItem[]>([]);
+  const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
     loadRepairOrders();
     loadCustomers();
+    loadAllVehicles();
   }, []);
-
-  useEffect(() => {
-    if (formData.customer_id) {
-      loadCustomerVehicles(formData.customer_id);
-    } else {
-      setVehicles([]);
-    }
-  }, [formData.customer_id]);
 
   const loadRepairOrders = async () => {
     try {
@@ -75,84 +85,245 @@ export function RepairOrdersManagement() {
     }
   };
 
-  const loadCustomerVehicles = async (customerId: string) => {
+  const loadAllVehicles = async () => {
     try {
       const { data, error } = await supabase
         .from('vehicles')
         .select('*')
-        .eq('customer_id', customerId)
         .order('year', { ascending: false });
 
       if (error) throw error;
-      setVehicles(data || []);
+      setAllVehicles(data || []);
     } catch (error) {
       console.error('Error loading vehicles:', error);
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && file.type === 'application/pdf') {
-      setSelectedFile(file);
-    } else {
-      alert('Please select a PDF file');
+  const handleFilesSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const pdfFiles = files.filter(file => file.type === 'application/pdf');
+
+    if (pdfFiles.length === 0) {
+      alert('Please select PDF files only');
+      return;
     }
+
+    const newItems: UploadItem[] = pdfFiles.map(file => ({
+      file,
+      status: 'pending'
+    }));
+
+    setUploadItems(prev => [...prev, ...newItems]);
   };
 
-  const handleUpload = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const analyzeAndMatch = async () => {
+    setProcessing(true);
 
-    if (!selectedFile || !shop?.id) {
-      alert('Please select a file and ensure shop is loaded');
-      return;
+    for (let i = 0; i < uploadItems.length; i++) {
+      const item = uploadItems[i];
+
+      if (item.status !== 'pending') continue;
+
+      setUploadItems(prev => prev.map((itm, idx) =>
+        idx === i ? { ...itm, status: 'analyzing' } : itm
+      ));
+
+      try {
+        const fileExt = 'pdf';
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const filePath = `${shop?.id}/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('repair-orders')
+          .upload(filePath, item.file);
+
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage
+          .from('repair-orders')
+          .getPublicUrl(filePath);
+
+        const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-repair-order`;
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            file_url: urlData.publicUrl,
+            shop_id: shop?.id
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to analyze PDF');
+        }
+
+        const result = await response.json();
+        const analyzedData: AnalyzedData = result.data;
+
+        let matchedCustomer: Customer | undefined;
+        let matchedVehicle: Vehicle | undefined;
+
+        if (analyzedData.vin) {
+          const vehicle = allVehicles.find(v =>
+            v.vin?.toLowerCase() === analyzedData.vin?.toLowerCase()
+          );
+          if (vehicle) {
+            matchedVehicle = vehicle;
+            matchedCustomer = customers.find(c => c.id === vehicle.customer_id);
+          }
+        }
+
+        if (!matchedCustomer && analyzedData.customer_phone) {
+          const phone = analyzedData.customer_phone.replace(/\D/g, '');
+          matchedCustomer = customers.find(c =>
+            c.phone?.replace(/\D/g, '') === phone
+          );
+        }
+
+        if (!matchedCustomer && analyzedData.customer_email) {
+          matchedCustomer = customers.find(c =>
+            c.email?.toLowerCase() === analyzedData.customer_email?.toLowerCase()
+          );
+        }
+
+        if (!matchedCustomer && analyzedData.customer_name) {
+          const searchName = analyzedData.customer_name.toLowerCase();
+          matchedCustomer = customers.find(c =>
+            c.full_name.toLowerCase().includes(searchName) ||
+            searchName.includes(c.full_name.toLowerCase())
+          );
+        }
+
+        if (!matchedVehicle && matchedCustomer && analyzedData.vin) {
+          matchedVehicle = allVehicles.find(v =>
+            v.customer_id === matchedCustomer!.id &&
+            v.vin?.toLowerCase() === analyzedData.vin?.toLowerCase()
+          );
+        }
+
+        if (!matchedVehicle && matchedCustomer && analyzedData.license_plate) {
+          matchedVehicle = allVehicles.find(v =>
+            v.customer_id === matchedCustomer!.id &&
+            v.license_plate?.toLowerCase() === analyzedData.license_plate?.toLowerCase()
+          );
+        }
+
+        if (!matchedVehicle && matchedCustomer && analyzedData.vehicle_year && analyzedData.vehicle_make && analyzedData.vehicle_model) {
+          matchedVehicle = allVehicles.find(v =>
+            v.customer_id === matchedCustomer!.id &&
+            v.year === analyzedData.vehicle_year &&
+            v.make.toLowerCase() === analyzedData.vehicle_make?.toLowerCase() &&
+            v.model.toLowerCase().includes(analyzedData.vehicle_model?.toLowerCase() || '')
+          );
+        }
+
+        setUploadItems(prev => prev.map((itm, idx) =>
+          idx === i ? {
+            ...itm,
+            status: matchedCustomer ? 'matched' : 'manual',
+            analyzed: analyzedData,
+            matchedCustomer,
+            matchedVehicle,
+            selectedCustomerId: matchedCustomer?.id,
+            selectedVehicleId: matchedVehicle?.id,
+            fileUrl: urlData.publicUrl
+          } : itm
+        ));
+
+      } catch (error: any) {
+        console.error('Error analyzing repair order:', error);
+        setUploadItems(prev => prev.map((itm, idx) =>
+          idx === i ? {
+            ...itm,
+            status: 'error',
+            error: error.message || 'Failed to analyze'
+          } : itm
+        ));
+      }
     }
 
-    if (!formData.customer_id) {
-      alert('Please select a customer');
-      return;
+    setProcessing(false);
+  };
+
+  const uploadProcessedItems = async () => {
+    setProcessing(true);
+
+    for (let i = 0; i < uploadItems.length; i++) {
+      const item = uploadItems[i];
+
+      if (item.status === 'complete' || item.status === 'error') continue;
+      if (!item.selectedCustomerId) {
+        setUploadItems(prev => prev.map((itm, idx) =>
+          idx === i ? { ...itm, status: 'error', error: 'No customer selected' } : itm
+        ));
+        continue;
+      }
+
+      setUploadItems(prev => prev.map((itm, idx) =>
+        idx === i ? { ...itm, status: 'uploading' } : itm
+      ));
+
+      try {
+        if (!item.fileUrl) {
+          const fileExt = 'pdf';
+          const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+          const filePath = `${shop?.id}/${fileName}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from('repair-orders')
+            .upload(filePath, item.file);
+
+          if (uploadError) throw uploadError;
+
+          const { data: urlData } = supabase.storage
+            .from('repair-orders')
+            .getPublicUrl(filePath);
+
+          item.fileUrl = urlData.publicUrl;
+        }
+
+        const { error: insertError } = await supabase.from('repair_orders').insert({
+          shop_id: shop?.id!,
+          customer_id: item.selectedCustomerId,
+          vehicle_id: item.selectedVehicleId || null,
+          service_date: item.analyzed?.service_date || new Date().toISOString().split('T')[0],
+          file_url: item.fileUrl,
+          total_amount: item.analyzed?.total_amount || 0,
+          parts_cost: item.analyzed?.parts_cost || 0,
+          labor_cost: item.analyzed?.labor_cost || 0,
+          service_writer: item.analyzed?.service_writer || '',
+          notes: '',
+        });
+
+        if (insertError) throw insertError;
+
+        setUploadItems(prev => prev.map((itm, idx) =>
+          idx === i ? { ...itm, status: 'complete' } : itm
+        ));
+
+      } catch (error: any) {
+        console.error('Error uploading repair order:', error);
+        setUploadItems(prev => prev.map((itm, idx) =>
+          idx === i ? {
+            ...itm,
+            status: 'error',
+            error: error.message || 'Failed to upload'
+          } : itm
+        ));
+      }
     }
 
-    setUploading(true);
+    setProcessing(false);
 
-    try {
-      const fileExt = 'pdf';
-      const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-      const filePath = `${shop.id}/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('repair-orders')
-        .upload(filePath, selectedFile);
-
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from('repair-orders')
-        .getPublicUrl(filePath);
-
-      const { error: insertError } = await supabase.from('repair_orders').insert({
-        shop_id: shop.id,
-        customer_id: formData.customer_id,
-        vehicle_id: formData.vehicle_id || null,
-        service_date: formData.service_date,
-        file_url: urlData.publicUrl,
-        total_amount: parseFloat(formData.total_amount) || 0,
-        parts_cost: parseFloat(formData.parts_cost) || 0,
-        labor_cost: parseFloat(formData.labor_cost) || 0,
-        service_writer: formData.service_writer,
-        notes: formData.notes,
-      });
-
-      if (insertError) throw insertError;
-
-      alert('Repair order uploaded successfully!');
+    const allComplete = uploadItems.every(item => item.status === 'complete');
+    if (allComplete) {
+      alert('All repair orders uploaded successfully!');
       setShowUploadModal(false);
-      resetForm();
+      setUploadItems([]);
       loadRepairOrders();
-    } catch (error: any) {
-      console.error('Error uploading repair order:', error);
-      alert('Failed to upload repair order: ' + (error?.message || 'Unknown error'));
-    } finally {
-      setUploading(false);
     }
   };
 
@@ -213,18 +384,28 @@ export function RepairOrdersManagement() {
     window.open(order.file_url, '_blank');
   };
 
-  const resetForm = () => {
-    setFormData({
-      customer_id: '',
-      vehicle_id: '',
-      service_date: new Date().toISOString().split('T')[0],
-      total_amount: '',
-      parts_cost: '',
-      labor_cost: '',
-      service_writer: '',
-      notes: '',
-    });
-    setSelectedFile(null);
+  const removeUploadItem = (index: number) => {
+    setUploadItems(prev => prev.filter((_, idx) => idx !== index));
+  };
+
+  const updateItemCustomer = (index: number, customerId: string) => {
+    setUploadItems(prev => prev.map((item, idx) => {
+      if (idx === index) {
+        const customerVehicles = allVehicles.filter(v => v.customer_id === customerId);
+        return {
+          ...item,
+          selectedCustomerId: customerId,
+          selectedVehicleId: customerVehicles.length > 0 ? customerVehicles[0].id : undefined
+        };
+      }
+      return item;
+    }));
+  };
+
+  const updateItemVehicle = (index: number, vehicleId: string) => {
+    setUploadItems(prev => prev.map((item, idx) =>
+      idx === index ? { ...item, selectedVehicleId: vehicleId } : item
+    ));
   };
 
   if (loading) {
@@ -236,14 +417,14 @@ export function RepairOrdersManagement() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Repair Orders</h2>
-          <p className="text-slate-600">Manage customer repair order documents</p>
+          <p className="text-slate-600">Upload and manage customer repair order documents</p>
         </div>
         <button
           onClick={() => setShowUploadModal(true)}
           className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
         >
           <Upload className="w-5 h-5" />
-          Upload Repair Order
+          Batch Upload
         </button>
       </div>
 
@@ -257,7 +438,7 @@ export function RepairOrdersManagement() {
             className="inline-flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
           >
             <Upload className="w-5 h-5" />
-            Upload Repair Order
+            Batch Upload
           </button>
         </div>
       ) : (
@@ -341,13 +522,13 @@ export function RepairOrdersManagement() {
 
       {showUploadModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-              <h3 className="text-xl font-bold text-slate-900">Upload Repair Order</h3>
+              <h3 className="text-xl font-bold text-slate-900">Batch Upload Repair Orders</h3>
               <button
                 onClick={() => {
                   setShowUploadModal(false);
-                  resetForm();
+                  setUploadItems([]);
                 }}
                 className="text-slate-400 hover:text-slate-600"
               >
@@ -355,166 +536,176 @@ export function RepairOrdersManagement() {
               </button>
             </div>
 
-            <form onSubmit={handleUpload} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  PDF File *
+            <div className="p-6 space-y-6">
+              <div className="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center">
+                <Upload className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+                <label className="cursor-pointer">
+                  <span className="text-blue-500 hover:text-blue-600 font-medium">
+                    Choose PDF files
+                  </span>
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    multiple
+                    onChange={handleFilesSelect}
+                    className="hidden"
+                  />
                 </label>
-                <input
-                  type="file"
-                  accept=".pdf"
-                  required
-                  onChange={handleFileSelect}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                />
-                {selectedFile && (
-                  <p className="text-sm text-slate-600 mt-1">Selected: {selectedFile.name}</p>
-                )}
+                <p className="text-sm text-slate-500 mt-2">
+                  Upload multiple repair orders at once
+                </p>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Customer *
-                </label>
-                <select
-                  required
-                  value={formData.customer_id}
-                  onChange={(e) => setFormData({ ...formData, customer_id: e.target.value, vehicle_id: '' })}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                >
-                  <option value="">Select a customer</option>
-                  {customers.map((cust) => (
-                    <option key={cust.id} value={cust.id}>
-                      {cust.full_name} - {cust.email}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {uploadItems.length > 0 && (
+                <>
+                  <div className="space-y-3">
+                    {uploadItems.map((item, index) => (
+                      <div key={index} className="border border-slate-200 rounded-lg p-4">
+                        <div className="flex items-start gap-3 mb-3">
+                          <div className="flex-shrink-0 mt-1">
+                            {item.status === 'complete' && <CheckCircle className="w-5 h-5 text-green-500" />}
+                            {item.status === 'error' && <AlertCircle className="w-5 h-5 text-red-500" />}
+                            {item.status === 'analyzing' && <Loader className="w-5 h-5 text-blue-500 animate-spin" />}
+                            {item.status === 'uploading' && <Loader className="w-5 h-5 text-blue-500 animate-spin" />}
+                            {(item.status === 'pending' || item.status === 'matched' || item.status === 'manual') && (
+                              <FileText className="w-5 h-5 text-slate-400" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="font-medium text-slate-900 truncate">{item.file.name}</p>
+                              <button
+                                onClick={() => removeUploadItem(index)}
+                                className="text-slate-400 hover:text-red-500 ml-2"
+                                disabled={processing}
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
 
-              {vehicles.length > 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Vehicle (Optional)
-                  </label>
-                  <select
-                    value={formData.vehicle_id}
-                    onChange={(e) => setFormData({ ...formData, vehicle_id: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                  >
-                    <option value="">No vehicle selected</option>
-                    {vehicles.map((vehicle) => (
-                      <option key={vehicle.id} value={vehicle.id}>
-                        {vehicle.year} {vehicle.make} {vehicle.model}
-                      </option>
+                            {item.status === 'analyzing' && (
+                              <p className="text-sm text-blue-600">Analyzing document...</p>
+                            )}
+
+                            {item.status === 'uploading' && (
+                              <p className="text-sm text-blue-600">Uploading...</p>
+                            )}
+
+                            {item.status === 'error' && (
+                              <p className="text-sm text-red-600">{item.error}</p>
+                            )}
+
+                            {item.status === 'complete' && (
+                              <p className="text-sm text-green-600">Uploaded successfully</p>
+                            )}
+
+                            {(item.status === 'matched' || item.status === 'manual') && item.analyzed && (
+                              <div className="space-y-2 mt-2">
+                                {item.matchedCustomer && (
+                                  <div className="flex items-center gap-2 text-sm text-green-600">
+                                    <CheckCircle className="w-4 h-4" />
+                                    <span>Auto-matched: {item.matchedCustomer.full_name}</span>
+                                  </div>
+                                )}
+
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <label className="block text-xs font-medium text-slate-700 mb-1">
+                                      Customer {!item.matchedCustomer && '*'}
+                                    </label>
+                                    <select
+                                      value={item.selectedCustomerId || ''}
+                                      onChange={(e) => updateItemCustomer(index, e.target.value)}
+                                      className="w-full px-2 py-1 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                                      disabled={processing}
+                                    >
+                                      <option value="">Select customer</option>
+                                      {customers.map(c => (
+                                        <option key={c.id} value={c.id}>
+                                          {c.full_name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+
+                                  {item.selectedCustomerId && (
+                                    <div>
+                                      <label className="block text-xs font-medium text-slate-700 mb-1">
+                                        Vehicle (Optional)
+                                      </label>
+                                      <select
+                                        value={item.selectedVehicleId || ''}
+                                        onChange={(e) => updateItemVehicle(index, e.target.value)}
+                                        className="w-full px-2 py-1 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                                        disabled={processing}
+                                      >
+                                        <option value="">No vehicle</option>
+                                        {allVehicles
+                                          .filter(v => v.customer_id === item.selectedCustomerId)
+                                          .map(v => (
+                                            <option key={v.id} value={v.id}>
+                                              {v.year} {v.make} {v.model}
+                                            </option>
+                                          ))}
+                                      </select>
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="text-xs text-slate-600 bg-slate-50 p-2 rounded">
+                                  {item.analyzed.service_date && (
+                                    <div>Date: {new Date(item.analyzed.service_date).toLocaleDateString()}</div>
+                                  )}
+                                  {item.analyzed.total_amount !== undefined && (
+                                    <div>Total: ${item.analyzed.total_amount.toFixed(2)}</div>
+                                  )}
+                                  {item.analyzed.service_writer && (
+                                    <div>Writer: {item.analyzed.service_writer}</div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     ))}
-                  </select>
-                </div>
+                  </div>
+
+                  <div className="flex gap-3 pt-4 border-t border-slate-200">
+                    {uploadItems.some(item => item.status === 'pending') && (
+                      <button
+                        onClick={analyzeAndMatch}
+                        disabled={processing}
+                        className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                      >
+                        {processing ? 'Analyzing...' : 'Analyze & Match'}
+                      </button>
+                    )}
+
+                    {uploadItems.some(item => item.status === 'matched' || item.status === 'manual') && (
+                      <button
+                        onClick={uploadProcessedItems}
+                        disabled={processing}
+                        className="flex-1 bg-green-500 hover:bg-green-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                      >
+                        {processing ? 'Uploading...' : 'Upload All'}
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => {
+                        setShowUploadModal(false);
+                        setUploadItems([]);
+                      }}
+                      disabled={processing}
+                      className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
               )}
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Service Date *
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={formData.service_date}
-                  onChange={(e) => setFormData({ ...formData, service_date: e.target.value })}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Total Amount
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.total_amount}
-                    onChange={(e) => setFormData({ ...formData, total_amount: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                    placeholder="0.00"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Parts Cost
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.parts_cost}
-                    onChange={(e) => setFormData({ ...formData, parts_cost: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                    placeholder="0.00"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Labor Cost
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.labor_cost}
-                    onChange={(e) => setFormData({ ...formData, labor_cost: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                    placeholder="0.00"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Service Writer
-                </label>
-                <input
-                  type="text"
-                  value={formData.service_writer}
-                  onChange={(e) => setFormData({ ...formData, service_writer: e.target.value })}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                  placeholder="e.g., Travis Seymour"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Notes
-                </label>
-                <textarea
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  rows={3}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none"
-                  placeholder="Additional notes about this repair order..."
-                />
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowUploadModal(false);
-                    resetForm();
-                  }}
-                  className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={uploading || !selectedFile}
-                  className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-medium transition-colors"
-                >
-                  {uploading ? 'Uploading...' : 'Upload'}
-                </button>
-              </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
