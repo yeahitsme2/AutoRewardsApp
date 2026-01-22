@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { PDFDocument } from 'npm:pdf-lib@1.17.1';
+import pdfParse from 'npm:pdf-parse@1.1.1';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -178,26 +179,12 @@ function detectRepairOrderRanges(pageTexts: string[]): Array<{ start: number; en
 async function extractTextFromPDF(buffer: ArrayBuffer): Promise<string> {
   try {
     const uint8Array = new Uint8Array(buffer);
-    const decoder = new TextDecoder('latin1');
-    let text = decoder.decode(uint8Array);
+    const bufferNode = Buffer.from(uint8Array);
 
-    text = text.replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F]/g, ' ');
-
-    const streamMatches = text.match(/stream\s+([\s\S]*?)\s+endstream/g);
-    if (streamMatches) {
-      const extractedText = streamMatches.map(match => {
-        const content = match.replace(/^stream\s+/, '').replace(/\s+endstream$/, '');
-        return content;
-      }).join(' ');
-      text = extractedText;
-    }
-
-    text = text.replace(/[^\x20-\x7E\n\r]/g, ' ');
-    text = text.replace(/\s+/g, ' ');
-
-    return text;
+    const data = await pdfParse(bufferNode);
+    return data.text;
   } catch (error) {
-    console.error('Error extracting text from PDF:', error);
+    console.error('Error extracting text from PDF with pdf-parse:', error);
     return '';
   }
 }
@@ -206,9 +193,9 @@ function extractDataFromText(text: string): AnalyzedData {
   const data: AnalyzedData = {};
 
   const namePatterns = [
-    /([A-Z]{2,}[A-Z\s,]+[A-Z]{2,})/,
-    /(?:Customer|Name|Client)[\s:]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/i,
-    /([A-Z][A-Z]+,\s*[A-Z][a-z]+)/,
+    /(?:Customer|Client|Name|Owner)[\s:]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/i,
+    /([A-Z][A-Z]+,\s*[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/,
+    /([A-Z][a-z]+\s+[A-Z][a-z]+)(?:\s+(?:Home|Work|Cell|Phone|Email|\d{3}))/i,
   ];
   for (const pattern of namePatterns) {
     const match = text.match(pattern);
@@ -218,7 +205,7 @@ function extractDataFromText(text: string): AnalyzedData {
         const parts = name.split(',').map(p => p.trim());
         name = `${parts[1]} ${parts[0]}`;
       }
-      if (name.length > 5 && name.length < 50) {
+      if (name.length > 5 && name.length < 50 && !/(TOTAL|REPAIR|ORDER|SERVICE|VEHICLE)/i.test(name)) {
         data.customer_name = name;
         break;
       }
@@ -226,97 +213,158 @@ function extractDataFromText(text: string): AnalyzedData {
   }
 
   const phonePatterns = [
-    /Phone[\s:]*(\d{1}\s*\(\d{3}\)\s*\d{3}-\d{4})/i,
-    /(?:Phone|Tel|Mobile)[\s:]*(\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4})/i,
-    /(\d{3}[-.\s]?\d{3}[-.\s]?\d{4})/,
+    /(?:Phone|Tel|Mobile|Cell|Home|Work)[\s:]*(\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4})/gi,
+    /(?:^|\s)(\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4})(?:\s|$)/g,
   ];
   for (const pattern of phonePatterns) {
-    const phoneMatch = text.match(pattern);
-    if (phoneMatch) {
-      data.customer_phone = phoneMatch[1].replace(/[^\d]/g, '');
-      break;
+    const matches = text.matchAll(pattern);
+    for (const match of matches) {
+      const phone = match[1].replace(/[^\d]/g, '');
+      if (phone.length === 10) {
+        data.customer_phone = phone;
+        break;
+      }
     }
+    if (data.customer_phone) break;
   }
 
   const emailPattern = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/;
   const emailMatch = text.match(emailPattern);
   if (emailMatch) {
-    data.customer_email = emailMatch[1];
+    data.customer_email = emailMatch[1].toLowerCase();
   }
 
   const vinPatterns = [
-    /VIN[\s:]*([A-HJ-NPR-Z0-9]{17})/i,
-    /(?:Vehicle Identification)[\s:]*([A-HJ-NPR-Z0-9]{17})/i,
-    /([A-HJ-NPR-Z0-9]{17})/,
+    /(?:VIN|V\.I\.N\.|Vehicle Identification)[\s:#]*([A-HJ-NPR-Z0-9]{17})/gi,
+    /\b([A-HJ-NPR-Z0-9]{17})\b/g,
   ];
   for (const pattern of vinPatterns) {
-    const vinMatch = text.match(pattern);
-    if (vinMatch && vinMatch[1].length === 17) {
-      data.vin = vinMatch[1];
-      break;
+    const matches = text.matchAll(pattern);
+    for (const match of matches) {
+      const vin = match[1].toUpperCase();
+      if (vin.length === 17 && /^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) {
+        data.vin = vin;
+        break;
+      }
+    }
+    if (data.vin) break;
+  }
+
+  const vehiclePatterns = [
+    /(?:Vehicle|Year|Make|Model)[\s:]*(\d{4})[\s,]+([A-Z][A-Za-z]+)[\s,]+([A-Z][A-Za-z0-9\s-]+?)(?:\n|VIN|Engine|$)/i,
+    /(\d{4})\s+([A-Z][A-Za-z]+)\s+([A-Z][A-Za-z0-9\s-]+?)(?:\s+(?:VIN|V8|V6|4WD|AWD|FWD|RWD|Engine|\n|$))/i,
+  ];
+  for (const pattern of vehiclePatterns) {
+    const vehicleMatch = text.match(pattern);
+    if (vehicleMatch) {
+      const year = parseInt(vehicleMatch[1]);
+      if (year >= 1990 && year <= new Date().getFullYear() + 1) {
+        data.vehicle_year = year;
+        data.vehicle_make = vehicleMatch[2].trim();
+        data.vehicle_model = vehicleMatch[3].trim().replace(/\s+/g, ' ');
+        break;
+      }
     }
   }
 
-  const vehiclePattern = /(\d{4})\s+([A-Z][A-Za-z]+)\s+([A-Z][A-Za-z0-9\s]+?)(?:\s+(?:VIN|V8|V6|DOHC|$))/;
-  const vehicleMatch = text.match(vehiclePattern);
-  if (vehicleMatch) {
-    data.vehicle_year = parseInt(vehicleMatch[1]);
-    data.vehicle_make = vehicleMatch[2];
-    data.vehicle_model = vehicleMatch[3].trim();
-  }
-
-  const licensePlatePattern = /(?:License|Plate|LP)[\s:]*([A-Z0-9]{2,8})/i;
-  const licensePlateMatch = text.match(licensePlatePattern);
-  if (licensePlateMatch) {
-    data.license_plate = licensePlateMatch[1];
+  const licensePlatePatterns = [
+    /(?:License|Plate|Tag|LP|Lic)[\s:#]*([A-Z0-9]{2,8})/gi,
+    /(?:Plate|Tag)[\s:#]*([A-Z]{1,3}\s*\d{1,4}[A-Z]?)/gi,
+  ];
+  for (const pattern of licensePlatePatterns) {
+    const matches = text.matchAll(pattern);
+    for (const match of matches) {
+      const plate = match[1].replace(/\s/g, '').toUpperCase();
+      if (plate.length >= 2 && plate.length <= 8) {
+        data.license_plate = plate;
+        break;
+      }
+    }
+    if (data.license_plate) break;
   }
 
   const datePatterns = [
-    /(\d{1,2}\/\d{1,2}\/\d{2,4})/,
-    /(\d{4}-\d{2}-\d{2})/,
+    /(?:Date|Service Date|Repair Date|RO Date)[\s:]*(\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4})/gi,
+    /(?:Date|Service Date|Repair Date)[\s:]*(\d{4}-\d{2}-\d{2})/gi,
+    /(\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4})/g,
   ];
+  const dates: string[] = [];
   for (const pattern of datePatterns) {
-    const dateMatch = text.match(pattern);
-    if (dateMatch) {
-      data.service_date = parseDate(dateMatch[1]);
-      break;
+    const matches = text.matchAll(pattern);
+    for (const match of matches) {
+      const parsed = parseDate(match[1]);
+      if (parsed) {
+        dates.push(parsed);
+      }
     }
+  }
+  if (dates.length > 0) {
+    dates.sort();
+    data.service_date = dates[0];
   }
 
   const totalPatterns = [
-    /(?:TOTAL|Total|REPAIR ORDER TOTAL)[\s:$]*(\d+[,]?\d*\.?\d{2})/i,
-    /(?:Grand Total|Final Total)[\s:$]*(\d+[,]?\d*\.?\d{2})/i,
+    /(?:TOTAL|Total Amount|Grand Total|Balance|Amount Due|Final Total)[\s:$]*(\d+[,]?\d*\.?\d{2})/gi,
+    /(?:^|\n)TOTAL[\s:$]*(\d+[,]?\d*\.?\d{2})/gi,
   ];
+  const totals: number[] = [];
   for (const pattern of totalPatterns) {
-    const totalMatch = text.match(pattern);
-    if (totalMatch) {
-      data.total_amount = parseFloat(totalMatch[1].replace(/,/g, ''));
-      break;
+    const matches = text.matchAll(pattern);
+    for (const match of matches) {
+      const amount = parseFloat(match[1].replace(/,/g, ''));
+      if (amount > 0 && amount < 100000) {
+        totals.push(amount);
+      }
     }
   }
-
-  const partsPattern = /(?:PARTS|Parts|Total Parts)[\s:$]*(\d+[,]?\d*\.?\d{2})/i;
-  const partsMatch = text.match(partsPattern);
-  if (partsMatch) {
-    data.parts_cost = parseFloat(partsMatch[1].replace(/,/g, ''));
+  if (totals.length > 0) {
+    data.total_amount = Math.max(...totals);
   }
 
-  const laborPattern = /(?:LABOR|Labor|Total Labor)[\s:$]*(\d+[,]?\d*\.?\d{2})/i;
-  const laborMatch = text.match(laborPattern);
-  if (laborMatch) {
-    data.labor_cost = parseFloat(laborMatch[1].replace(/,/g, ''));
+  const partsPatterns = [
+    /(?:PARTS|Parts Total|Parts Cost|Parts Amount)[\s:$]*(\d+[,]?\d*\.?\d{2})/gi,
+  ];
+  for (const pattern of partsPatterns) {
+    const matches = text.matchAll(pattern);
+    for (const match of matches) {
+      const amount = parseFloat(match[1].replace(/,/g, ''));
+      if (amount > 0) {
+        data.parts_cost = amount;
+        break;
+      }
+    }
+    if (data.parts_cost) break;
+  }
+
+  const laborPatterns = [
+    /(?:LABOR|Labor Total|Labor Cost|Labor Amount)[\s:$]*(\d+[,]?\d*\.?\d{2})/gi,
+  ];
+  for (const pattern of laborPatterns) {
+    const matches = text.matchAll(pattern);
+    for (const match of matches) {
+      const amount = parseFloat(match[1].replace(/,/g, ''));
+      if (amount > 0) {
+        data.labor_cost = amount;
+        break;
+      }
+    }
+    if (data.labor_cost) break;
   }
 
   const serviceWriterPatterns = [
-    /(?:Service Writer|Writer|Advisor|Today Is)[\s:]*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i,
-    /Your Service Writer Today Is[\s:]*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i,
+    /(?:Service Writer|Service Advisor|Advisor|Writer|Technician)[\s:]*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/gi,
+    /(?:Your Service Writer Today Is|Serviced By)[\s:]*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/gi,
   ];
   for (const pattern of serviceWriterPatterns) {
-    const serviceWriterMatch = text.match(pattern);
-    if (serviceWriterMatch && serviceWriterMatch[1].length > 3) {
-      data.service_writer = serviceWriterMatch[1];
-      break;
+    const matches = text.matchAll(pattern);
+    for (const match of matches) {
+      const name = match[1].trim();
+      if (name.length > 3 && name.length < 50 && !/(TOTAL|REPAIR|ORDER|SERVICE)/i.test(name)) {
+        data.service_writer = name;
+        break;
+      }
     }
+    if (data.service_writer) break;
   }
 
   return data;
