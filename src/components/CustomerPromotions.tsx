@@ -19,6 +19,7 @@ export function CustomerPromotions() {
 
   useEffect(() => {
     if (!customer) {
+      setLoading(false);
       return;
     }
 
@@ -50,21 +51,10 @@ export function CustomerPromotions() {
       const promosWithStatus: PromotionWithStatus[] = (customerPromos as CustomerPromotionWithPromotion[])
         .map((cp) => (cp.promotion ? { ...cp.promotion, customer_promotion: cp } : null))
         .filter((p): p is PromotionWithStatus => p !== null)
-        .sort((a, b) => {
-          const aDate = new Date(
-            a.customer_promotion.assigned_at ||
-              (a.customer_promotion as any).sent_at ||
-              a.customer_promotion.used_at ||
-              0
-          ).getTime();
-          const bDate = new Date(
-            b.customer_promotion.assigned_at ||
-              (b.customer_promotion as any).sent_at ||
-              b.customer_promotion.used_at ||
-              0
-          ).getTime();
-          return bDate - aDate;
-        });
+        .sort((a, b) =>
+          new Date(b.customer_promotion.assigned_at).getTime() -
+          new Date(a.customer_promotion.assigned_at).getTime()
+        );
 
       setPromotions(promosWithStatus);
     } catch (error) {
@@ -96,13 +86,9 @@ export function CustomerPromotions() {
       case 'percentage':
         return <Percent className="w-5 h-5" />;
       case 'fixed':
-      case 'fixed_amount':
         return <DollarSign className="w-5 h-5" />;
       case 'points_multiplier':
-      case 'points_bonus':
         return <Sparkles className="w-5 h-5" />;
-      case 'free_service':
-        return <Tag className="w-5 h-5" />;
       default:
         return <Tag className="w-5 h-5" />;
     }
@@ -113,13 +99,9 @@ export function CustomerPromotions() {
       case 'percentage':
         return `${promo.discount_value}% off`;
       case 'fixed':
-      case 'fixed_amount':
         return `$${promo.discount_value} off`;
       case 'points_multiplier':
-      case 'points_bonus':
         return `${promo.discount_value}x points multiplier`;
-      case 'free_service':
-        return 'Free service';
       default:
         return '';
     }

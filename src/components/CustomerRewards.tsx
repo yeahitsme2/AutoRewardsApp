@@ -15,19 +15,27 @@ export function CustomerRewards() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!customer) {
+      setLoading(false);
+      return;
+    }
+
     loadData();
     const interval = setInterval(() => {
       loadData();
     }, 5000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [customer?.id]);
 
   const loadData = async () => {
+    if (!customer) return;
+
     try {
       const rewardsResult = await supabase
         .from('reward_items')
         .select('*')
+        .eq('shop_id', customer.shop_id)
         .eq('is_active', true)
         .order('points_required', { ascending: true });
 
@@ -40,6 +48,7 @@ export function CustomerRewards() {
       const redemptionsResult = await supabase
         .from('reward_redemptions')
         .select('*, reward_item:reward_items(*)')
+        .eq('customer_id', customer.id)
         .order('created_at', { ascending: false });
 
       if (redemptionsResult.error) {

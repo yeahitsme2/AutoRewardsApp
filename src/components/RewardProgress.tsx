@@ -14,13 +14,14 @@ export function RewardProgress({ customer }: RewardProgressProps) {
 
   useEffect(() => {
     loadRewards();
-  }, []);
+  }, [customer.shop_id]);
 
   const loadRewards = async () => {
     try {
       const { data, error } = await supabase
         .from('reward_items')
         .select('*')
+        .eq('shop_id', customer.shop_id)
         .eq('is_active', true)
         .order('points_required', { ascending: true });
 
