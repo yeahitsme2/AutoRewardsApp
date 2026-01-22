@@ -231,12 +231,10 @@ export function RepairOrdersManagement() {
 
         if (uploadError) throw uploadError;
 
-        const { data: urlData } = supabase.storage
-          .from('repair-orders')
-          .getPublicUrl(filePath);
+        const publicUrl = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/repair-orders/${filePath}`;
 
         const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-repair-order`;
-        console.log('Calling analyze function with URL:', urlData.publicUrl);
+        console.log('Calling analyze function with URL:', publicUrl);
 
         const response = await fetch(apiUrl, {
           method: 'POST',
@@ -245,7 +243,7 @@ export function RepairOrdersManagement() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            file_url: urlData.publicUrl,
+            file_url: publicUrl,
             shop_id: shop?.id
           })
         });
@@ -328,7 +326,7 @@ export function RepairOrdersManagement() {
             matchedVehicle,
             selectedCustomerId: matchedCustomer?.id,
             selectedVehicleId: matchedVehicle?.id,
-            fileUrl: urlData.publicUrl
+            fileUrl: publicUrl
           } : itm
         ));
 
