@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useShop } from '../lib/ShopContext';
-import { FileText, Upload, X, Plus, Calendar, DollarSign, Wrench, Trash2, Download, Eye, CheckCircle, AlertCircle, Loader, CreditCard as Edit2 } from 'lucide-react';
+import { FileText, Upload, X, Plus, Calendar, DollarSign, Wrench, Trash2, Download, Eye, CheckCircle, AlertCircle, Loader, CreditCard as Edit2, ChevronDown, ChevronUp, User, Phone, Mail, Car, Hash } from 'lucide-react';
 import type { RepairOrder, Customer, Vehicle } from '../types/database';
 
 interface RepairOrderWithDetails extends RepairOrder {
@@ -50,6 +50,7 @@ export function RepairOrdersManagement() {
   const [processing, setProcessing] = useState(false);
   const [splitMultiPagePDFs, setSplitMultiPagePDFs] = useState(true);
   const [filterStatus, setFilterStatus] = useState<'all' | 'matched' | 'unmatched'>('all');
+  const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadRepairOrders();
@@ -504,6 +505,18 @@ export function RepairOrdersManagement() {
     ));
   };
 
+  const toggleOrderExpanded = (orderId: string) => {
+    setExpandedOrders(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(orderId)) {
+        newSet.delete(orderId);
+      } else {
+        newSet.add(orderId);
+      }
+      return newSet;
+    });
+  };
+
   if (loading) {
     return <div className="text-slate-600">Loading repair orders...</div>;
   }
@@ -614,16 +627,134 @@ export function RepairOrdersManagement() {
                       </p>
                     )}
                     {!order.is_matched && (
-                      <div className="text-sm text-slate-600 mb-2 space-y-1">
-                        {order.temp_customer_phone && <div>Phone: {order.temp_customer_phone}</div>}
-                        {order.temp_customer_email && <div>Email: {order.temp_customer_email}</div>}
-                        {order.temp_vin && <div>VIN: {order.temp_vin}</div>}
-                        {order.temp_vehicle_year && order.temp_vehicle_make && order.temp_vehicle_model && (
-                          <div>Vehicle: {order.temp_vehicle_year} {order.temp_vehicle_make} {order.temp_vehicle_model}</div>
+                      <div className="space-y-3">
+                        <button
+                          onClick={() => toggleOrderExpanded(order.id)}
+                          className="flex items-center gap-2 px-4 py-2 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-lg font-medium transition-colors"
+                        >
+                          {expandedOrders.has(order.id) ? (
+                            <ChevronUp className="w-4 h-4" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4" />
+                          )}
+                          {expandedOrders.has(order.id) ? 'Hide' : 'Show'} Extracted Information
+                        </button>
+
+                        {expandedOrders.has(order.id) && (
+                          <div className="bg-slate-50 rounded-lg p-4 space-y-4 border border-slate-200">
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
+                              <div className="flex items-start gap-2 text-sm text-blue-800">
+                                <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                                <p>
+                                  This order will automatically match when a customer with matching phone, email, or VIN signs up.
+                                </p>
+                              </div>
+                            </div>
+
+                            {(order.temp_customer_name || order.temp_customer_phone || order.temp_customer_email) && (
+                              <div>
+                                <h4 className="font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                                  <User className="w-4 h-4" />
+                                  Customer Information
+                                </h4>
+                                <div className="space-y-2 ml-6">
+                                  {order.temp_customer_name && (
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-slate-600 min-w-[100px]">Name:</span>
+                                      <span className="font-medium text-slate-900">{order.temp_customer_name}</span>
+                                    </div>
+                                  )}
+                                  {order.temp_customer_phone && (
+                                    <div className="flex items-start gap-2">
+                                      <Phone className="w-4 h-4 text-slate-400 mt-0.5" />
+                                      <span className="text-slate-600 min-w-[100px]">Phone:</span>
+                                      <span className="font-medium text-slate-900">{order.temp_customer_phone}</span>
+                                    </div>
+                                  )}
+                                  {order.temp_customer_email && (
+                                    <div className="flex items-start gap-2">
+                                      <Mail className="w-4 h-4 text-slate-400 mt-0.5" />
+                                      <span className="text-slate-600 min-w-[100px]">Email:</span>
+                                      <span className="font-medium text-slate-900">{order.temp_customer_email}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {(order.temp_vehicle_year || order.temp_vehicle_make || order.temp_vehicle_model || order.temp_vin || order.temp_license_plate) && (
+                              <div>
+                                <h4 className="font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                                  <Car className="w-4 h-4" />
+                                  Vehicle Information
+                                </h4>
+                                <div className="space-y-2 ml-6">
+                                  {order.temp_vehicle_year && order.temp_vehicle_make && order.temp_vehicle_model && (
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-slate-600 min-w-[100px]">Vehicle:</span>
+                                      <span className="font-medium text-slate-900">
+                                        {order.temp_vehicle_year} {order.temp_vehicle_make} {order.temp_vehicle_model}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {order.temp_vin && (
+                                    <div className="flex items-start gap-2">
+                                      <Hash className="w-4 h-4 text-slate-400 mt-0.5" />
+                                      <span className="text-slate-600 min-w-[100px]">VIN:</span>
+                                      <span className="font-medium text-slate-900 font-mono text-sm">{order.temp_vin}</span>
+                                    </div>
+                                  )}
+                                  {order.temp_license_plate && (
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-slate-600 min-w-[100px]">License Plate:</span>
+                                      <span className="font-medium text-slate-900">{order.temp_license_plate}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            <div>
+                              <h4 className="font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                                <FileText className="w-4 h-4" />
+                                Order Details
+                              </h4>
+                              <div className="space-y-2 ml-6">
+                                <div className="flex items-start gap-2">
+                                  <Calendar className="w-4 h-4 text-slate-400 mt-0.5" />
+                                  <span className="text-slate-600 min-w-[100px]">Service Date:</span>
+                                  <span className="font-medium text-slate-900">
+                                    {new Date(order.service_date).toLocaleDateString()}
+                                  </span>
+                                </div>
+                                {order.service_writer && (
+                                  <div className="flex items-start gap-2">
+                                    <Wrench className="w-4 h-4 text-slate-400 mt-0.5" />
+                                    <span className="text-slate-600 min-w-[100px]">Service Advisor:</span>
+                                    <span className="font-medium text-slate-900">{order.service_writer}</span>
+                                  </div>
+                                )}
+                                <div className="flex items-start gap-2">
+                                  <DollarSign className="w-4 h-4 text-slate-400 mt-0.5" />
+                                  <span className="text-slate-600 min-w-[100px]">Total Amount:</span>
+                                  <span className="font-medium text-slate-900">${order.total_amount.toFixed(2)}</span>
+                                </div>
+                                {order.parts_cost > 0 && (
+                                  <div className="flex items-start gap-2">
+                                    <span className="text-slate-600 min-w-[100px] ml-6">Parts Cost:</span>
+                                    <span className="font-medium text-slate-900">${order.parts_cost.toFixed(2)}</span>
+                                  </div>
+                                )}
+                                {order.labor_cost > 0 && (
+                                  <div className="flex items-start gap-2">
+                                    <span className="text-slate-600 min-w-[100px] ml-6">Labor Cost:</span>
+                                    <span className="font-medium text-slate-900">${order.labor_cost.toFixed(2)}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
                         )}
-                        <div className="text-orange-600 font-medium mt-2">
-                          This order will auto-match when customer signs up
-                        </div>
                       </div>
                     )}
                     {order.notes && (
