@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../lib/AuthContext';
+import { supabase } from '../lib/supabase';
 import { LogIn, UserPlus, Eye, EyeOff, Shield } from 'lucide-react';
 
 const DEMO_SHOP_ID = '00000000-0000-0000-0000-000000000001';
@@ -13,6 +14,7 @@ export function Auth() {
   const [showPassword, setShowPassword] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [shopId, setShopId] = useState<string>(DEMO_SHOP_ID);
+  const [shopLookupError, setShopLookupError] = useState('');
   const [showStorageWarning, setShowStorageWarning] = useState(false);
 
   const { signIn, signUp, authError, clearAuthError } = useAuth();
@@ -37,22 +39,54 @@ export function Auth() {
     }
   }, []);
 
+  const resolveShopId = async (value: string) => {
+    if (!value) return '';
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (uuidRegex.test(value)) {
+      return value;
+    }
+
+    const { data, error } = await supabase
+      .from('shops')
+      .select('id')
+      .eq('slug', value)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (error || !data) {
+      return '';
+    }
+
+    return data.id;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setShopLookupError('');
     clearAuthError();
     setLoading(true);
 
     try {
       if (isSignUp) {
-        const { error } = await signUp(email, password, fullName, shopId);
+        const resolvedShopId = await resolveShopId(shopId);
+        if (!resolvedShopId) {
+          throw new Error('Invalid shop link. Please contact the shop for a valid signup link.');
+        }
+        const { error } = await signUp(email, password, fullName, resolvedShopId);
         if (error) throw error;
       } else {
         const { error } = await signIn(email, password);
         if (error) throw error;
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      const message = err instanceof Error ? err.message : 'An error occurred';
+      if (message.toLowerCase().includes('shop')) {
+        setShopLookupError(message);
+      } else {
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -136,9 +170,9 @@ export function Auth() {
             </div>
           </div>
 
-          {(error || authError) && (
+          {(error || authError || shopLookupError) && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-              {error || authError}
+              {shopLookupError || error || authError}
             </div>
           )}
 
