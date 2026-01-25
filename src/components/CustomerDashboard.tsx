@@ -376,6 +376,12 @@ export function CustomerDashboard() {
           }}
         />
       )}
+
+      <footer className="py-6 text-center text-xs text-slate-500">
+        <a href="/legal.html" className="hover:text-slate-700">Legal</a>
+        <span className="mx-2">•</span>
+        <span>Copyright (c) 2026 DriveRewards. All rights reserved.</span>
+      </footer>
     </div>
   );
 }
