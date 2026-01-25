@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
-import { Calendar, Clock, Car, User, CheckCircle, XCircle, AlertCircle, Edit2, Save, X } from 'lucide-react';
+import { Calendar, Clock, Car, User, CheckCircle, XCircle, AlertCircle, Edit2, Save, X, ClipboardList } from 'lucide-react';
 import type { Appointment, Customer, Vehicle } from '../types/database';
 
 interface AppointmentWithDetails extends Appointment {
   customer?: Customer;
   vehicle?: Vehicle;
+  repair_order_id?: string | null;
 }
 
 export function AppointmentsManagement() {
@@ -39,19 +40,23 @@ export function AppointmentsManagement() {
 
       const customerIds = [...new Set(appointmentsData?.map((a) => a.customer_id) || [])];
       const vehicleIds = [...new Set(appointmentsData?.map((a) => a.vehicle_id).filter(Boolean) || [])];
+      const appointmentIds = [...new Set(appointmentsData?.map((a) => a.id) || [])];
 
-      const [customersRes, vehiclesRes] = await Promise.all([
+      const [customersRes, vehiclesRes, repairOrdersRes] = await Promise.all([
         supabase.from('customers').select('*').in('id', customerIds),
         vehicleIds.length > 0 ? supabase.from('vehicles').select('*').in('id', vehicleIds) : Promise.resolve({ data: [], error: null }),
+        appointmentIds.length > 0 ? supabase.from('repair_orders').select('id, appointment_id').in('appointment_id', appointmentIds) : Promise.resolve({ data: [], error: null }),
       ]);
 
       if (customersRes.error) throw customersRes.error;
       if (vehiclesRes.error) throw vehiclesRes.error;
+      if (repairOrdersRes.error && repairOrdersRes.error.code !== '42P01') throw repairOrdersRes.error;
 
       const appointmentsWithDetails = (appointmentsData || []).map((apt) => ({
         ...apt,
         customer: customersRes.data?.find((c) => c.id === apt.customer_id),
         vehicle: vehiclesRes.data?.find((v) => v.id === apt.vehicle_id),
+        repair_order_id: repairOrdersRes.data?.find((ro) => ro.appointment_id === apt.id)?.id || null,
       }));
 
       setAppointments(appointmentsWithDetails);
@@ -99,6 +104,38 @@ export function AppointmentsManagement() {
     } catch (error) {
       console.error('Error updating appointment:', error);
       showMessage('error', 'Failed to update appointment');
+    }
+  };
+
+  const handleCreateRepairOrder = async (appointment: AppointmentWithDetails) => {
+    try {
+      if (!admin?.shop_id) return;
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from('repair_orders')
+        .insert({
+          shop_id: admin.shop_id,
+          customer_id: appointment.customer_id,
+          vehicle_id: appointment.vehicle_id,
+          appointment_id: appointment.id,
+          status: 'draft',
+          title: appointment.service_type,
+          customer_notes: appointment.description || null,
+          labor_total: 0,
+          parts_total: 0,
+          fees_total: 0,
+          tax_total: 0,
+          grand_total: 0,
+          created_at: now,
+          updated_at: now,
+        });
+
+      if (error) throw error;
+      showMessage('success', 'Repair order created');
+      loadAppointments();
+    } catch (error) {
+      console.error('Error creating repair order:', error);
+      showMessage('error', 'Failed to create repair order');
     }
   };
 
@@ -415,6 +452,21 @@ export function AppointmentsManagement() {
                     Mark Complete
                   </button>
                   <button
+                    onClick={() => handleCreateRepairOrder(appointment)}
+                    disabled={Boolean(appointment.repair_order_id)}
+                    className="flex items-center gap-2 px-4 py-2 text-white font-medium rounded-lg transition-colors disabled:cursor-not-allowed"
+                    style={{ backgroundColor: appointment.repair_order_id ? '#94a3b8' : brandSettings.primary_color }}
+                    onMouseEnter={(e) => {
+                      if (!appointment.repair_order_id) e.currentTarget.style.backgroundColor = brandSettings.secondary_color;
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!appointment.repair_order_id) e.currentTarget.style.backgroundColor = brandSettings.primary_color;
+                    }}
+                  >
+                    <ClipboardList className="w-4 h-4" />
+                    {appointment.repair_order_id ? 'RO Created' : 'Create RO'}
+                  </button>
+                  <button
                     onClick={() => {
                       const reason = prompt('Enter cancellation reason (optional):');
                       handleUpdateStatus(appointment.id, 'cancelled', reason || undefined, 'cancelled');
@@ -433,6 +485,26 @@ export function AppointmentsManagement() {
                   >
                     <AlertCircle className="w-4 h-4" />
                     No Show
+                  </button>
+                </div>
+              )}
+
+              {appointment.status === 'completed' && (
+                <div className="flex gap-2 pt-4 border-t border-slate-200">
+                  <button
+                    onClick={() => handleCreateRepairOrder(appointment)}
+                    disabled={Boolean(appointment.repair_order_id)}
+                    className="flex items-center gap-2 px-4 py-2 text-white font-medium rounded-lg transition-colors disabled:cursor-not-allowed"
+                    style={{ backgroundColor: appointment.repair_order_id ? '#94a3b8' : brandSettings.primary_color }}
+                    onMouseEnter={(e) => {
+                      if (!appointment.repair_order_id) e.currentTarget.style.backgroundColor = brandSettings.secondary_color;
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!appointment.repair_order_id) e.currentTarget.style.backgroundColor = brandSettings.primary_color;
+                    }}
+                  >
+                    <ClipboardList className="w-4 h-4" />
+                    {appointment.repair_order_id ? 'RO Created' : 'Create RO'}
                   </button>
                 </div>
               )}

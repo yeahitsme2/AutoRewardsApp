@@ -3,11 +3,12 @@ import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
 import { useShop } from '../lib/ShopContext';
 import { supabase } from '../lib/supabase';
-import { Car, Calendar, Award, LogOut, Wrench, Gift, Tag, Plus } from 'lucide-react';
+import { Car, Calendar, Award, LogOut, Wrench, Gift, Tag, Plus, ClipboardList } from 'lucide-react';
 import { CustomerRewards } from './CustomerRewards';
 import { CustomerServices } from './CustomerServices';
 import { CustomerPromotions } from './CustomerPromotions';
 import { CustomerAppointments } from './CustomerAppointments';
+import { CustomerRepairOrders } from './CustomerRepairOrders';
 import { TierProgress } from './TierProgress';
 import { RewardProgress } from './RewardProgress';
 import { ServiceReminders } from './ServiceReminders';
@@ -18,7 +19,7 @@ interface VehicleWithServices extends Vehicle {
   services: Service[];
 }
 
-type TabType = 'vehicles' | 'services' | 'appointments' | 'rewards' | 'offers';
+type TabType = 'vehicles' | 'services' | 'appointments' | 'repair_orders' | 'rewards' | 'offers';
 
 export function CustomerDashboard() {
   const { customer, signOut, refreshCustomer } = useAuth();
@@ -219,6 +220,17 @@ export function CustomerDashboard() {
               <span className="text-sm sm:text-base">Appointments</span>
             </button>
             <button
+              onClick={() => setActiveTab('repair_orders')}
+              className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-3 font-medium transition-colors border-b-2 whitespace-nowrap flex-shrink-0"
+              style={activeTab === 'repair_orders' ? {
+                borderBottomColor: brandSettings.primary_color,
+                color: brandSettings.primary_color
+              } : { borderBottomColor: 'transparent', color: '#475569' }}
+            >
+              <ClipboardList className="w-5 h-5" />
+              <span className="text-sm sm:text-base">Repair Orders</span>
+            </button>
+            <button
               onClick={() => setActiveTab('rewards')}
               className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-3 font-medium transition-colors border-b-2 whitespace-nowrap flex-shrink-0"
               style={activeTab === 'rewards' ? {
@@ -361,6 +373,8 @@ export function CustomerDashboard() {
         {activeTab === 'services' && <CustomerServices />}
 
         {activeTab === 'appointments' && <CustomerAppointments />}
+
+        {activeTab === 'repair_orders' && <CustomerRepairOrders />}
 
         {activeTab === 'rewards' && <CustomerRewards />}
 

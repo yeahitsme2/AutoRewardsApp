@@ -481,6 +481,103 @@ export interface Database {
           updated_at?: string;
         };
       };
+      repair_orders: {
+        Row: {
+          id: string;
+          shop_id: string;
+          customer_id: string;
+          vehicle_id: string | null;
+          appointment_id: string | null;
+          status: 'draft' | 'awaiting_approval' | 'approved' | 'declined' | 'closed';
+          title: string | null;
+          customer_notes: string | null;
+          internal_notes: string | null;
+          labor_total: number;
+          parts_total: number;
+          fees_total: number;
+          tax_total: number;
+          grand_total: number;
+          created_at: string;
+          updated_at: string;
+          approved_at: string | null;
+          closed_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          shop_id: string;
+          customer_id: string;
+          vehicle_id?: string | null;
+          appointment_id?: string | null;
+          status?: 'draft' | 'awaiting_approval' | 'approved' | 'declined' | 'closed';
+          title?: string | null;
+          customer_notes?: string | null;
+          internal_notes?: string | null;
+          labor_total?: number;
+          parts_total?: number;
+          fees_total?: number;
+          tax_total?: number;
+          grand_total?: number;
+          created_at?: string;
+          updated_at?: string;
+          approved_at?: string | null;
+          closed_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          shop_id?: string;
+          customer_id?: string;
+          vehicle_id?: string | null;
+          appointment_id?: string | null;
+          status?: 'draft' | 'awaiting_approval' | 'approved' | 'declined' | 'closed';
+          title?: string | null;
+          customer_notes?: string | null;
+          internal_notes?: string | null;
+          labor_total?: number;
+          parts_total?: number;
+          fees_total?: number;
+          tax_total?: number;
+          grand_total?: number;
+          created_at?: string;
+          updated_at?: string;
+          approved_at?: string | null;
+          closed_at?: string | null;
+        };
+      };
+      repair_order_items: {
+        Row: {
+          id: string;
+          repair_order_id: string;
+          item_type: 'labor' | 'part' | 'fee';
+          description: string;
+          quantity: number;
+          unit_price: number;
+          total: number;
+          taxable: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          repair_order_id: string;
+          item_type: 'labor' | 'part' | 'fee';
+          description: string;
+          quantity: number;
+          unit_price: number;
+          total?: number;
+          taxable?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          repair_order_id?: string;
+          item_type?: 'labor' | 'part' | 'fee';
+          description?: string;
+          quantity?: number;
+          unit_price?: number;
+          total?: number;
+          taxable?: boolean;
+          created_at?: string;
+        };
+      };
     };
   };
 }
@@ -497,3 +594,5 @@ export type RewardRedemption = Database['public']['Tables']['reward_redemptions'
 export type Promotion = Database['public']['Tables']['promotions']['Row'];
 export type CustomerPromotion = Database['public']['Tables']['customer_promotions']['Row'];
 export type Appointment = Database['public']['Tables']['appointments']['Row'];
+export type RepairOrder = Database['public']['Tables']['repair_orders']['Row'];
+export type RepairOrderItem = Database['public']['Tables']['repair_order_items']['Row'];
