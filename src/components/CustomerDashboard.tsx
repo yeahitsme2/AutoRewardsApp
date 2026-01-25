@@ -99,7 +99,12 @@ export function CustomerDashboard() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="bg-white shadow-sm border-b border-slate-200">
+      <header
+        className="shadow-sm border-b border-slate-200"
+        style={{
+          backgroundImage: `linear-gradient(90deg, ${brandSettings.primary_color}, ${brandSettings.secondary_color})`,
+        }}
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
@@ -124,13 +129,13 @@ export function CustomerDashboard() {
                 )}
               </div>
               <div className="min-w-0">
-                <h1 className="text-lg sm:text-2xl font-bold text-slate-900 truncate">{shop?.name || 'Rewards Dashboard'}</h1>
-                <p className="text-xs sm:text-sm text-slate-600 truncate">{brandSettings.welcome_message}, {customer?.full_name}</p>
+                <h1 className="text-lg sm:text-2xl font-bold text-white truncate">{shop?.name || 'Rewards Dashboard'}</h1>
+                <p className="text-xs sm:text-sm text-slate-100 truncate">{brandSettings.welcome_message}, {customer?.full_name}</p>
               </div>
             </div>
             <button
               onClick={signOut}
-              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 text-slate-600 hover:text-slate-900 transition-colors flex-shrink-0"
+              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 text-slate-100 hover:text-white transition-colors flex-shrink-0"
             >
               <LogOut className="w-5 h-5" />
               <span className="hidden sm:inline">Sign Out</span>
