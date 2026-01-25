@@ -14,6 +14,11 @@ export default defineConfig(({ mode }) => {
     define: {
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL),
       'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY),
+      __BUILD_ID__: JSON.stringify(
+        process.env.VERCEL_GIT_COMMIT_SHA ||
+        process.env.GIT_COMMIT_SHA ||
+        Date.now().toString()
+      ),
     },
     server: {
       proxy: {

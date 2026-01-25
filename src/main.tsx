@@ -9,7 +9,8 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
+    const swUrl = `/sw.js?v=${__BUILD_ID__}`;
+    navigator.serviceWorker.register(swUrl)
       .then((registration) => {
         console.log('Service Worker registered:', registration);
         registration.update();
