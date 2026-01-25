@@ -127,7 +127,16 @@ export function CustomerPromotions() {
 
   const isExpired = (validUntil: string | null) => {
     if (!validUntil) return false;
-    return new Date(validUntil) < new Date();
+    const expiry = new Date(validUntil);
+    if (
+      expiry.getUTCHours() === 0 &&
+      expiry.getUTCMinutes() === 0 &&
+      expiry.getUTCSeconds() === 0 &&
+      expiry.getUTCMilliseconds() === 0
+    ) {
+      expiry.setUTCHours(23, 59, 59, 999);
+    }
+    return expiry < new Date();
   };
 
   if (loading) {

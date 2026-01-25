@@ -91,13 +91,17 @@ export function PromotionsManagement() {
     }
 
     try {
+      const validUntil = formData.valid_until
+        ? new Date(`${formData.valid_until}T23:59:59.999Z`).toISOString()
+        : null;
+
       const { error } = await supabase.from('promotions').insert({
         shop_id: shop.id,
         title: formData.title,
         description: formData.description,
         discount_type: formData.discount_type,
         discount_value: formData.discount_value,
-        valid_until: formData.valid_until,
+        valid_until: validUntil,
         is_active: true,
       });
 
