@@ -171,7 +171,7 @@ export function CustomerRepairOrders() {
         <div key={order.id} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
           <div className="flex items-start justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-slate-900">{order.title || 'Repair Order'}</h3>
+              <h3 className="text-lg font-semibold text-slate-900">{order.ro_number}</h3>
               <p className="text-sm text-slate-500">
                 Created {new Date(order.created_at).toLocaleDateString()}
               </p>

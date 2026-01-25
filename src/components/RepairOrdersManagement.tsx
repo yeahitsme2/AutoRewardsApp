@@ -39,6 +39,12 @@ const emptyItem = {
   taxable: false,
 };
 
+const generateRoNumber = () => {
+  const datePart = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const rand = Math.floor(1000 + Math.random() * 9000);
+  return `RO-${datePart}-${rand}`;
+};
+
 export function RepairOrdersManagement() {
   const { admin } = useAuth();
   const { brandSettings } = useBrand();
@@ -53,7 +59,6 @@ export function RepairOrdersManagement() {
   const [newOrder, setNewOrder] = useState({
     customer_id: '',
     vehicle_id: '',
-    title: '',
     internal_notes: '',
   });
   const [itemDrafts, setItemDrafts] = useState<Record<string, typeof emptyItem>>({});
@@ -225,7 +230,7 @@ export function RepairOrdersManagement() {
           customer_id: newOrder.customer_id,
           vehicle_id: newOrder.vehicle_id || null,
           status: 'draft',
-          title: newOrder.title || null,
+          ro_number: generateRoNumber(),
           internal_notes: newOrder.internal_notes || null,
           labor_total: 0,
           parts_total: 0,
@@ -241,7 +246,7 @@ export function RepairOrdersManagement() {
       if (error) throw error;
       showMessage('success', 'Repair order created');
       setShowNewOrder(false);
-      setNewOrder({ customer_id: '', vehicle_id: '', title: '', internal_notes: '' });
+      setNewOrder({ customer_id: '', vehicle_id: '', internal_notes: '' });
       setOrders((prev) => [{ ...(data as RepairOrder), customer: customers.find((c) => c.id === data.customer_id), vehicle: vehicles.find((v) => v.id === data.vehicle_id) || null }, ...prev]);
     } catch (error) {
       console.error('Error creating repair order:', error);
@@ -395,15 +400,6 @@ export function RepairOrdersManagement() {
               </select>
             </div>
             <div className="md:col-span-2">
-              <label className="text-sm font-medium text-slate-700">Title</label>
-              <input
-                value={newOrder.title}
-                onChange={(e) => setNewOrder((prev) => ({ ...prev, title: e.target.value }))}
-                className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg"
-                placeholder="e.g., Brake inspection and repair"
-              />
-            </div>
-            <div className="md:col-span-2">
               <label className="text-sm font-medium text-slate-700">Internal Notes</label>
               <textarea
                 value={newOrder.internal_notes}
@@ -452,7 +448,7 @@ export function RepairOrdersManagement() {
               >
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="font-semibold text-slate-900">{order.title || 'Repair Order'}</p>
+                    <p className="font-semibold text-slate-900">{order.ro_number}</p>
                     <p className="text-sm text-slate-600">{getCustomerLabel(order.customer)}</p>
                     <p className="text-xs text-slate-500">{getVehicleLabel(order.vehicle)}</p>
                   </div>
@@ -477,7 +473,7 @@ export function RepairOrdersManagement() {
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-xl font-semibold text-slate-900">{selectedOrder.title || 'Repair Order'}</h3>
+                    <h3 className="text-xl font-semibold text-slate-900">{selectedOrder.ro_number}</h3>
                     <div className="flex items-center gap-3 text-sm text-slate-600 mt-1">
                       <span className="inline-flex items-center gap-1">
                         <User className="w-4 h-4" />

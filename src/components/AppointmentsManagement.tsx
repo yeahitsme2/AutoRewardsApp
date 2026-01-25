@@ -11,6 +11,12 @@ interface AppointmentWithDetails extends Appointment {
   repair_order_id?: string | null;
 }
 
+const generateRoNumber = () => {
+  const datePart = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const rand = Math.floor(1000 + Math.random() * 9000);
+  return `RO-${datePart}-${rand}`;
+};
+
 export function AppointmentsManagement() {
   const { admin } = useAuth();
   const { brandSettings } = useBrand();
@@ -119,7 +125,7 @@ export function AppointmentsManagement() {
           vehicle_id: appointment.vehicle_id,
           appointment_id: appointment.id,
           status: 'draft',
-          title: appointment.service_type,
+          ro_number: generateRoNumber(),
           customer_notes: appointment.description || null,
           labor_total: 0,
           parts_total: 0,

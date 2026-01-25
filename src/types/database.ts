@@ -489,7 +489,7 @@ export interface Database {
           vehicle_id: string | null;
           appointment_id: string | null;
           status: 'draft' | 'awaiting_approval' | 'approved' | 'declined' | 'closed';
-          title: string | null;
+          ro_number: string;
           customer_notes: string | null;
           internal_notes: string | null;
           labor_total: number;
@@ -509,7 +509,7 @@ export interface Database {
           vehicle_id?: string | null;
           appointment_id?: string | null;
           status?: 'draft' | 'awaiting_approval' | 'approved' | 'declined' | 'closed';
-          title?: string | null;
+          ro_number: string;
           customer_notes?: string | null;
           internal_notes?: string | null;
           labor_total?: number;
@@ -529,7 +529,7 @@ export interface Database {
           vehicle_id?: string | null;
           appointment_id?: string | null;
           status?: 'draft' | 'awaiting_approval' | 'approved' | 'declined' | 'closed';
-          title?: string | null;
+          ro_number?: string;
           customer_notes?: string | null;
           internal_notes?: string | null;
           labor_total?: number;
