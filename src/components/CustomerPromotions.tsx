@@ -24,12 +24,30 @@ export function CustomerPromotions() {
     }
 
     loadPromotions();
+    markPromotionsAsRead();
     const interval = setInterval(() => {
       loadPromotions();
     }, 5000);
 
     return () => clearInterval(interval);
   }, [customer]);
+
+  const markPromotionsAsRead = async () => {
+    if (!customer) return;
+
+    try {
+      await supabase
+        .from('customer_promotions')
+        .update({
+          is_read: true,
+          read_at: new Date().toISOString()
+        })
+        .eq('customer_id', customer.id)
+        .eq('is_read', false);
+    } catch (error) {
+      console.error('Error marking promotions as read:', error);
+    }
+  };
 
   const loadPromotions = async () => {
     if (!customer) return;
