@@ -40,8 +40,10 @@ export function AdminDashboard() {
     loadData();
     loadPendingAppointments();
 
-    if (Notification.permission === 'default') {
-      Notification.requestPermission();
+    if (typeof Notification !== 'undefined') {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
     }
 
     const interval = setInterval(() => {
@@ -131,7 +133,7 @@ export function AdminDashboard() {
 
       const newCount = count || 0;
       if (newCount > pendingAppointments && pendingAppointments > 0) {
-        if (Notification.permission === 'granted') {
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
           new Notification('New Appointment Request', {
             body: 'A customer has requested a new appointment',
             icon: '/favicon.ico',
