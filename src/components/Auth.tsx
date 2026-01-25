@@ -13,7 +13,8 @@ export function Auth() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
-  const [shopId, setShopId] = useState<string>(DEMO_SHOP_ID);
+  const [shopId, setShopId] = useState<string>('');
+  const [hasShopParam, setHasShopParam] = useState(false);
   const [shopLookupError, setShopLookupError] = useState('');
   const [showStorageWarning, setShowStorageWarning] = useState(false);
 
@@ -36,6 +37,7 @@ export function Auth() {
     if (shopIdParam) {
       setShopId(shopIdParam);
       setIsSignUp(true);
+      setHasShopParam(true);
     }
   }, []);
 
@@ -70,6 +72,9 @@ export function Auth() {
 
     try {
       if (isSignUp) {
+        if (!shopId) {
+          throw new Error('Please enter your shop code to create an account.');
+        }
         const resolvedShopId = await resolveShopId(shopId);
         if (!resolvedShopId) {
           throw new Error('Invalid shop link. Please contact the shop for a valid signup link.');
@@ -128,6 +133,26 @@ export function Auth() {
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                 placeholder="Your name"
               />
+            </div>
+          )}
+
+          {isSignUp && !hasShopParam && (
+            <div>
+              <label htmlFor="shopCode" className="block text-sm font-medium text-slate-700 mb-1">
+                Shop Code
+              </label>
+              <input
+                id="shopCode"
+                type="text"
+                required
+                value={shopId}
+                onChange={(e) => setShopId(e.target.value.trim())}
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                placeholder="e.g., midas-pineville"
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                Ask your shop for the signup code.
+              </p>
             </div>
           )}
 

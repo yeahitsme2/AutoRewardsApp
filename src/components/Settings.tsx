@@ -12,6 +12,7 @@ export function Settings() {
   const { refreshBrand } = useBrand();
   const { shop, setShopById } = useShop();
   const currentUser = admin || customer;
+  const publicBaseUrl = (import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin).replace(/\/+$/, '');
   const [settings, setSettings] = useState<ShopSettings | null>(null);
   const [shopName, setShopName] = useState('');
   const [pointsPerDollar, setPointsPerDollar] = useState<number>(10);
@@ -48,7 +49,7 @@ export function Settings() {
   const generateQRCode = async () => {
     if (!shop?.slug) return;
 
-    const signupUrl = `${window.location.origin}/?shop=${shop.slug}`;
+    const signupUrl = `${publicBaseUrl}/?shop=${shop.slug}`;
 
     try {
       if (qrCanvasRef.current) {
@@ -88,7 +89,7 @@ export function Settings() {
   const copySignupUrl = async () => {
     if (!shop?.slug) return;
 
-    const signupUrl = `${window.location.origin}/?shop=${shop.slug}`;
+    const signupUrl = `${publicBaseUrl}/?shop=${shop.slug}`;
 
     try {
       await navigator.clipboard.writeText(signupUrl);
@@ -348,7 +349,7 @@ export function Settings() {
                       </button>
                     </div>
                     <code className="text-xs text-slate-600 break-all block">
-                      {window.location.origin}/?shop={shop?.slug}
+                      {publicBaseUrl}/?shop={shop?.slug}
                     </code>
                   </div>
                 </div>
