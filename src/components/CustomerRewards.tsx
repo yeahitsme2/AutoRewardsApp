@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
+import { useBrand } from '../lib/BrandContext';
 import { Gift, Award, Calendar, CheckCircle, XCircle, Clock } from 'lucide-react';
 import type { RewardItem, RewardRedemption } from '../types/database';
 
@@ -10,6 +11,7 @@ interface RedemptionWithReward extends RewardRedemption {
 
 export function CustomerRewards() {
   const { customer } = useAuth();
+  const { brandSettings } = useBrand();
   const [rewards, setRewards] = useState<RewardItem[]>([]);
   const [redemptions, setRedemptions] = useState<RedemptionWithReward[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,7 +109,12 @@ export function CustomerRewards() {
 
   return (
     <div className="space-y-8">
-      <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-xl shadow-lg p-6 text-white">
+      <div
+        className="rounded-xl shadow-lg p-6 text-white"
+        style={{
+          backgroundImage: `linear-gradient(90deg, ${brandSettings.primary_color}, ${brandSettings.secondary_color})`,
+        }}
+      >
         <div className="flex items-center gap-3 mb-2">
           <Award className="w-8 h-8" />
           <h2 className="text-2xl font-bold">Your Reward Points</h2>

@@ -3,12 +3,14 @@ import { Gift, Target } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Customer, RewardItem } from '../types/database';
 import { calculateProgressToNextReward } from '../lib/rewardsUtils';
+import { useBrand } from '../lib/BrandContext';
 
 interface RewardProgressProps {
   customer: Customer;
 }
 
 export function RewardProgress({ customer }: RewardProgressProps) {
+  const { brandSettings } = useBrand();
   const [rewards, setRewards] = useState<RewardItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -86,8 +88,11 @@ export function RewardProgress({ customer }: RewardProgressProps) {
         </div>
         <div className="relative h-3 bg-slate-100 rounded-full overflow-hidden">
           <div
-            className="absolute inset-y-0 left-0 bg-gradient-to-r from-emerald-400 to-emerald-600 transition-all duration-500 rounded-full"
-            style={{ width: `${Math.min(100, progressPercent)}%` }}
+            className="absolute inset-y-0 left-0 transition-all duration-500 rounded-full"
+            style={{
+              width: `${Math.min(100, progressPercent)}%`,
+              backgroundImage: `linear-gradient(90deg, ${brandSettings.primary_color}, ${brandSettings.secondary_color})`,
+            }}
           />
         </div>
         <div className="flex items-center gap-2 text-sm text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg">
