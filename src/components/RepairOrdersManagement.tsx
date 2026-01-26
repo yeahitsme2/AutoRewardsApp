@@ -344,21 +344,47 @@ export function RepairOrdersManagement() {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Repair Orders</h2>
           <p className="text-slate-600">Create and manage RO Lite estimates</p>
         </div>
-        <button
-          onClick={() => setShowNewOrder(true)}
-          className="flex items-center gap-2 px-4 py-2 text-white font-medium rounded-lg transition-colors"
-          style={{ backgroundColor: brandSettings.primary_color }}
-          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = brandSettings.secondary_color)}
-          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = brandSettings.primary_color)}
-        >
-          <Plus className="w-4 h-4" />
-          New Repair Order
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={selectedOrderId || ''}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value === '__new__') {
+                setShowNewOrder(true);
+                return;
+              }
+              if (value) {
+                handleSelectOrder(value);
+              }
+            }}
+            className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+          >
+            <option value="">Open Repair Orders</option>
+            {orders
+              .filter((order) => order.status !== 'closed')
+              .map((order) => (
+                <option key={order.id} value={order.id}>
+                  {order.ro_number}
+                </option>
+              ))}
+            <option value="__new__">+ Create New RO</option>
+          </select>
+          <button
+            onClick={() => setShowNewOrder(true)}
+            className="flex items-center gap-2 px-4 py-2 text-white font-medium rounded-lg transition-colors"
+            style={{ backgroundColor: brandSettings.primary_color }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = brandSettings.secondary_color)}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = brandSettings.primary_color)}
+          >
+            <Plus className="w-4 h-4" />
+            New Repair Order
+          </button>
+        </div>
       </div>
 
       {showNewOrder && (
