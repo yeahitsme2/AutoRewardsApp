@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
 import { supabase } from '../lib/supabase';
-import { LogOut, Wrench, Users, UserCheck, UserX, Search, Gift, Crown, Settings as SettingsIcon, Tag, Calendar, TrendingUp, X, Car, Award, ClipboardList, Clock } from 'lucide-react';
+import { LogOut, Wrench, Users, UserCheck, UserX, Search, Gift, Crown, Settings as SettingsIcon, Tag, Calendar, TrendingUp, X, Car, Award, ClipboardList, Clock, Briefcase } from 'lucide-react';
 import { AddServiceModal } from './AddServiceModal';
 import { AddVehicleModal } from './AddVehicleModal';
 import { RewardsManagement } from './RewardsManagement';
@@ -21,12 +21,14 @@ interface CustomerWithVehicles extends Customer {
   services: Service[];
 }
 
-type TabType = 'customers' | 'appointments' | 'schedule' | 'repair_orders' | 'rewards' | 'promotions' | 'insights' | 'users' | 'settings';
+type TabType = 'customers' | 'appointments' | 'my_shop' | 'rewards' | 'promotions' | 'users' | 'settings';
+type MyShopTab = 'schedule' | 'repair_orders' | 'insights';
 
 export function AdminDashboard() {
   const { admin, signOut } = useAuth();
   const { brandSettings } = useBrand();
   const [activeTab, setActiveTab] = useState<TabType>('customers');
+  const [myShopTab, setMyShopTab] = useState<MyShopTab>('schedule');
   const [customers, setCustomers] = useState<CustomerWithVehicles[]>([]);
   const [filteredCustomers, setFilteredCustomers] = useState<CustomerWithVehicles[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -243,26 +245,15 @@ export function AdminDashboard() {
               )}
             </button>
             <button
-              onClick={() => setActiveTab('schedule')}
+              onClick={() => setActiveTab('my_shop')}
               className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-3 font-medium transition-colors border-b-2 whitespace-nowrap flex-shrink-0"
-              style={activeTab === 'schedule' ? {
+              style={activeTab === 'my_shop' ? {
                 borderBottomColor: brandSettings.primary_color,
                 color: brandSettings.primary_color
               } : { borderBottomColor: 'transparent', color: '#475569' }}
             >
-              <Clock className="w-5 h-5" />
-              <span className="text-sm sm:text-base">Schedule</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('repair_orders')}
-              className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-3 font-medium transition-colors border-b-2 whitespace-nowrap flex-shrink-0"
-              style={activeTab === 'repair_orders' ? {
-                borderBottomColor: brandSettings.primary_color,
-                color: brandSettings.primary_color
-              } : { borderBottomColor: 'transparent', color: '#475569' }}
-            >
-              <ClipboardList className="w-5 h-5" />
-              <span className="text-sm sm:text-base">Repair Orders</span>
+              <Briefcase className="w-5 h-5" />
+              <span className="text-sm sm:text-base">My Shop</span>
             </button>
             <button
               onClick={() => setActiveTab('rewards')}
@@ -285,17 +276,6 @@ export function AdminDashboard() {
             >
               <Tag className="w-5 h-5" />
               <span className="text-sm sm:text-base">Promotions</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('insights')}
-              className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-3 font-medium transition-colors border-b-2 whitespace-nowrap flex-shrink-0"
-              style={activeTab === 'insights' ? {
-                borderBottomColor: brandSettings.primary_color,
-                color: brandSettings.primary_color
-              } : { borderBottomColor: 'transparent', color: '#475569' }}
-            >
-              <TrendingUp className="w-5 h-5" />
-              <span className="text-sm sm:text-base">Insights</span>
             </button>
             <button
               onClick={() => setActiveTab('users')}
@@ -612,15 +592,37 @@ export function AdminDashboard() {
 
         {activeTab === 'appointments' && <AppointmentsManagement />}
 
-        {activeTab === 'schedule' && <ScheduleBoard />}
+        {activeTab === 'my_shop' && (
+          <div className="space-y-6">
+            <div className="flex gap-2 flex-wrap">
+              {(['schedule', 'repair_orders', 'insights'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setMyShopTab(tab)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                    myShopTab === tab
+                      ? 'text-white'
+                      : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
+                  style={myShopTab === tab ? { backgroundColor: brandSettings.primary_color } : undefined}
+                >
+                  {tab === 'schedule' && <Clock className="w-4 h-4" />}
+                  {tab === 'repair_orders' && <ClipboardList className="w-4 h-4" />}
+                  {tab === 'insights' && <TrendingUp className="w-4 h-4" />}
+                  {tab === 'schedule' ? 'Schedule' : tab === 'repair_orders' ? 'Repair Orders' : 'Insights'}
+                </button>
+              ))}
+            </div>
 
-        {activeTab === 'repair_orders' && <RepairOrdersManagement />}
+            {myShopTab === 'schedule' && <ScheduleBoard />}
+            {myShopTab === 'repair_orders' && <RepairOrdersManagement />}
+            {myShopTab === 'insights' && <Insights />}
+          </div>
+        )}
 
         {activeTab === 'rewards' && <RewardsManagement />}
 
         {activeTab === 'promotions' && <PromotionsManagement />}
-
-        {activeTab === 'insights' && <Insights />}
 
         {activeTab === 'users' && <UserManagement />}
 
