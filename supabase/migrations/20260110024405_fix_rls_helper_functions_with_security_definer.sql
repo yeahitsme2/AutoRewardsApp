@@ -17,37 +17,78 @@
     - They only return boolean/UUID values for authorization checks
 */
 
--- Update get_user_shop_id with SECURITY DEFINER
-CREATE OR REPLACE FUNCTION get_user_shop_id()
-RETURNS uuid
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-STABLE
-AS $$
+DO $do$
 BEGIN
-  RETURN (
-    SELECT shop_id 
-    FROM customers 
-    WHERE auth_user_id = auth.uid()
-    LIMIT 1
-  );
-END;
-$$;
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'customers'
+      AND column_name = 'auth_user_id'
+  ) THEN
+    -- Update get_user_shop_id with SECURITY DEFINER
+    CREATE OR REPLACE FUNCTION get_user_shop_id()
+    RETURNS uuid
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
+    STABLE
+    AS $$
+    BEGIN
+      RETURN (
+        SELECT shop_id
+        FROM customers
+        WHERE auth_user_id = auth.uid()
+        LIMIT 1
+      );
+    END;
+    $$;
 
--- Update is_shop_admin with SECURITY DEFINER
-CREATE OR REPLACE FUNCTION is_shop_admin()
-RETURNS boolean
-LANGUAGE sql
-SECURITY DEFINER
-SET search_path = public
-STABLE
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM customers 
-    WHERE auth_user_id = auth.uid() AND is_admin = true
-  );
-$$;
+    -- Update is_shop_admin with SECURITY DEFINER
+    CREATE OR REPLACE FUNCTION is_shop_admin()
+    RETURNS boolean
+    LANGUAGE sql
+    SECURITY DEFINER
+    SET search_path = public
+    STABLE
+    AS $$
+      SELECT EXISTS (
+        SELECT 1 FROM customers
+        WHERE auth_user_id = auth.uid() AND is_admin = true
+      );
+    $$;
+  ELSE
+    CREATE OR REPLACE FUNCTION get_user_shop_id()
+    RETURNS uuid
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
+    STABLE
+    AS $$
+    BEGIN
+      RETURN (
+        SELECT shop_id
+        FROM customers
+        WHERE id = auth.uid()
+        LIMIT 1
+      );
+    END;
+    $$;
+
+    CREATE OR REPLACE FUNCTION is_shop_admin()
+    RETURNS boolean
+    LANGUAGE sql
+    SECURITY DEFINER
+    SET search_path = public
+    STABLE
+    AS $$
+      SELECT EXISTS (
+        SELECT 1 FROM customers
+        WHERE id = auth.uid() AND is_admin = true
+      );
+    $$;
+  END IF;
+END $do$;
 
 -- Update is_super_admin with SECURITY DEFINER
 CREATE OR REPLACE FUNCTION is_super_admin()
