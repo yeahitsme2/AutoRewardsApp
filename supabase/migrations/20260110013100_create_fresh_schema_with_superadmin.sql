@@ -28,7 +28,7 @@
      - Customers can only access their own data
 */
 
-DO $$
+DO $do$
 BEGIN
   IF NOT EXISTS (
     SELECT 1
@@ -604,4 +604,4 @@ CREATE TRIGGER trigger_create_shop_settings
   EXECUTE FUNCTION create_shop_settings();
 
   END IF;
-END $$;
+END $do$;
