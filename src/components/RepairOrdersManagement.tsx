@@ -355,10 +355,12 @@ export function RepairOrdersManagement() {
             onChange={(e) => {
               const value = e.target.value;
               if (value === '__new__') {
+                setSelectedOrderId('');
                 setShowNewOrder(true);
                 return;
               }
               if (value) {
+                setShowNewOrder(false);
                 handleSelectOrder(value);
               }
             }}
