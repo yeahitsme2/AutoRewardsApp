@@ -49,7 +49,7 @@ DROP POLICY IF EXISTS "Shop admins can manage their shop appointments" ON appoin
 -- Now drop and recreate functions with SECURITY DEFINER
 DROP FUNCTION IF EXISTS is_super_admin();
 DROP FUNCTION IF EXISTS is_shop_admin();
-DROP FUNCTION IF EXISTS get_user_shop_id();
+DROP FUNCTION IF EXISTS get_user_shop_id() CASCADE;
 
 -- Recreate is_super_admin with SECURITY DEFINER
 CREATE FUNCTION is_super_admin()
