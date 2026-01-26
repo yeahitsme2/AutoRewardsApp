@@ -12,7 +12,17 @@
 */
 
 -- Drop ALL policies that depend on the helper functions
-DROP POLICY IF EXISTS "Super admins can view all super admins" ON super_admins;
+DO $do$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.tables
+    WHERE table_schema = 'public'
+      AND table_name = 'super_admins'
+  ) THEN
+    DROP POLICY IF EXISTS "Super admins can view all super admins" ON super_admins;
+  END IF;
+END $do$;
 DROP POLICY IF EXISTS "Super admins can do anything with shops" ON shops;
 DROP POLICY IF EXISTS "Shop admins can view their shop" ON shops;
 DROP POLICY IF EXISTS "Super admins can do anything with shop settings" ON shop_settings;
