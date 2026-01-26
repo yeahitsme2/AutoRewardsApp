@@ -374,16 +374,6 @@ export function RepairOrdersManagement() {
               ))}
             <option value="__new__">+ Create New RO</option>
           </select>
-          <button
-            onClick={() => setShowNewOrder(true)}
-            className="flex items-center gap-2 px-4 py-2 text-white font-medium rounded-lg transition-colors"
-            style={{ backgroundColor: brandSettings.primary_color }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = brandSettings.secondary_color)}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = brandSettings.primary_color)}
-          >
-            <Plus className="w-4 h-4" />
-            New Repair Order
-          </button>
         </div>
       </div>
 
