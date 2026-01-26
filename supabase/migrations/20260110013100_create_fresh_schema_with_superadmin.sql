@@ -28,6 +28,15 @@
      - Customers can only access their own data
 */
 
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.tables
+    WHERE table_schema = 'public'
+      AND table_name = 'shops'
+  ) THEN
+
 -- Super Admins table (platform level)
 CREATE TABLE super_admins (
   id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -593,3 +602,6 @@ CREATE TRIGGER trigger_create_shop_settings
   AFTER INSERT ON shops
   FOR EACH ROW
   EXECUTE FUNCTION create_shop_settings();
+
+  END IF;
+END $$;
