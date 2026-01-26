@@ -40,6 +40,12 @@ export function ScheduleBoard() {
     description: '',
     status: 'confirmed',
   });
+  const [createCustomer, setCreateCustomer] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({
+    full_name: '',
+    email: '',
+    phone: '',
+  });
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
@@ -115,14 +121,42 @@ export function ScheduleBoard() {
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!admin?.shop_id || !formData.customer_id || !formData.scheduled_date || !formData.scheduled_time || !formData.service_type) {
+    if (!admin?.shop_id || !formData.scheduled_date || !formData.scheduled_time || !formData.service_type) {
       showMessage('error', 'Please fill in all required fields');
+      return;
+    }
+    if (!createCustomer && !formData.customer_id) {
+      showMessage('error', 'Select an existing customer or add a new one');
       return;
     }
 
     try {
+      let customerId = formData.customer_id;
+      if (createCustomer) {
+        if (!newCustomer.full_name || !newCustomer.email) {
+          showMessage('error', 'Name and email are required for a new customer');
+          return;
+        }
+
+        const { data: createdCustomer, error: customerError } = await supabase
+          .from('customers')
+          .insert({
+            shop_id: admin.shop_id,
+            full_name: newCustomer.full_name,
+            email: newCustomer.email,
+            phone: newCustomer.phone || null,
+            has_account: false,
+            is_admin: false,
+          })
+          .select('*')
+          .single();
+
+        if (customerError) throw customerError;
+        customerId = createdCustomer.id;
+      }
+
       const { error } = await supabase.from('appointments').insert({
-        customer_id: formData.customer_id,
+        customer_id: customerId,
         vehicle_id: formData.vehicle_id || null,
         shop_id: admin.shop_id,
         scheduled_date: formData.scheduled_date,
@@ -144,6 +178,9 @@ export function ScheduleBoard() {
         description: '',
         status: 'confirmed',
       });
+      setCreateCustomer(false);
+      setNewCustomer({ full_name: '', email: '', phone: '' });
+      loadCustomers();
       loadAppointments();
     } catch (error) {
       console.error('Error adding appointment:', error);
@@ -219,17 +256,62 @@ export function ScheduleBoard() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium text-slate-700">Customer</label>
-                <select
-                  value={formData.customer_id}
-                  onChange={(e) => setFormData({ ...formData, customer_id: e.target.value, vehicle_id: '' })}
-                  className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg"
-                  required
-                >
-                  <option value="">Select customer</option>
-                  {customers.map((customer) => (
-                    <option key={customer.id} value={customer.id}>{customer.full_name}</option>
-                  ))}
-                </select>
+                {!createCustomer ? (
+                  <>
+                    <select
+                      value={formData.customer_id}
+                      onChange={(e) => setFormData({ ...formData, customer_id: e.target.value, vehicle_id: '' })}
+                      className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg"
+                      required
+                    >
+                      <option value="">Select customer</option>
+                      {customers.map((customer) => (
+                        <option key={customer.id} value={customer.id}>{customer.full_name}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCreateCustomer(true);
+                        setFormData({ ...formData, customer_id: '', vehicle_id: '' });
+                      }}
+                      className="mt-2 text-sm text-slate-600 hover:text-slate-900 underline"
+                    >
+                      Add new customer
+                    </button>
+                  </>
+                ) : (
+                  <div className="space-y-3 mt-2">
+                    <input
+                      type="text"
+                      placeholder="Full name"
+                      value={newCustomer.full_name}
+                      onChange={(e) => setNewCustomer({ ...newCustomer, full_name: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                    />
+                    <input
+                      type="email"
+                      placeholder="Email"
+                      value={newCustomer.email}
+                      onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                    />
+                    <input
+                      type="tel"
+                      placeholder="Phone (optional)"
+                      value={newCustomer.phone}
+                      onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setCreateCustomer(false)}
+                      className="text-sm text-slate-600 hover:text-slate-900 underline"
+                    >
+                      Select existing customer instead
+                    </button>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="text-sm font-medium text-slate-700">Vehicle</label>
@@ -245,6 +327,7 @@ export function ScheduleBoard() {
                     </option>
                   ))}
                 </select>
+                <p className="mt-1 text-xs text-slate-500">Vehicle is optional and can be added later.</p>
               </div>
               <div>
                 <label className="text-sm font-medium text-slate-700">Date</label>
