@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
 import { supabase } from '../lib/supabase';
-import { LogOut, Wrench, Users, UserCheck, UserX, Search, Gift, Crown, Settings as SettingsIcon, Tag, Calendar, TrendingUp, X, Car, Award, ClipboardList } from 'lucide-react';
+import { LogOut, Wrench, Users, UserCheck, UserX, Search, Gift, Crown, Settings as SettingsIcon, Tag, Calendar, TrendingUp, X, Car, Award, ClipboardList, Clock } from 'lucide-react';
 import { AddServiceModal } from './AddServiceModal';
 import { AddVehicleModal } from './AddVehicleModal';
 import { RewardsManagement } from './RewardsManagement';
 import { PromotionsManagement } from './PromotionsManagement';
 import { AppointmentsManagement } from './AppointmentsManagement';
 import { RepairOrdersManagement } from './RepairOrdersManagement';
+import { ScheduleBoard } from './ScheduleBoard';
 import { Settings } from './Settings';
 import { UserManagement } from './UserManagement';
 import { Insights } from './Insights';
@@ -20,7 +21,7 @@ interface CustomerWithVehicles extends Customer {
   services: Service[];
 }
 
-type TabType = 'customers' | 'appointments' | 'repair_orders' | 'rewards' | 'promotions' | 'insights' | 'users' | 'settings';
+type TabType = 'customers' | 'appointments' | 'schedule' | 'repair_orders' | 'rewards' | 'promotions' | 'insights' | 'users' | 'settings';
 
 export function AdminDashboard() {
   const { admin, signOut } = useAuth();
@@ -240,6 +241,17 @@ export function AdminDashboard() {
                   {pendingAppointments}
                 </span>
               )}
+            </button>
+            <button
+              onClick={() => setActiveTab('schedule')}
+              className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-3 font-medium transition-colors border-b-2 whitespace-nowrap flex-shrink-0"
+              style={activeTab === 'schedule' ? {
+                borderBottomColor: brandSettings.primary_color,
+                color: brandSettings.primary_color
+              } : { borderBottomColor: 'transparent', color: '#475569' }}
+            >
+              <Clock className="w-5 h-5" />
+              <span className="text-sm sm:text-base">Schedule</span>
             </button>
             <button
               onClick={() => setActiveTab('repair_orders')}
@@ -599,6 +611,8 @@ export function AdminDashboard() {
         )}
 
         {activeTab === 'appointments' && <AppointmentsManagement />}
+
+        {activeTab === 'schedule' && <ScheduleBoard />}
 
         {activeTab === 'repair_orders' && <RepairOrdersManagement />}
 
