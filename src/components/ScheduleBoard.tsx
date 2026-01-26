@@ -46,6 +46,15 @@ export function ScheduleBoard() {
     email: '',
     phone: '',
   });
+  const [createVehicle, setCreateVehicle] = useState(false);
+  const [newVehicle, setNewVehicle] = useState({
+    year: '',
+    make: '',
+    model: '',
+    license_plate: '',
+    vin: '',
+    color: '',
+  });
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
@@ -155,9 +164,33 @@ export function ScheduleBoard() {
         customerId = createdCustomer.id;
       }
 
+      let vehicleId = formData.vehicle_id || null;
+      const hasVehicleInput = Boolean(
+        newVehicle.year || newVehicle.make || newVehicle.model || newVehicle.license_plate || newVehicle.vin || newVehicle.color
+      );
+      if (createVehicle && hasVehicleInput) {
+        const { data: createdVehicle, error: vehicleError } = await supabase
+          .from('vehicles')
+          .insert({
+            shop_id: admin.shop_id,
+            customer_id: customerId,
+            year: newVehicle.year ? Number(newVehicle.year) : new Date().getFullYear(),
+            make: newVehicle.make || 'Unknown',
+            model: newVehicle.model || 'Unknown',
+            license_plate: newVehicle.license_plate || null,
+            vin: newVehicle.vin || null,
+            color: newVehicle.color || null,
+          })
+          .select('*')
+          .single();
+
+        if (vehicleError) throw vehicleError;
+        vehicleId = createdVehicle.id;
+      }
+
       const { error } = await supabase.from('appointments').insert({
         customer_id: customerId,
-        vehicle_id: formData.vehicle_id || null,
+        vehicle_id: vehicleId,
         shop_id: admin.shop_id,
         scheduled_date: formData.scheduled_date,
         scheduled_time: formData.scheduled_time,
@@ -180,6 +213,8 @@ export function ScheduleBoard() {
       });
       setCreateCustomer(false);
       setNewCustomer({ full_name: '', email: '', phone: '' });
+      setCreateVehicle(false);
+      setNewVehicle({ year: '', make: '', model: '', license_plate: '', vin: '', color: '' });
       loadCustomers();
       loadAppointments();
     } catch (error) {
@@ -315,19 +350,93 @@ export function ScheduleBoard() {
               </div>
               <div>
                 <label className="text-sm font-medium text-slate-700">Vehicle</label>
-                <select
-                  value={formData.vehicle_id}
-                  onChange={(e) => setFormData({ ...formData, vehicle_id: e.target.value })}
-                  className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg"
-                >
-                  <option value="">No vehicle</option>
-                  {vehicles.filter((v) => v.customer_id === formData.customer_id).map((vehicle) => (
-                    <option key={vehicle.id} value={vehicle.id}>
-                      {vehicle.year} {vehicle.make} {vehicle.model}
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-1 text-xs text-slate-500">Vehicle is optional and can be added later.</p>
+                {!createVehicle ? (
+                  <>
+                    <select
+                      value={formData.vehicle_id}
+                      onChange={(e) => setFormData({ ...formData, vehicle_id: e.target.value })}
+                      className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg"
+                    >
+                      <option value="">No vehicle</option>
+                      {vehicles.filter((v) => v.customer_id === formData.customer_id).map((vehicle) => (
+                        <option key={vehicle.id} value={vehicle.id}>
+                          {vehicle.year} {vehicle.make} {vehicle.model}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="mt-2 flex items-center justify-between">
+                      <p className="text-xs text-slate-500">Vehicle is optional and can be added later.</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCreateVehicle(true);
+                          setFormData({ ...formData, vehicle_id: '' });
+                        }}
+                        className="text-xs text-slate-600 hover:text-slate-900 underline"
+                      >
+                        Add vehicle manually
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-2 mt-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <input
+                        type="number"
+                        placeholder="Year (optional)"
+                        value={newVehicle.year}
+                        onChange={(e) => setNewVehicle({ ...newVehicle, year: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Make (optional)"
+                        value={newVehicle.make}
+                        onChange={(e) => setNewVehicle({ ...newVehicle, make: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        placeholder="Model (optional)"
+                        value={newVehicle.model}
+                        onChange={(e) => setNewVehicle({ ...newVehicle, model: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                      />
+                      <input
+                        type="text"
+                        placeholder="License plate (optional)"
+                        value={newVehicle.license_plate}
+                        onChange={(e) => setNewVehicle({ ...newVehicle, license_plate: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        placeholder="VIN (optional)"
+                        value={newVehicle.vin}
+                        onChange={(e) => setNewVehicle({ ...newVehicle, vin: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Color (optional)"
+                        value={newVehicle.color}
+                        onChange={(e) => setNewVehicle({ ...newVehicle, color: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCreateVehicle(false)}
+                      className="text-xs text-slate-600 hover:text-slate-900 underline"
+                    >
+                      Select existing vehicle instead
+                    </button>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="text-sm font-medium text-slate-700">Date</label>
