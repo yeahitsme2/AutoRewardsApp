@@ -22,24 +22,34 @@ BEGIN
   END IF;
 END $$;
 
--- Update existing customers to set has_account based on auth_user_id
-UPDATE customers 
-SET has_account = (auth_user_id IS NOT NULL)
-WHERE has_account IS NULL OR has_account != (auth_user_id IS NOT NULL);
-
--- Create or replace trigger function to automatically maintain has_account
-CREATE OR REPLACE FUNCTION update_customer_has_account()
-RETURNS TRIGGER AS $$
+DO $do$
 BEGIN
-  NEW.has_account := (NEW.auth_user_id IS NOT NULL);
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 'customers' AND column_name = 'auth_user_id'
+  ) THEN
+    -- Update existing customers to set has_account based on auth_user_id
+    UPDATE customers
+    SET has_account = (auth_user_id IS NOT NULL)
+    WHERE has_account IS NULL OR has_account != (auth_user_id IS NOT NULL);
 
--- Drop trigger if it exists and recreate
-DROP TRIGGER IF EXISTS customer_has_account_trigger ON customers;
+    -- Create or replace trigger function to automatically maintain has_account
+    CREATE OR REPLACE FUNCTION update_customer_has_account()
+    RETURNS TRIGGER AS $$
+    BEGIN
+      NEW.has_account := (NEW.auth_user_id IS NOT NULL);
+      RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER customer_has_account_trigger
-  BEFORE INSERT OR UPDATE OF auth_user_id ON customers
-  FOR EACH ROW
-  EXECUTE FUNCTION update_customer_has_account();
+    -- Drop trigger if it exists and recreate
+    DROP TRIGGER IF EXISTS customer_has_account_trigger ON customers;
+
+    CREATE TRIGGER customer_has_account_trigger
+      BEFORE INSERT OR UPDATE OF auth_user_id ON customers
+      FOR EACH ROW
+      EXECUTE FUNCTION update_customer_has_account();
+  END IF;
+END
+$do$;
