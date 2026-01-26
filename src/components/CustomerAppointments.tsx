@@ -9,6 +9,59 @@ interface AppointmentWithVehicle extends Appointment {
   vehicle?: Vehicle;
 }
 
+const serviceCatalog = [
+  'Oil Change',
+  'Tire Rotation',
+  'Brake Service',
+  'Engine Diagnostic',
+  'Transmission Service',
+  'AC Service',
+  'General Inspection',
+  'Component Replacement',
+  'Other',
+];
+
+const defaultScheduleSettings = {
+  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  appointment_duration_minutes: 30,
+  lead_time_minutes: 120,
+  bay_count: 1,
+  tech_count: 1,
+  business_hours: [
+    { day: 0, is_open: false, open_time: '08:00', close_time: '17:00' },
+    { day: 1, is_open: true, open_time: '08:00', close_time: '17:00' },
+    { day: 2, is_open: true, open_time: '08:00', close_time: '17:00' },
+    { day: 3, is_open: true, open_time: '08:00', close_time: '17:00' },
+    { day: 4, is_open: true, open_time: '08:00', close_time: '17:00' },
+    { day: 5, is_open: true, open_time: '08:00', close_time: '17:00' },
+    { day: 6, is_open: true, open_time: '09:00', close_time: '13:00' },
+  ],
+  auto_confirm_services: ['Oil Change', 'Tire Rotation'],
+  approval_required_services: ['Engine Diagnostic', 'Component Replacement'],
+};
+
+const parseTimeToMinutes = (timeStr: string) => {
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  return hours * 60 + minutes;
+};
+
+const minutesToTime = (minutes: number) => {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+};
+
+const getNowInTimeZone = (timeZone: string) => {
+  return new Date(new Date().toLocaleString('en-US', { timeZone }));
+};
+
+const makeZonedDate = (dateStr: string, timeStr: string, timeZone: string) => {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  const utc = new Date(Date.UTC(year, month - 1, day, hours, minutes));
+  return new Date(utc.toLocaleString('en-US', { timeZone }));
+};
+
 export function CustomerAppointments() {
   const { customer } = useAuth();
   const { brandSettings } = useBrand();
@@ -23,6 +76,9 @@ export function CustomerAppointments() {
     service_type: '',
     description: '',
   });
+  const [scheduleSettings, setScheduleSettings] = useState(defaultScheduleSettings);
+  const [alternativeSlots, setAlternativeSlots] = useState<{ date: string; time: string }[]>([]);
+  const [slotMessage, setSlotMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -34,7 +90,7 @@ export function CustomerAppointments() {
 
   const loadData = async () => {
     try {
-      const [appointmentsRes, vehiclesRes] = await Promise.all([
+      const [appointmentsRes, vehiclesRes, settingsRes] = await Promise.all([
         supabase
           .from('appointments')
           .select('*')
@@ -45,10 +101,16 @@ export function CustomerAppointments() {
           .select('*')
           .eq('customer_id', customer!.id)
           .order('created_at', { ascending: false }),
+        supabase
+          .from('shop_settings')
+          .select('*')
+          .eq('shop_id', customer!.shop_id)
+          .maybeSingle(),
       ]);
 
       if (appointmentsRes.error) throw appointmentsRes.error;
       if (vehiclesRes.error) throw vehiclesRes.error;
+      if (settingsRes.error) throw settingsRes.error;
 
       const appointmentsWithVehicles = (appointmentsRes.data || []).map((apt) => ({
         ...apt,
@@ -57,12 +119,93 @@ export function CustomerAppointments() {
 
       setAppointments(appointmentsWithVehicles);
       setVehicles(vehiclesRes.data || []);
+      if (settingsRes.data) {
+        setScheduleSettings({
+          timezone: settingsRes.data.timezone || defaultScheduleSettings.timezone,
+          appointment_duration_minutes: Number(settingsRes.data.appointment_duration_minutes || defaultScheduleSettings.appointment_duration_minutes),
+          lead_time_minutes: Number(settingsRes.data.lead_time_minutes || defaultScheduleSettings.lead_time_minutes),
+          bay_count: Number(settingsRes.data.bay_count || defaultScheduleSettings.bay_count),
+          tech_count: Number(settingsRes.data.tech_count || defaultScheduleSettings.tech_count),
+          business_hours: settingsRes.data.business_hours || defaultScheduleSettings.business_hours,
+          auto_confirm_services: settingsRes.data.auto_confirm_services || defaultScheduleSettings.auto_confirm_services,
+          approval_required_services: settingsRes.data.approval_required_services || defaultScheduleSettings.approval_required_services,
+        });
+      }
     } catch (error) {
       console.error('Error loading appointments:', error);
       showMessage('error', 'Failed to load appointments');
     } finally {
       setLoading(false);
     }
+  };
+
+  const getCapacity = () => {
+    const bayCount = Number(scheduleSettings.bay_count || 1);
+    const techCount = Number(scheduleSettings.tech_count || 1);
+    return Math.max(1, Math.min(bayCount, techCount));
+  };
+
+  const getBusinessHoursForDate = (dateStr: string) => {
+    const dayIndex = makeZonedDate(dateStr, '00:00', scheduleSettings.timezone).getDay();
+    return scheduleSettings.business_hours.find((d: any) => d.day === dayIndex);
+  };
+
+  const isWithinBusinessHours = (dateStr: string, timeStr: string) => {
+    const hours = getBusinessHoursForDate(dateStr);
+    if (!hours || !hours.is_open) return false;
+    const timeMinutes = parseTimeToMinutes(timeStr);
+    return timeMinutes >= parseTimeToMinutes(hours.open_time) && timeMinutes + scheduleSettings.appointment_duration_minutes <= parseTimeToMinutes(hours.close_time);
+  };
+
+  const isAfterLeadTime = (dateStr: string, timeStr: string) => {
+    const now = getNowInTimeZone(scheduleSettings.timezone);
+    const leadMs = scheduleSettings.lead_time_minutes * 60 * 1000;
+    const requested = makeZonedDate(dateStr, timeStr, scheduleSettings.timezone);
+    return requested.getTime() - now.getTime() >= leadMs;
+  };
+
+  const fetchAppointmentsForRange = async (startDate: string, endDate: string) => {
+    const { data, error } = await supabase
+      .from('appointments')
+      .select('scheduled_date, scheduled_time, status')
+      .eq('shop_id', customer!.shop_id)
+      .gte('scheduled_date', startDate)
+      .lte('scheduled_date', endDate)
+      .neq('status', 'cancelled');
+
+    if (error) throw error;
+    return data || [];
+  };
+
+  const isSlotAvailable = (dateStr: string, timeStr: string, appointmentsData: any[]) => {
+    const count = appointmentsData.filter((apt) => apt.scheduled_date === dateStr && apt.scheduled_time === timeStr).length;
+    return count < getCapacity();
+  };
+
+  const findAlternativeSlots = (dateStr: string, timeStr: string, appointmentsData: any[]) => {
+    const alternatives: { date: string; time: string }[] = [];
+    const startDate = new Date(`${dateStr}T00:00:00`);
+    const duration = scheduleSettings.appointment_duration_minutes;
+
+    for (let offset = 0; offset < 7; offset += 1) {
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + offset);
+      const candidateDate = date.toISOString().split('T')[0];
+      const hours = getBusinessHoursForDate(candidateDate);
+      if (!hours || !hours.is_open) continue;
+
+      const openMinutes = parseTimeToMinutes(hours.open_time);
+      const closeMinutes = parseTimeToMinutes(hours.close_time);
+      for (let t = openMinutes; t + duration <= closeMinutes; t += duration) {
+        const slotTime = minutesToTime(t);
+        if (offset === 0 && slotTime <= timeStr) continue;
+        if (!isAfterLeadTime(candidateDate, slotTime)) continue;
+        if (!isSlotAvailable(candidateDate, slotTime, appointmentsData)) continue;
+        alternatives.push({ date: candidateDate, time: slotTime });
+        if (alternatives.length >= 5) return alternatives;
+      }
+    }
+    return alternatives;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -75,6 +218,39 @@ export function CustomerAppointments() {
 
     setSubmitting(true);
     try {
+      setSlotMessage(null);
+      setAlternativeSlots([]);
+
+      if (!isWithinBusinessHours(formData.scheduled_date, formData.scheduled_time)) {
+        showMessage('error', 'That time is outside of our business hours.');
+        setSubmitting(false);
+        return;
+      }
+
+      if (!isAfterLeadTime(formData.scheduled_date, formData.scheduled_time)) {
+        const hours = Math.ceil(scheduleSettings.lead_time_minutes / 60);
+        showMessage('error', `Please choose a time at least ${hours} hours from now.`);
+        setSubmitting(false);
+        return;
+      }
+
+      const startDate = formData.scheduled_date;
+      const endDate = new Date(new Date(startDate).getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const rangeAppointments = await fetchAppointmentsForRange(startDate, endDate);
+
+      if (!isSlotAvailable(formData.scheduled_date, formData.scheduled_time, rangeAppointments)) {
+        const alternatives = findAlternativeSlots(formData.scheduled_date, formData.scheduled_time, rangeAppointments);
+        setAlternativeSlots(alternatives);
+        setSlotMessage(alternatives.length > 0
+          ? 'That time is not available. Choose one of these open slots or call to verify scheduling.'
+          : 'That time is not available. Please call the shop to verify scheduling.');
+        setSubmitting(false);
+        return;
+      }
+
+      const autoConfirm = scheduleSettings.auto_confirm_services.includes(formData.service_type)
+        && !scheduleSettings.approval_required_services.includes(formData.service_type);
+
       const { error } = await supabase.from('appointments').insert({
         customer_id: customer!.id,
         vehicle_id: formData.vehicle_id,
@@ -83,6 +259,7 @@ export function CustomerAppointments() {
         scheduled_time: formData.scheduled_time,
         service_type: formData.service_type,
         description: formData.description || null,
+        status: autoConfirm ? 'confirmed' : 'pending',
       });
 
       if (error) throw error;
@@ -96,6 +273,8 @@ export function CustomerAppointments() {
         service_type: '',
         description: '',
       });
+      setAlternativeSlots([]);
+      setSlotMessage(null);
       loadData();
     } catch (error) {
       console.error('Error booking appointment:', error);
@@ -185,9 +364,9 @@ export function CustomerAppointments() {
   };
 
   const getMinDate = () => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return tomorrow.toISOString().split('T')[0];
+    const now = getNowInTimeZone(scheduleSettings.timezone);
+    const minDate = new Date(now.getTime() + scheduleSettings.lead_time_minutes * 60 * 1000);
+    return minDate.toISOString().split('T')[0];
   };
 
   if (loading) {
@@ -293,6 +472,30 @@ export function CustomerAppointments() {
                 />
               </div>
 
+              {slotMessage && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
+                  {slotMessage}
+                  {alternativeSlots.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {alternativeSlots.map((slot) => (
+                        <button
+                          key={`${slot.date}-${slot.time}`}
+                          type="button"
+                          onClick={() => {
+                            setFormData({ ...formData, scheduled_date: slot.date, scheduled_time: slot.time });
+                            setSlotMessage(null);
+                            setAlternativeSlots([]);
+                          }}
+                          className="px-3 py-1.5 bg-white border border-yellow-200 rounded-lg text-xs text-slate-700 hover:bg-yellow-100"
+                        >
+                          {slot.date} {slot.time}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Service Type <span className="text-red-500">*</span>
@@ -304,14 +507,9 @@ export function CustomerAppointments() {
                   required
                 >
                   <option value="">Select service type</option>
-                  <option value="Oil Change">Oil Change</option>
-                  <option value="Tire Rotation">Tire Rotation</option>
-                  <option value="Brake Service">Brake Service</option>
-                  <option value="Engine Diagnostic">Engine Diagnostic</option>
-                  <option value="Transmission Service">Transmission Service</option>
-                  <option value="AC Service">AC Service</option>
-                  <option value="General Inspection">General Inspection</option>
-                  <option value="Other">Other</option>
+                  {serviceCatalog.map((service) => (
+                    <option key={service} value={service}>{service}</option>
+                  ))}
                 </select>
               </div>
 

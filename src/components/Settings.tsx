@@ -7,6 +7,29 @@ import { Settings as SettingsIcon, Save, DollarSign, Award, Palette, Image, Stor
 import QRCodeLib from 'qrcode';
 import type { ShopSettings } from '../types/database';
 
+const dayLabels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const serviceCatalog = [
+  'Oil Change',
+  'Tire Rotation',
+  'Brake Service',
+  'Engine Diagnostic',
+  'Transmission Service',
+  'AC Service',
+  'General Inspection',
+  'Component Replacement',
+  'Other',
+];
+
+const defaultBusinessHours = [
+  { day: 0, is_open: false, open_time: '08:00', close_time: '17:00' },
+  { day: 1, is_open: true, open_time: '08:00', close_time: '17:00' },
+  { day: 2, is_open: true, open_time: '08:00', close_time: '17:00' },
+  { day: 3, is_open: true, open_time: '08:00', close_time: '17:00' },
+  { day: 4, is_open: true, open_time: '08:00', close_time: '17:00' },
+  { day: 5, is_open: true, open_time: '08:00', close_time: '17:00' },
+  { day: 6, is_open: true, open_time: '09:00', close_time: '13:00' },
+];
+
 export function Settings() {
   const { customer, admin } = useAuth();
   const { refreshBrand } = useBrand();
@@ -31,6 +54,17 @@ export function Settings() {
     primary_color: '#10b981',
     secondary_color: '#0f172a',
     welcome_message: 'Welcome back',
+  });
+  const [schedulerSupported, setSchedulerSupported] = useState(true);
+  const [scheduleSettings, setScheduleSettings] = useState({
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    appointment_duration_minutes: 30,
+    lead_time_minutes: 120,
+    bay_count: 1,
+    tech_count: 1,
+    business_hours: defaultBusinessHours,
+    auto_confirm_services: ['Oil Change', 'Tire Rotation'],
+    approval_required_services: ['Engine Diagnostic', 'Component Replacement'],
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -136,6 +170,22 @@ export function Settings() {
           secondary_color: data.secondary_color || '#0f172a',
           welcome_message: data.welcome_message || 'Welcome back',
         });
+        const hasSchedulerFields = Object.prototype.hasOwnProperty.call(data, 'business_hours');
+        setSchedulerSupported(hasSchedulerFields);
+        if (hasSchedulerFields) {
+          setScheduleSettings({
+            timezone: data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+            appointment_duration_minutes: Number(data.appointment_duration_minutes || 30),
+            lead_time_minutes: Number(data.lead_time_minutes || 120),
+            bay_count: Number(data.bay_count || 1),
+            tech_count: Number(data.tech_count || 1),
+            business_hours: (data.business_hours as any) || defaultBusinessHours,
+            auto_confirm_services: (data.auto_confirm_services as string[]) || ['Oil Change', 'Tire Rotation'],
+            approval_required_services: (data.approval_required_services as string[]) || ['Engine Diagnostic', 'Component Replacement'],
+          });
+        } else {
+          setScheduleSettings((prev) => ({ ...prev }));
+        }
       }
     } catch (error) {
       console.error('Error loading settings:', error);
@@ -178,6 +228,16 @@ export function Settings() {
         ...tierSettings,
         ...brandSettings,
         logo_url: brandSettings.logo_url || null,
+        ...(schedulerSupported ? {
+          business_hours: scheduleSettings.business_hours,
+          appointment_duration_minutes: scheduleSettings.appointment_duration_minutes,
+          lead_time_minutes: scheduleSettings.lead_time_minutes,
+          bay_count: scheduleSettings.bay_count,
+          tech_count: scheduleSettings.tech_count,
+          timezone: scheduleSettings.timezone,
+          auto_confirm_services: scheduleSettings.auto_confirm_services,
+          approval_required_services: scheduleSettings.approval_required_services,
+        } : {}),
         updated_at: new Date().toISOString(),
         updated_by: updatedById,
       };
@@ -488,6 +548,184 @@ export function Settings() {
                     Secondary Button
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-slate-200 pt-6">
+            <h4 className="text-base font-semibold text-slate-900 mb-4">Scheduling Settings</h4>
+
+            {!schedulerSupported && (
+              <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
+                Scheduler settings will save after the database schema is updated. You can configure them now and re-save later.
+              </div>
+            )}
+
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Time Zone</label>
+                  <input
+                    type="text"
+                    value={scheduleSettings.timezone}
+                    onChange={(e) => setScheduleSettings({ ...scheduleSettings, timezone: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                    placeholder="America/New_York"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">Use an IANA time zone (e.g., America/New_York).</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Appointment Duration</label>
+                  <input
+                    type="number"
+                    min={15}
+                    step={5}
+                    value={scheduleSettings.appointment_duration_minutes}
+                    onChange={(e) => setScheduleSettings({ ...scheduleSettings, appointment_duration_minutes: Number(e.target.value) })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">Minutes per appointment (default 30).</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Lead Time (minutes)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={15}
+                    value={scheduleSettings.lead_time_minutes}
+                    onChange={(e) => setScheduleSettings({ ...scheduleSettings, lead_time_minutes: Number(e.target.value) })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">Minimum time before an appointment can be booked.</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Bay Count</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={scheduleSettings.bay_count}
+                    onChange={(e) => setScheduleSettings({ ...scheduleSettings, bay_count: Number(e.target.value) })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Tech Count</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={scheduleSettings.tech_count}
+                    onChange={(e) => setScheduleSettings({ ...scheduleSettings, tech_count: Number(e.target.value) })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <h5 className="text-sm font-semibold text-slate-900 mb-2">Business Hours</h5>
+                <div className="space-y-2">
+                  {scheduleSettings.business_hours.map((dayConfig: any, idx: number) => (
+                    <div key={dayConfig.day} className="flex flex-wrap items-center gap-3 border border-slate-200 rounded-lg p-3">
+                      <label className="flex items-center gap-2 text-sm font-medium text-slate-700 w-28">
+                        <input
+                          type="checkbox"
+                          checked={dayConfig.is_open}
+                          onChange={(e) => {
+                            const next = [...scheduleSettings.business_hours];
+                            next[idx] = { ...dayConfig, is_open: e.target.checked };
+                            setScheduleSettings({ ...scheduleSettings, business_hours: next });
+                          }}
+                        />
+                        {dayLabels[dayConfig.day]}
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="time"
+                          value={dayConfig.open_time}
+                          disabled={!dayConfig.is_open}
+                          onChange={(e) => {
+                            const next = [...scheduleSettings.business_hours];
+                            next[idx] = { ...dayConfig, open_time: e.target.value };
+                            setScheduleSettings({ ...scheduleSettings, business_hours: next });
+                          }}
+                          className="px-2 py-1 border border-slate-300 rounded-lg text-sm"
+                        />
+                        <span className="text-slate-500 text-sm">to</span>
+                        <input
+                          type="time"
+                          value={dayConfig.close_time}
+                          disabled={!dayConfig.is_open}
+                          onChange={(e) => {
+                            const next = [...scheduleSettings.business_hours];
+                            next[idx] = { ...dayConfig, close_time: e.target.value };
+                            setScheduleSettings({ ...scheduleSettings, business_hours: next });
+                          }}
+                          className="px-2 py-1 border border-slate-300 rounded-lg text-sm"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h5 className="text-sm font-semibold text-slate-900 mb-2">Auto-Confirm Services</h5>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {serviceCatalog.map((service) => {
+                    const checked = scheduleSettings.auto_confirm_services.includes(service);
+                    return (
+                      <label key={service} className="flex items-center gap-2 text-sm text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            const nextAuto = e.target.checked
+                              ? [...scheduleSettings.auto_confirm_services, service]
+                              : scheduleSettings.auto_confirm_services.filter((item) => item !== service);
+                            const nextApproval = scheduleSettings.approval_required_services.filter((item) => item !== service);
+                            setScheduleSettings({
+                              ...scheduleSettings,
+                              auto_confirm_services: nextAuto,
+                              approval_required_services: nextApproval,
+                            });
+                          }}
+                        />
+                        {service}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <h5 className="text-sm font-semibold text-slate-900 mb-2">Advisor Approval Required</h5>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {serviceCatalog.map((service) => {
+                    const checked = scheduleSettings.approval_required_services.includes(service);
+                    return (
+                      <label key={service} className="flex items-center gap-2 text-sm text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            const nextApproval = e.target.checked
+                              ? [...scheduleSettings.approval_required_services, service]
+                              : scheduleSettings.approval_required_services.filter((item) => item !== service);
+                            const nextAuto = scheduleSettings.auto_confirm_services.filter((item) => item !== service);
+                            setScheduleSettings({
+                              ...scheduleSettings,
+                              approval_required_services: nextApproval,
+                              auto_confirm_services: nextAuto,
+                            });
+                          }}
+                        />
+                        {service}
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  Services marked for advisor approval will be saved as pending until a service advisor confirms.
+                </p>
               </div>
             </div>
           </div>
