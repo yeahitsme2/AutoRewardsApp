@@ -51,6 +51,15 @@ DROP FUNCTION IF EXISTS is_super_admin();
 DROP FUNCTION IF EXISTS is_shop_admin();
 DROP FUNCTION IF EXISTS get_user_shop_id() CASCADE;
 
+-- Ensure super_admins table exists (some schemas may not include it yet)
+CREATE TABLE IF NOT EXISTS super_admins (
+  id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email text UNIQUE NOT NULL,
+  full_name text NOT NULL,
+  created_at timestamptz DEFAULT now()
+);
+ALTER TABLE super_admins ENABLE ROW LEVEL SECURITY;
+
 -- Recreate is_super_admin with SECURITY DEFINER
 CREATE FUNCTION is_super_admin()
 RETURNS BOOLEAN
