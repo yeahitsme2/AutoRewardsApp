@@ -311,8 +311,19 @@ CREATE POLICY "Super admins can do anything with appointments"
   USING (is_super_admin())
   WITH CHECK (is_super_admin());
 
-CREATE POLICY "Shop admins can manage their shop appointments"
-  ON appointments FOR ALL
-  TO authenticated
-  USING (shop_id = get_user_shop_id() AND is_shop_admin())
-  WITH CHECK (shop_id = get_user_shop_id() AND is_shop_admin());
+DO $do$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'appointments'
+      AND column_name = 'shop_id'
+  ) THEN
+    CREATE POLICY "Shop admins can manage their shop appointments"
+      ON appointments FOR ALL
+      TO authenticated
+      USING (shop_id = get_user_shop_id() AND is_shop_admin())
+      WITH CHECK (shop_id = get_user_shop_id() AND is_shop_admin());
+  END IF;
+END $do$;
