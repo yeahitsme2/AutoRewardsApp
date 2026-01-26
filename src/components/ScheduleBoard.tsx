@@ -133,8 +133,8 @@ export function ScheduleBoard() {
     try {
       let customerId = formData.customer_id;
       if (createCustomer) {
-        if (!newCustomer.full_name || !newCustomer.email) {
-          showMessage('error', 'Name and email are required for a new customer');
+        if (!newCustomer.full_name || !newCustomer.phone) {
+          showMessage('error', 'Name and phone are required for a new customer');
           return;
         }
 
@@ -143,8 +143,8 @@ export function ScheduleBoard() {
           .insert({
             shop_id: admin.shop_id,
             full_name: newCustomer.full_name,
-            email: newCustomer.email,
-            phone: newCustomer.phone || null,
+            email: newCustomer.email || null,
+            phone: newCustomer.phone,
             has_account: false,
             is_admin: false,
           })
@@ -290,17 +290,17 @@ export function ScheduleBoard() {
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                     />
                     <input
-                      type="email"
-                      placeholder="Email"
-                      value={newCustomer.email}
-                      onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
+                      type="tel"
+                      placeholder="Phone"
+                      value={newCustomer.phone}
+                      onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                     />
                     <input
-                      type="tel"
-                      placeholder="Phone (optional)"
-                      value={newCustomer.phone}
-                      onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
+                      type="email"
+                      placeholder="Email (optional)"
+                      value={newCustomer.email}
+                      onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                     />
                     <button
