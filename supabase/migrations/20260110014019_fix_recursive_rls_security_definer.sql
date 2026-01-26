@@ -73,30 +73,75 @@ SELECT EXISTS (
 );
 $$;
 
--- Recreate is_shop_admin with SECURITY DEFINER  
-CREATE FUNCTION is_shop_admin()
-RETURNS BOOLEAN
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-SELECT EXISTS (
-  SELECT 1 FROM customers 
-  WHERE auth_user_id = auth.uid() AND is_admin = true
-);
-$$;
+-- Recreate is_shop_admin with SECURITY DEFINER (supports schemas without auth_user_id)
+DO $do$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'customers'
+      AND column_name = 'auth_user_id'
+  ) THEN
+    CREATE FUNCTION is_shop_admin()
+    RETURNS BOOLEAN
+    LANGUAGE sql
+    STABLE
+    SECURITY DEFINER
+    SET search_path = public
+    AS $$
+      SELECT EXISTS (
+        SELECT 1 FROM customers
+        WHERE auth_user_id = auth.uid() AND is_admin = true
+      );
+    $$;
+  ELSE
+    CREATE FUNCTION is_shop_admin()
+    RETURNS BOOLEAN
+    LANGUAGE sql
+    STABLE
+    SECURITY DEFINER
+    SET search_path = public
+    AS $$
+      SELECT EXISTS (
+        SELECT 1 FROM customers
+        WHERE id = auth.uid() AND is_admin = true
+      );
+    $$;
+  END IF;
+END $do$;
 
--- Recreate get_user_shop_id with SECURITY DEFINER
-CREATE FUNCTION get_user_shop_id()
-RETURNS UUID
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-SELECT shop_id FROM customers WHERE auth_user_id = auth.uid() LIMIT 1;
-$$;
+-- Recreate get_user_shop_id with SECURITY DEFINER (supports schemas without auth_user_id)
+DO $do$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'customers'
+      AND column_name = 'auth_user_id'
+  ) THEN
+    CREATE FUNCTION get_user_shop_id()
+    RETURNS UUID
+    LANGUAGE sql
+    STABLE
+    SECURITY DEFINER
+    SET search_path = public
+    AS $$
+      SELECT shop_id FROM customers WHERE auth_user_id = auth.uid() LIMIT 1;
+    $$;
+  ELSE
+    CREATE FUNCTION get_user_shop_id()
+    RETURNS UUID
+    LANGUAGE sql
+    STABLE
+    SECURITY DEFINER
+    SET search_path = public
+    AS $$
+      SELECT shop_id FROM customers WHERE id = auth.uid() LIMIT 1;
+    $$;
+  END IF;
+END $do$;
 
 -- Recreate super_admins policy
 CREATE POLICY "Super admins can view all super admins"
