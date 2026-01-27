@@ -122,24 +122,57 @@ CREATE POLICY "Shop admins can manage their settings"
 -- VEHICLES TABLE ADMIN POLICIES
 -- ============================================================================
 
-DROP POLICY IF EXISTS "Shop admins can manage their shop vehicles" ON vehicles;
-CREATE POLICY "Shop admins can manage their shop vehicles"
-  ON vehicles FOR ALL
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM admins
-      WHERE admins.auth_user_id = (SELECT auth.uid())
-      AND admins.shop_id = vehicles.shop_id
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM admins
-      WHERE admins.auth_user_id = (SELECT auth.uid())
-      AND admins.shop_id = vehicles.shop_id
-    )
-  );
+DO $do$
+BEGIN
+  DROP POLICY IF EXISTS "Shop admins can manage their shop vehicles" ON vehicles;
+
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 'vehicles' AND column_name = 'shop_id'
+  ) THEN
+    CREATE POLICY "Shop admins can manage their shop vehicles"
+      ON vehicles FOR ALL
+      TO authenticated
+      USING (
+        EXISTS (
+          SELECT 1 FROM admins
+          WHERE admins.auth_user_id = (SELECT auth.uid())
+          AND admins.shop_id = vehicles.shop_id
+        )
+      )
+      WITH CHECK (
+        EXISTS (
+          SELECT 1 FROM admins
+          WHERE admins.auth_user_id = (SELECT auth.uid())
+          AND admins.shop_id = vehicles.shop_id
+        )
+      );
+  ELSE
+    CREATE POLICY "Shop admins can manage their shop vehicles"
+      ON vehicles FOR ALL
+      TO authenticated
+      USING (
+        EXISTS (
+          SELECT 1
+          FROM admins
+          JOIN customers ON customers.id = vehicles.customer_id
+          WHERE admins.auth_user_id = (SELECT auth.uid())
+          AND admins.shop_id = customers.shop_id
+        )
+      )
+      WITH CHECK (
+        EXISTS (
+          SELECT 1
+          FROM admins
+          JOIN customers ON customers.id = vehicles.customer_id
+          WHERE admins.auth_user_id = (SELECT auth.uid())
+          AND admins.shop_id = customers.shop_id
+        )
+      );
+  END IF;
+END
+$do$;
 
 -- ============================================================================
 -- SERVICES TABLE ADMIN POLICIES
