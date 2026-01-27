@@ -178,24 +178,57 @@ $do$;
 -- SERVICES TABLE ADMIN POLICIES
 -- ============================================================================
 
-DROP POLICY IF EXISTS "Shop admins can manage their shop services" ON services;
-CREATE POLICY "Shop admins can manage their shop services"
-  ON services FOR ALL
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM admins
-      WHERE admins.auth_user_id = (SELECT auth.uid())
-      AND admins.shop_id = services.shop_id
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM admins
-      WHERE admins.auth_user_id = (SELECT auth.uid())
-      AND admins.shop_id = services.shop_id
-    )
-  );
+DO $do$
+BEGIN
+  DROP POLICY IF EXISTS "Shop admins can manage their shop services" ON services;
+
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 'services' AND column_name = 'shop_id'
+  ) THEN
+    CREATE POLICY "Shop admins can manage their shop services"
+      ON services FOR ALL
+      TO authenticated
+      USING (
+        EXISTS (
+          SELECT 1 FROM admins
+          WHERE admins.auth_user_id = (SELECT auth.uid())
+          AND admins.shop_id = services.shop_id
+        )
+      )
+      WITH CHECK (
+        EXISTS (
+          SELECT 1 FROM admins
+          WHERE admins.auth_user_id = (SELECT auth.uid())
+          AND admins.shop_id = services.shop_id
+        )
+      );
+  ELSE
+    CREATE POLICY "Shop admins can manage their shop services"
+      ON services FOR ALL
+      TO authenticated
+      USING (
+        EXISTS (
+          SELECT 1
+          FROM admins
+          JOIN customers ON customers.id = services.customer_id
+          WHERE admins.auth_user_id = (SELECT auth.uid())
+          AND admins.shop_id = customers.shop_id
+        )
+      )
+      WITH CHECK (
+        EXISTS (
+          SELECT 1
+          FROM admins
+          JOIN customers ON customers.id = services.customer_id
+          WHERE admins.auth_user_id = (SELECT auth.uid())
+          AND admins.shop_id = customers.shop_id
+        )
+      );
+  END IF;
+END
+$do$;
 
 -- ============================================================================
 -- APPOINTMENTS TABLE ADMIN POLICIES
