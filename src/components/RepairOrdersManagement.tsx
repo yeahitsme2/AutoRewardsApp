@@ -711,6 +711,7 @@ export function RepairOrdersManagement() {
                     <div>Labor: ${selectedOrder.labor_total.toFixed(2)}</div>
                     <div>Parts: ${selectedOrder.parts_total.toFixed(2)}</div>
                     <div>Fees: ${selectedOrder.fees_total.toFixed(2)}</div>
+                    <div>Tax: ${selectedOrder.tax_total.toFixed(2)}</div>
                     <div className="font-semibold text-slate-900">Total: ${selectedOrder.grand_total.toFixed(2)}</div>
                   </div>
                 </div>
