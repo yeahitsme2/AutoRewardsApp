@@ -104,6 +104,8 @@ export interface Database {
           timezone?: string | null;
           auto_confirm_services?: string[] | null;
           approval_required_services?: string[] | null;
+          tax_rate?: number | null;
+          taxable_item_types?: string[] | null;
           updated_by: string | null;
           created_at: string;
           updated_at: string;
@@ -132,6 +134,8 @@ export interface Database {
           timezone?: string | null;
           auto_confirm_services?: string[] | null;
           approval_required_services?: string[] | null;
+          tax_rate?: number | null;
+          taxable_item_types?: string[] | null;
           updated_by?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -160,6 +164,8 @@ export interface Database {
           timezone?: string | null;
           auto_confirm_services?: string[] | null;
           approval_required_services?: string[] | null;
+          tax_rate?: number | null;
+          taxable_item_types?: string[] | null;
           updated_by?: string | null;
           created_at?: string;
           updated_at?: string;

@@ -77,6 +77,10 @@ export function Settings() {
     auto_confirm_services: ['Oil Change', 'Tire Rotation'],
     approval_required_services: ['Engine Diagnostic', 'Component Replacement'],
   });
+  const [taxSettings, setTaxSettings] = useState({
+    tax_rate: 0,
+    taxable_item_types: ['part'],
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -199,6 +203,10 @@ export function Settings() {
         } else {
           setScheduleSettings((prev) => ({ ...prev }));
         }
+        setTaxSettings({
+          tax_rate: Number((data as any).tax_rate || 0),
+          taxable_item_types: (data as any).taxable_item_types || ['part'],
+        });
       }
 
       const { data: markupData, error: markupError } = await supabase
@@ -269,6 +277,8 @@ export function Settings() {
         secondary_color: brandSettings.secondary_color,
         welcome_message: brandSettings.welcome_message,
         shop_logo_url: brandSettings.logo_url || null,
+        tax_rate: taxSettings.tax_rate,
+        taxable_item_types: taxSettings.taxable_item_types,
         ...(schedulerSupported ? {
           business_hours: scheduleSettings.business_hours,
           appointment_duration_minutes: scheduleSettings.appointment_duration_minutes,
@@ -1155,6 +1165,57 @@ export function Settings() {
               <p className="text-xs text-slate-500">
                 Set ranges to automatically calculate part pricing from cost.
               </p>
+            </div>
+          </div>
+
+          <div className="border-t border-slate-200 pt-6 space-y-4">
+            <h4 className="text-base font-semibold text-slate-900 mb-2 flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-slate-700" />
+              Tax Defaults
+            </h4>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Tax Rate (%)</label>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={taxSettings.tax_rate}
+                  onChange={(e) => setTaxSettings({
+                    ...taxSettings,
+                    tax_rate: Number(e.target.value),
+                  })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <p className="text-sm font-medium text-slate-700 mb-2">Taxable line item types (default)</p>
+                <div className="flex flex-wrap gap-4">
+                  {['labor', 'part', 'fee'].map((type) => {
+                    const checked = taxSettings.taxable_item_types.includes(type);
+                    return (
+                      <label key={type} className="flex items-center gap-2 text-sm text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            const next = e.target.checked
+                              ? [...taxSettings.taxable_item_types, type]
+                              : taxSettings.taxable_item_types.filter((item) => item !== type);
+                            setTaxSettings({ ...taxSettings, taxable_item_types: next });
+                          }}
+                        />
+                        {type.charAt(0).toUpperCase() + type.slice(1)}
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  These will be pre-selected when adding line items, but can still be overridden per item.
+                </p>
+              </div>
             </div>
           </div>
           </>

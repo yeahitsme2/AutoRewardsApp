@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
 import { AlertCircle, CheckCircle, ClipboardList, DollarSign, Plus, Save, User, Car, X } from 'lucide-react';
-import type { Customer, RepairOrder, RepairOrderItem, RepairOrderMarkupRule, Vehicle } from '../types/database';
+import type { Customer, RepairOrder, RepairOrderItem, RepairOrderMarkupRule, ShopSettings, Vehicle } from '../types/database';
 
 interface RepairOrderWithDetails extends RepairOrder {
   customer?: Customer;
@@ -57,6 +57,8 @@ export function RepairOrdersManagement() {
   const [loading, setLoading] = useState(true);
   const [tableMissing, setTableMissing] = useState(false);
   const [markupRules, setMarkupRules] = useState<RepairOrderMarkupRule[]>([]);
+  const [taxRate, setTaxRate] = useState(0);
+  const [taxableTypes, setTaxableTypes] = useState<string[]>(['part']);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showNewOrder, setShowNewOrder] = useState(false);
@@ -72,7 +74,19 @@ export function RepairOrdersManagement() {
     loadCustomers();
     loadVehicles();
     loadMarkupRules();
+    loadTaxSettings();
   }, []);
+
+  useEffect(() => {
+    if (!selectedOrderId) return;
+    setItemDrafts((prev) => {
+      if (prev[selectedOrderId]) return prev;
+      return {
+        ...prev,
+        [selectedOrderId]: { ...emptyItem, taxable: taxableTypes.includes('part') },
+      };
+    });
+  }, [selectedOrderId, taxableTypes]);
 
   const selectedOrder = useMemo(
     () => orders.find((order) => order.id === selectedOrderId) || null,
@@ -176,6 +190,22 @@ export function RepairOrdersManagement() {
     setMarkupRules(sorted as RepairOrderMarkupRule[]);
   };
 
+  const loadTaxSettings = async () => {
+    if (!admin?.shop_id) return;
+    const { data, error } = await supabase
+      .from('shop_settings')
+      .select('tax_rate, taxable_item_types')
+      .eq('shop_id', admin.shop_id)
+      .maybeSingle();
+    if (error) {
+      console.error('Error loading tax settings:', error);
+      return;
+    }
+    const settings = data as ShopSettings | null;
+    setTaxRate(Number(settings?.tax_rate || 0));
+    setTaxableTypes((settings?.taxable_item_types as string[]) || ['part']);
+  };
+
   const getMarkupPercent = (cost: number) => {
     if (!markupRules.length) return 0;
     const rule = markupRules.find((r) => {
@@ -211,8 +241,9 @@ export function RepairOrdersManagement() {
     const labor_total = items.filter((i) => i.item_type === 'labor').reduce((sum, i) => sum + i.total, 0);
     const parts_total = items.filter((i) => i.item_type === 'part').reduce((sum, i) => sum + i.total, 0);
     const fees_total = items.filter((i) => i.item_type === 'fee').reduce((sum, i) => sum + i.total, 0);
-    const tax_total = 0;
-    const grand_total = labor_total + parts_total + fees_total + tax_total;
+    const taxableSubtotal = items.filter((i) => i.taxable).reduce((sum, i) => sum + i.total, 0);
+    const tax_total = roundToCents(taxableSubtotal * (taxRate / 100));
+    const grand_total = roundToCents(labor_total + parts_total + fees_total + tax_total);
     return { labor_total, parts_total, fees_total, tax_total, grand_total };
   };
 
@@ -341,7 +372,7 @@ export function RepairOrdersManagement() {
           return { ...order, items: nextItems };
         })
       );
-      setItemDrafts((prev) => ({ ...prev, [orderId]: { ...emptyItem } }));
+        setItemDrafts((prev) => ({ ...prev, [orderId]: { ...emptyItem, taxable: taxableTypes.includes('part') } }));
       const updatedOrder = orders.find((order) => order.id === orderId);
       const nextItems = [...(updatedOrder?.items || []), data as RepairOrderItem];
       await updateOrderTotals(orderId, nextItems);
@@ -613,6 +644,7 @@ export function RepairOrdersManagement() {
                                 return roundToCents(costValue + (costValue * markup / 100));
                               })()
                               : (prev[selectedOrder.id] || emptyItem).unit_price,
+                            taxable: taxableTypes.includes(e.target.value),
                           },
                         }))}
                         className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
