@@ -12,6 +12,7 @@ interface CreateAdminRequest {
   password: string;
   full_name: string;
   shop_id: string;
+  role?: 'admin' | 'technician';
 }
 
 Deno.serve(async (req: Request) => {
@@ -51,14 +52,45 @@ Deno.serve(async (req: Request) => {
       .eq('id', user.id)
       .maybeSingle();
 
-    if (superAdminError || !superAdmin) {
-      throw new Error('Only super admins can create admin accounts');
+    if (superAdminError) {
+      console.error('Super admin lookup failed:', superAdminError);
+      throw new Error('Failed to verify super admin permissions');
     }
 
-    const { email, password, full_name, shop_id }: CreateAdminRequest = await req.json();
+    const { data: shopAdmin, error: shopAdminError } = await supabaseAdmin
+      .from('admins')
+      .select('*')
+      .eq('auth_user_id', user.id)
+      .maybeSingle();
 
-    if (!email || !password || !full_name || !shop_id) {
+    if (shopAdminError) {
+      console.error('Admin lookup failed:', shopAdminError);
+      throw new Error('Failed to verify admin permissions');
+    }
+
+    const isSuperAdmin = Boolean(superAdmin);
+    const isShopAdmin = Boolean(shopAdmin && shopAdmin.is_active);
+
+    if (!isSuperAdmin && !isShopAdmin) {
+      throw new Error('Only super admins or active shop admins can create accounts');
+    }
+
+    const payload: CreateAdminRequest = await req.json();
+    const { email, password, full_name, role } = payload;
+    let shop_id = payload.shop_id;
+
+    if (!email || !password || !full_name || (!shop_id && !isShopAdmin)) {
       throw new Error('Missing required fields');
+    }
+
+    if (isShopAdmin) {
+      if (!shopAdmin?.shop_id) {
+        throw new Error('Shop data missing from admin record');
+      }
+      shop_id = shopAdmin.shop_id;
+      if (role && role !== 'technician') {
+        throw new Error('Shop admins may only create technicians');
+      }
     }
 
     const { data: existingUser } = await supabaseAdmin.auth.admin.listUsers();
@@ -67,6 +99,8 @@ Deno.serve(async (req: Request) => {
       throw new Error(`An account with email ${email} already exists`);
     }
 
+    const normalizedRole = isShopAdmin ? 'technician' : role === 'technician' ? 'technician' : 'admin';
+
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -74,6 +108,7 @@ Deno.serve(async (req: Request) => {
       user_metadata: {
         full_name,
         shop_id,
+        role: normalizedRole,
       },
     });
 
@@ -91,6 +126,7 @@ Deno.serve(async (req: Request) => {
         email,
         full_name,
         is_active: true,
+        role: normalizedRole,
       })
       .select()
       .single();

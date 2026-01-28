@@ -48,3 +48,5 @@ In Supabase SQL Editor, paste each file contents in order and run. Do not reorde
 ## Technician role
 - Technicians are stored in `admins.role` and can manage DVI templates/reports while keeping other admin access limited.
 - Each repair order now auto-creates a “Default inspection checklist” DVI (Exterior/Interior/Dashboard/Lights/Tires) that techs can trim or build out as needed.
+- Shop admins can invite technicians directly from the `UserManagement` tab by hitting “Invite technician”; that action calls the secure `create-admin` edge function with `role: 'technician'` so the new account can edit DVIs without needing super admin access.
+- Technicians land on a dedicated `TechnicianDashboard` that delivers real-time repair order + DVI visibility, keeps inspection items editable, and pushes DVI publish events straight to the audit log and customer notifications.

@@ -5,6 +5,7 @@ import { Auth } from './components/Auth';
 import { CustomerDashboard } from './components/CustomerDashboard';
 import { AdminDashboard } from './components/AdminDashboard';
 import { SuperAdminDashboard } from './components/SuperAdminDashboard';
+import { TechnicianDashboard } from './components/TechnicianDashboard';
 
 function getShopSlugFromUrl(): string {
   const hostname = window.location.hostname;
@@ -68,7 +69,7 @@ function App() {
   }
 
   if (admin) {
-    return <AdminDashboard />;
+    return admin.role === 'technician' ? <TechnicianDashboard /> : <AdminDashboard />;
   }
 
   if (!customer) {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
 import { supabase } from '../lib/supabase';
@@ -43,6 +43,7 @@ export function AdminDashboard() {
   const [showAddVehicle, setShowAddVehicle] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [pendingAppointments, setPendingAppointments] = useState(0);
+  const pendingCountRef = useRef(0);
 
   const getLifetimeSpending = (customer: Customer) =>
     (customer as any).lifetime_spending ??
@@ -65,13 +66,35 @@ export function AdminDashboard() {
     }, 5000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [loadData, loadPendingAppointments]);
 
   useEffect(() => {
     if (admin?.shop_id) {
       ensurePushSubscription({ userRole: 'admin', shopId: admin.shop_id });
     }
   }, [admin?.shop_id]);
+
+  useEffect(() => {
+    if (!admin?.shop_id) return;
+
+    const channel = supabase
+      .channel(`admin-repair-orders-${admin.shop_id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'repair_orders',
+        filter: `shop_id=eq.${admin.shop_id}`,
+      }, () => {
+        loadData();
+        loadPendingAppointments();
+      });
+
+    channel.subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [admin?.shop_id, loadData, loadPendingAppointments]);
 
   useEffect(() => {
     let filtered = customers;
@@ -104,7 +127,7 @@ export function AdminDashboard() {
     setFilteredCustomers(filtered);
   }, [searchQuery, dateFilter, showAllCustomers, customers]);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const { data: customersData, error: customersError } = await supabase
         .from('customers')
@@ -140,9 +163,9 @@ export function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const loadPendingAppointments = async () => {
+  const loadPendingAppointments = useCallback(async () => {
     try {
       const { count, error } = await supabase
         .from('appointments')
@@ -152,7 +175,7 @@ export function AdminDashboard() {
       if (error) throw error;
 
       const newCount = count || 0;
-      if (newCount > pendingAppointments && pendingAppointments > 0) {
+      if (newCount > pendingCountRef.current && pendingCountRef.current > 0) {
         if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
           new Notification('New Appointment Request', {
             body: 'A customer has requested a new appointment',
@@ -161,11 +184,12 @@ export function AdminDashboard() {
         }
       }
 
+      pendingCountRef.current = newCount;
       setPendingAppointments(newCount);
     } catch (error) {
       console.error('Error loading pending appointments:', error);
     }
-  };
+  }, []);
 
   const handleAddService = (customer: Customer) => {
     setSelectedCustomer(customer);

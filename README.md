@@ -10,3 +10,9 @@ Customers can view their rewards and promotions, track progress toward the next 
 - Fewer inbound calls and faster service by giving customers access to their repair history
 - Branded customer experience that reinforces the shop’s identity
 - Customer self-scheduling to reduce administrative overhead
+
+## What's New
+
+- Real-time technician workspace with inspection-focused workflows and quick DVI publish actions.
+- Invite technicians directly from the admin user management tab; the secure edge function keeps technician creation scoped to the shop.
+- Automatically generated default inspection templates mean technicians land on the right checklist without extra setup.
