@@ -611,6 +611,38 @@ export interface Database {
           created_at?: string;
         };
       };
+      repair_order_markup_rules: {
+        Row: {
+          id: string;
+          shop_id: string;
+          min_cost: number;
+          max_cost: number | null;
+          markup_percent: number;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          shop_id: string;
+          min_cost?: number;
+          max_cost?: number | null;
+          markup_percent?: number;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          shop_id?: string;
+          min_cost?: number;
+          max_cost?: number | null;
+          markup_percent?: number;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
   };
 }
@@ -629,3 +661,4 @@ export type CustomerPromotion = Database['public']['Tables']['customer_promotion
 export type Appointment = Database['public']['Tables']['appointments']['Row'];
 export type RepairOrder = Database['public']['Tables']['repair_orders']['Row'];
 export type RepairOrderItem = Database['public']['Tables']['repair_order_items']['Row'];
+export type RepairOrderMarkupRule = Database['public']['Tables']['repair_order_markup_rules']['Row'];

@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
 import { AlertCircle, CheckCircle, ClipboardList, DollarSign, Plus, Save, User, Car, X } from 'lucide-react';
-import type { Customer, RepairOrder, RepairOrderItem, Vehicle } from '../types/database';
+import type { Customer, RepairOrder, RepairOrderItem, RepairOrderMarkupRule, Vehicle } from '../types/database';
 
 interface RepairOrderWithDetails extends RepairOrder {
   customer?: Customer;
@@ -35,6 +35,7 @@ const emptyItem = {
   item_type: 'labor' as RepairOrderItem['item_type'],
   description: '',
   quantity: 1,
+  cost: 0,
   unit_price: 0,
   taxable: false,
 };
@@ -53,6 +54,7 @@ export function RepairOrdersManagement() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [tableMissing, setTableMissing] = useState(false);
+  const [markupRules, setMarkupRules] = useState<RepairOrderMarkupRule[]>([]);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showNewOrder, setShowNewOrder] = useState(false);
@@ -67,6 +69,7 @@ export function RepairOrdersManagement() {
     loadOrders();
     loadCustomers();
     loadVehicles();
+    loadMarkupRules();
   }, []);
 
   const selectedOrder = useMemo(
@@ -150,6 +153,35 @@ export function RepairOrdersManagement() {
       .in('customer_id', customerIds)
       .order('created_at', { ascending: false });
     if (!error) setVehicles((data || []) as Vehicle[]);
+  };
+
+  const loadMarkupRules = async () => {
+    if (!admin?.shop_id) return;
+    const { data, error } = await supabase
+      .from('repair_order_markup_rules')
+      .select('*')
+      .eq('shop_id', admin.shop_id)
+      .eq('is_active', true);
+    if (error) {
+      const missing = error.code === '42P01' || error.message?.includes('repair_order_markup_rules');
+      if (!missing) {
+        console.error('Error loading markup rules:', error);
+      }
+      setMarkupRules([]);
+      return;
+    }
+    const sorted = (data || []).slice().sort((a, b) => Number(b.min_cost) - Number(a.min_cost));
+    setMarkupRules(sorted as RepairOrderMarkupRule[]);
+  };
+
+  const getMarkupPercent = (cost: number) => {
+    if (!markupRules.length) return 0;
+    const rule = markupRules.find((r) => {
+      const min = Number(r.min_cost || 0);
+      const max = r.max_cost === null ? null : Number(r.max_cost);
+      return cost >= min && (max === null || cost <= max);
+    });
+    return rule ? Number(rule.markup_percent || 0) : 0;
   };
 
   const loadItems = async (orderId: string) => {
@@ -282,7 +314,8 @@ export function RepairOrdersManagement() {
           showMessage('error', 'Quantity must be greater than 0');
           return;
         }
-        const total = quantityValue * Number(draft.unit_price);
+        const unitPriceValue = Number(draft.unit_price);
+        const total = quantityValue * unitPriceValue;
         const { data, error } = await supabase
           .from('repair_order_items')
           .insert({
@@ -290,7 +323,7 @@ export function RepairOrdersManagement() {
             item_type: draft.item_type,
             description: draft.description.trim(),
             quantity: quantityValue,
-            unit_price: Number(draft.unit_price),
+            unit_price: unitPriceValue,
             total,
             taxable: Boolean(draft.taxable),
           })
@@ -563,18 +596,28 @@ export function RepairOrdersManagement() {
 
                 <div className="bg-slate-50 rounded-lg p-4 space-y-2">
                   <h4 className="font-semibold text-slate-900">Add Line Item</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-                    <select
-                      value={(itemDrafts[selectedOrder.id] || emptyItem).item_type}
-                      onChange={(e) => setItemDrafts((prev) => ({
-                        ...prev,
-                        [selectedOrder.id]: { ...(prev[selectedOrder.id] || emptyItem), item_type: e.target.value as RepairOrderItem['item_type'] },
-                      }))}
-                      className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                    >
-                      <option value="labor">Labor</option>
-                      <option value="part">Part</option>
-                      <option value="fee">Fee</option>
+                    <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
+                      <select
+                        value={(itemDrafts[selectedOrder.id] || emptyItem).item_type}
+                        onChange={(e) => setItemDrafts((prev) => ({
+                          ...prev,
+                          [selectedOrder.id]: {
+                            ...(prev[selectedOrder.id] || emptyItem),
+                            item_type: e.target.value as RepairOrderItem['item_type'],
+                            unit_price: e.target.value === 'part'
+                              ? (() => {
+                                const costValue = Number((prev[selectedOrder.id] || emptyItem).cost || 0);
+                                const markup = getMarkupPercent(costValue);
+                                return costValue + (costValue * markup / 100);
+                              })()
+                              : (prev[selectedOrder.id] || emptyItem).unit_price,
+                          },
+                        }))}
+                        className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                      >
+                        <option value="labor">Labor</option>
+                        <option value="part">Part</option>
+                        <option value="fee">Fee</option>
                     </select>
                     <input
                       value={(itemDrafts[selectedOrder.id] || emptyItem).description}
@@ -583,7 +626,7 @@ export function RepairOrdersManagement() {
                         [selectedOrder.id]: { ...(prev[selectedOrder.id] || emptyItem), description: e.target.value },
                       }))}
                       placeholder="Description"
-                      className="border border-slate-300 rounded-lg px-3 py-2 text-sm md:col-span-2"
+                        className="border border-slate-300 rounded-lg px-3 py-2 text-sm md:col-span-2"
                     />
                       <input
                         type="number"
@@ -599,11 +642,34 @@ export function RepairOrdersManagement() {
                         }))}
                         className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
                       />
-                    <input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={(itemDrafts[selectedOrder.id] || emptyItem).unit_price}
+                      {(itemDrafts[selectedOrder.id] || emptyItem).item_type === 'part' && (
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={(itemDrafts[selectedOrder.id] || emptyItem).cost}
+                          onChange={(e) => setItemDrafts((prev) => {
+                            const costValue = Number.parseFloat(e.target.value || '0');
+                            const markup = getMarkupPercent(costValue);
+                            const unitPriceValue = costValue + (costValue * markup / 100);
+                            return {
+                              ...prev,
+                              [selectedOrder.id]: {
+                                ...(prev[selectedOrder.id] || emptyItem),
+                                cost: costValue,
+                                unit_price: unitPriceValue,
+                              },
+                            };
+                          })}
+                          placeholder="Cost"
+                          className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                        />
+                      )}
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={(itemDrafts[selectedOrder.id] || emptyItem).unit_price}
                       onChange={(e) => setItemDrafts((prev) => ({
                         ...prev,
                         [selectedOrder.id]: { ...(prev[selectedOrder.id] || emptyItem), unit_price: Number(e.target.value) },

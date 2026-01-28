@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
 import { useShop } from '../lib/ShopContext';
-import { Settings as SettingsIcon, Save, DollarSign, Award, Palette, Image, Store, QrCode, Download, Copy, Check } from 'lucide-react';
+import { Settings as SettingsIcon, Save, DollarSign, Award, Palette, Image, Store, QrCode, Download, Copy, Check, Wrench } from 'lucide-react';
 import QRCodeLib from 'qrcode';
 import type { ShopSettings } from '../types/database';
 
@@ -30,6 +30,16 @@ const defaultBusinessHours = [
   { day: 6, is_open: true, open_time: '09:00', close_time: '13:00' },
 ];
 
+type SettingsTab = 'shop' | 'brand' | 'scheduling' | 'rewards' | 'repair_orders';
+
+type MarkupRuleDraft = {
+  id?: string;
+  min_cost: number;
+  max_cost: number | null;
+  markup_percent: number;
+  is_active: boolean;
+};
+
 export function Settings() {
   const { customer, admin } = useAuth();
   const { refreshBrand } = useBrand();
@@ -37,6 +47,7 @@ export function Settings() {
   const currentUser = admin || customer;
   const publicBaseUrl = (import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin).replace(/\/+$/, '');
   const [settings, setSettings] = useState<ShopSettings | null>(null);
+  const [activeTab, setActiveTab] = useState<SettingsTab>('shop');
   const [shopName, setShopName] = useState('');
   const [pointsPerDollar, setPointsPerDollar] = useState<number>(10);
   const [tierSettings, setTierSettings] = useState({
@@ -71,6 +82,8 @@ export function Settings() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   const [copied, setCopied] = useState(false);
+  const [markupRulesSupported, setMarkupRulesSupported] = useState(true);
+  const [markupRules, setMarkupRules] = useState<MarkupRuleDraft[]>([]);
   const qrCanvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -187,6 +200,32 @@ export function Settings() {
           setScheduleSettings((prev) => ({ ...prev }));
         }
       }
+
+      const { data: markupData, error: markupError } = await supabase
+        .from('repair_order_markup_rules')
+        .select('*')
+        .eq('shop_id', shop.id)
+        .order('min_cost', { ascending: true });
+
+      if (markupError) {
+        const missing = markupError.code === '42P01' || markupError.message?.includes('repair_order_markup_rules');
+        setMarkupRulesSupported(!missing);
+        if (!missing) {
+          console.error('Error loading markup rules:', markupError);
+        }
+        setMarkupRules([]);
+      } else {
+        setMarkupRulesSupported(true);
+        setMarkupRules(
+          (markupData || []).map((rule: any) => ({
+            id: rule.id,
+            min_cost: Number(rule.min_cost || 0),
+            max_cost: rule.max_cost === null ? null : Number(rule.max_cost),
+            markup_percent: Number(rule.markup_percent || 0),
+            is_active: rule.is_active !== false,
+          }))
+        );
+      }
     } catch (error) {
       console.error('Error loading settings:', error);
       showMessage('error', 'Failed to load settings');
@@ -260,6 +299,46 @@ export function Settings() {
         throw error;
       }
 
+      if (markupRulesSupported) {
+        const invalidRule = markupRules.find((rule) => {
+          const min = Number(rule.min_cost);
+          const max = rule.max_cost === null ? null : Number(rule.max_cost);
+          const markup = Number(rule.markup_percent);
+          return !Number.isFinite(min)
+            || min < 0
+            || (max !== null && (!Number.isFinite(max) || max < min))
+            || !Number.isFinite(markup)
+            || markup < 0;
+        });
+
+        if (invalidRule) {
+          throw new Error('One or more markup rules have invalid ranges or percentages.');
+        }
+
+        const { error: deleteError } = await supabase
+          .from('repair_order_markup_rules')
+          .delete()
+          .eq('shop_id', shop.id);
+
+        if (deleteError) throw deleteError;
+
+        const nextRules = markupRules.map((rule) => ({
+          shop_id: shop.id,
+          min_cost: Number(rule.min_cost),
+          max_cost: rule.max_cost === null || rule.max_cost === ('' as any) ? null : Number(rule.max_cost),
+          markup_percent: Number(rule.markup_percent),
+          is_active: rule.is_active !== false,
+          updated_at: new Date().toISOString(),
+        }));
+
+        if (nextRules.length > 0) {
+          const { error: insertError } = await supabase
+            .from('repair_order_markup_rules')
+            .insert(nextRules);
+          if (insertError) throw insertError;
+        }
+      }
+
       showMessage('success', 'Settings saved successfully');
 
       if (shopName !== shop?.name && shop?.id) {
@@ -281,6 +360,14 @@ export function Settings() {
     setTimeout(() => setMessage(null), 3000);
   };
 
+  const tabs: { id: SettingsTab; label: string }[] = [
+    { id: 'shop', label: 'Shop Settings' },
+    { id: 'brand', label: 'Brand Settings' },
+    { id: 'scheduling', label: 'Scheduling Settings' },
+    { id: 'rewards', label: 'Rewards Settings' },
+    { id: 'repair_orders', label: 'Repair Order Settings' },
+  ];
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -298,13 +385,34 @@ export function Settings() {
               <SettingsIcon className="w-5 h-5 text-slate-700" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-slate-900">Shop Settings</h3>
-              <p className="text-sm text-slate-600">Configure reward system and other options</p>
+              <h3 className="text-lg font-semibold text-slate-900">Settings</h3>
+              <p className="text-sm text-slate-600">Manage shop configuration, branding, scheduling, rewards, and RO markup</p>
             </div>
           </div>
         </div>
 
+        <div className="px-6 border-b border-slate-200 bg-white">
+          <div className="flex flex-wrap gap-2 py-3">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                  activeTab === tab.id
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="p-6 space-y-8">
+          {activeTab === 'shop' && (
+          <>
           <div>
             <h4 className="text-base font-semibold text-slate-900 mb-4 flex items-center gap-2">
               <Store className="w-5 h-5 text-slate-700" />
@@ -418,8 +526,12 @@ export function Settings() {
               </div>
             </div>
           </div>
+          </>
+          )}
 
-          <div className="border-t border-slate-200 pt-6">
+          {activeTab === 'brand' && (
+          <>
+          <div>
             <h4 className="text-base font-semibold text-slate-900 mb-4 flex items-center gap-2">
               <Palette className="w-5 h-5 text-slate-700" />
               Brand Customization
@@ -553,8 +665,12 @@ export function Settings() {
               </div>
             </div>
           </div>
+          </>
+          )}
 
-          <div className="border-t border-slate-200 pt-6">
+          {activeTab === 'scheduling' && (
+          <>
+          <div>
             <h4 className="text-base font-semibold text-slate-900 mb-4">Scheduling Settings</h4>
 
             {!schedulerSupported && (
@@ -731,8 +847,12 @@ export function Settings() {
               </div>
             </div>
           </div>
+          </>
+          )}
 
-          <div className="border-t border-slate-200 pt-6">
+          {activeTab === 'rewards' && (
+          <>
+          <div>
             <h4 className="text-base font-semibold text-slate-900 mb-4">Rewards Configuration</h4>
 
             <div className="space-y-4">
@@ -932,6 +1052,113 @@ export function Settings() {
               </div>
             </div>
           </div>
+          </>
+          )}
+
+          {activeTab === 'repair_orders' && (
+          <>
+          <div className="space-y-4">
+            <h4 className="text-base font-semibold text-slate-900 mb-2 flex items-center gap-2">
+              <Wrench className="w-5 h-5 text-slate-700" />
+              Repair Order Markup Rules (Parts Only)
+            </h4>
+
+            {!markupRulesSupported && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
+                Markup rules will save after the database schema is updated. You can configure them now and re-save later.
+              </div>
+            )}
+
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                <div>Min Cost</div>
+                <div>Max Cost</div>
+                <div>Markup %</div>
+                <div>Active</div>
+              </div>
+              {markupRules.length === 0 && (
+                <div className="text-sm text-slate-600">No markup rules yet. Add your first range below.</div>
+              )}
+              {markupRules.map((rule, idx) => (
+                <div key={rule.id || idx} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-center">
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={rule.min_cost}
+                    onChange={(e) => {
+                      const next = [...markupRules];
+                      next[idx] = { ...rule, min_cost: Number(e.target.value) };
+                      setMarkupRules(next);
+                    }}
+                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  />
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={rule.max_cost === null ? '' : rule.max_cost}
+                    onChange={(e) => {
+                      const next = [...markupRules];
+                      const value = e.target.value;
+                      next[idx] = { ...rule, max_cost: value === '' ? null : Number(value) };
+                      setMarkupRules(next);
+                    }}
+                    placeholder="No max"
+                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  />
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.1"
+                    value={rule.markup_percent}
+                    onChange={(e) => {
+                      const next = [...markupRules];
+                      next[idx] = { ...rule, markup_percent: Number(e.target.value) };
+                      setMarkupRules(next);
+                    }}
+                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  />
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-2 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={rule.is_active}
+                        onChange={(e) => {
+                          const next = [...markupRules];
+                          next[idx] = { ...rule, is_active: e.target.checked };
+                          setMarkupRules(next);
+                        }}
+                      />
+                      Active
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setMarkupRules(markupRules.filter((_, ruleIdx) => ruleIdx !== idx))}
+                      className="text-xs text-red-600 hover:text-red-700"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setMarkupRules([...markupRules, { min_cost: 0, max_cost: null, markup_percent: 0, is_active: true }])}
+                className="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg"
+              >
+                Add Markup Rule
+              </button>
+              <p className="text-xs text-slate-500">
+                Set ranges to automatically calculate part pricing from cost.
+              </p>
+            </div>
+          </div>
+          </>
+          )}
         </div>
 
         <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
