@@ -46,6 +46,8 @@ const generateRoNumber = () => {
   return `RO-${datePart}-${rand}`;
 };
 
+const roundToCents = (value: number) => Math.round(value * 100) / 100;
+
 export function RepairOrdersManagement() {
   const { admin } = useAuth();
   const { brandSettings } = useBrand();
@@ -314,8 +316,8 @@ export function RepairOrdersManagement() {
           showMessage('error', 'Quantity must be greater than 0');
           return;
         }
-        const unitPriceValue = Number(draft.unit_price);
-        const total = quantityValue * unitPriceValue;
+        const unitPriceValue = roundToCents(Number(draft.unit_price));
+        const total = roundToCents(quantityValue * unitPriceValue);
         const { data, error } = await supabase
           .from('repair_order_items')
           .insert({
@@ -608,7 +610,7 @@ export function RepairOrdersManagement() {
                               ? (() => {
                                 const costValue = Number((prev[selectedOrder.id] || emptyItem).cost || 0);
                                 const markup = getMarkupPercent(costValue);
-                                return costValue + (costValue * markup / 100);
+                                return roundToCents(costValue + (costValue * markup / 100));
                               })()
                               : (prev[selectedOrder.id] || emptyItem).unit_price,
                           },
@@ -651,7 +653,7 @@ export function RepairOrdersManagement() {
                           onChange={(e) => setItemDrafts((prev) => {
                             const costValue = Number.parseFloat(e.target.value || '0');
                             const markup = getMarkupPercent(costValue);
-                            const unitPriceValue = costValue + (costValue * markup / 100);
+                            const unitPriceValue = roundToCents(costValue + (costValue * markup / 100));
                             return {
                               ...prev,
                               [selectedOrder.id]: {
