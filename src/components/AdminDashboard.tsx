@@ -51,6 +51,70 @@ export function AdminDashboard() {
     (customer as any).total_spent ??
     0;
 
+  const loadData = useCallback(async () => {
+    try {
+      const { data: customersData, error: customersError } = await supabase
+        .from('customers')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (customersError) throw customersError;
+
+      const { data: vehiclesData, error: vehiclesError } = await supabase
+        .from('vehicles')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (vehiclesError) throw vehiclesError;
+
+      const { data: servicesData, error: servicesError } = await supabase
+        .from('services')
+        .select('*')
+        .order('service_date', { ascending: false });
+
+      if (servicesError) throw servicesError;
+
+      const customersWithVehicles: CustomerWithVehicles[] = (customersData || []).map((customer) => ({
+        ...customer,
+        vehicles: (vehiclesData || []).filter((vehicle) => vehicle.customer_id === customer.id),
+        services: (servicesData || []).filter((service) => service.customer_id === customer.id),
+      }));
+
+      setCustomers(customersWithVehicles);
+      setFilteredCustomers(customersWithVehicles);
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const loadPendingAppointments = useCallback(async () => {
+    try {
+      const { count, error } = await supabase
+        .from('appointments')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending');
+
+      if (error) throw error;
+
+      const newCount = count || 0;
+      if (newCount > pendingCountRef.current && pendingCountRef.current > 0) {
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          new Notification('New Appointment Request', {
+            body: 'A customer has requested a new appointment',
+            icon: '/favicon.ico',
+          });
+        }
+      }
+
+      pendingCountRef.current = newCount;
+      setPendingAppointments(newCount);
+    } catch (error) {
+      console.error('Error loading pending appointments:', error);
+    }
+  }, []);
+
   useEffect(() => {
     loadData();
     loadPendingAppointments();
@@ -126,70 +190,6 @@ export function AdminDashboard() {
 
     setFilteredCustomers(filtered);
   }, [searchQuery, dateFilter, showAllCustomers, customers]);
-
-  const loadData = useCallback(async () => {
-    try {
-      const { data: customersData, error: customersError } = await supabase
-        .from('customers')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (customersError) throw customersError;
-
-      const { data: vehiclesData, error: vehiclesError } = await supabase
-        .from('vehicles')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (vehiclesError) throw vehiclesError;
-
-      const { data: servicesData, error: servicesError } = await supabase
-        .from('services')
-        .select('*')
-        .order('service_date', { ascending: false });
-
-      if (servicesError) throw servicesError;
-
-      const customersWithVehicles: CustomerWithVehicles[] = (customersData || []).map((customer) => ({
-        ...customer,
-        vehicles: (vehiclesData || []).filter((vehicle) => vehicle.customer_id === customer.id),
-        services: (servicesData || []).filter((service) => service.customer_id === customer.id),
-      }));
-
-      setCustomers(customersWithVehicles);
-      setFilteredCustomers(customersWithVehicles);
-    } catch (error) {
-      console.error('Error loading data:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const loadPendingAppointments = useCallback(async () => {
-    try {
-      const { count, error } = await supabase
-        .from('appointments')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'pending');
-
-      if (error) throw error;
-
-      const newCount = count || 0;
-      if (newCount > pendingCountRef.current && pendingCountRef.current > 0) {
-        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-          new Notification('New Appointment Request', {
-            body: 'A customer has requested a new appointment',
-            icon: '/favicon.ico',
-          });
-        }
-      }
-
-      pendingCountRef.current = newCount;
-      setPendingAppointments(newCount);
-    } catch (error) {
-      console.error('Error loading pending appointments:', error);
-    }
-  }, []);
 
   const handleAddService = (customer: Customer) => {
     setSelectedCustomer(customer);
