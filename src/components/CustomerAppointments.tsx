@@ -287,6 +287,8 @@ export function CustomerAppointments() {
         shop_id: customer!.shop_id,
         scheduled_date: formData.scheduled_date,
         scheduled_time: formData.scheduled_time,
+        requested_date: formData.scheduled_date,
+        requested_time: formData.scheduled_time,
       });
       if (primaryInsert.error && isMissingColumn(primaryInsert.error)) {
         const fallbackInsert = await supabase.from('appointments').insert({

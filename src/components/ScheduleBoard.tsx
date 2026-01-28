@@ -251,6 +251,8 @@ export function ScheduleBoard() {
         shop_id: admin.shop_id,
         scheduled_date: formData.scheduled_date,
         scheduled_time: formData.scheduled_time,
+        requested_date: formData.scheduled_date,
+        requested_time: formData.scheduled_time,
       });
       if (primaryAppointment.error && isMissingColumn(primaryAppointment.error)) {
         const fallbackAppointment = await supabase.from('appointments').insert({
