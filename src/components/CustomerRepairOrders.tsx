@@ -118,6 +118,7 @@ export function CustomerRepairOrders() {
 
   const handleApprove = async (orderId: string) => {
     try {
+      const order = orders.find((o) => o.id === orderId);
       const { error } = await supabase
         .from('repair_orders')
         .update({
@@ -131,6 +132,18 @@ export function CustomerRepairOrders() {
         .eq('id', orderId);
 
       if (error) throw error;
+
+      if (customer?.shop_id && order?.ro_number) {
+        await supabase.functions.invoke('send-push', {
+          body: {
+            target: 'admin',
+            shop_id: customer.shop_id,
+            title: 'Repair Order Approved',
+            message: `${order.ro_number} was approved by the customer`,
+            url: '/',
+          },
+        });
+      }
       showMessage('success', 'Repair order approved');
       loadOrders();
     } catch (error) {
@@ -141,6 +154,7 @@ export function CustomerRepairOrders() {
 
   const handleDecline = async (orderId: string) => {
     try {
+      const order = orders.find((o) => o.id === orderId);
       const reason = prompt('Add a note for the shop (optional):');
       const { error } = await supabase
         .from('repair_orders')
@@ -155,6 +169,18 @@ export function CustomerRepairOrders() {
         .eq('id', orderId);
 
       if (error) throw error;
+
+      if (customer?.shop_id && order?.ro_number) {
+        await supabase.functions.invoke('send-push', {
+          body: {
+            target: 'admin',
+            shop_id: customer.shop_id,
+            title: 'Repair Order Declined',
+            message: `${order.ro_number} was declined by the customer`,
+            url: '/',
+          },
+        });
+      }
       showMessage('success', 'Repair order declined');
       loadOrders();
     } catch (error) {

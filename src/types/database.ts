@@ -667,6 +667,41 @@ export interface Database {
           updated_at?: string;
         };
       };
+      push_subscriptions: {
+        Row: {
+          id: string;
+          auth_user_id: string;
+          shop_id: string | null;
+          user_role: 'admin' | 'customer';
+          endpoint: string;
+          p256dh: string;
+          auth: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          auth_user_id: string;
+          shop_id?: string | null;
+          user_role: 'admin' | 'customer';
+          endpoint: string;
+          p256dh: string;
+          auth: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          auth_user_id?: string;
+          shop_id?: string | null;
+          user_role?: 'admin' | 'customer';
+          endpoint?: string;
+          p256dh?: string;
+          auth?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
   };
 }
@@ -686,3 +721,4 @@ export type Appointment = Database['public']['Tables']['appointments']['Row'];
 export type RepairOrder = Database['public']['Tables']['repair_orders']['Row'];
 export type RepairOrderItem = Database['public']['Tables']['repair_order_items']['Row'];
 export type RepairOrderMarkupRule = Database['public']['Tables']['repair_order_markup_rules']['Row'];
+export type PushSubscription = Database['public']['Tables']['push_subscriptions']['Row'];

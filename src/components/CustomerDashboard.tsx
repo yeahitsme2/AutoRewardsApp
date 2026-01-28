@@ -13,6 +13,7 @@ import { TierProgress } from './TierProgress';
 import { RewardProgress } from './RewardProgress';
 import { ServiceReminders } from './ServiceReminders';
 import { AddVehicleModal } from './AddVehicleModal';
+import { ensurePushSubscription } from '../lib/pushNotifications';
 import type { Vehicle, Service } from '../types/database';
 
 interface VehicleWithServices extends Vehicle {
@@ -43,6 +44,12 @@ export function CustomerDashboard() {
 
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (customer?.shop_id) {
+      ensurePushSubscription({ userRole: 'customer', shopId: customer.shop_id });
+    }
+  }, [customer?.shop_id]);
 
   const loadData = async () => {
     try {

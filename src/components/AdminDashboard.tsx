@@ -14,6 +14,7 @@ import { Settings } from './Settings';
 import { UserManagement } from './UserManagement';
 import { Insights } from './Insights';
 import { getTierInfo, calculateSpendingToNextTier } from '../lib/rewardsUtils';
+import { ensurePushSubscription } from '../lib/pushNotifications';
 import type { Customer, Vehicle, Service } from '../types/database';
 
 interface CustomerWithVehicles extends Customer {
@@ -62,6 +63,12 @@ export function AdminDashboard() {
 
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (admin?.shop_id) {
+      ensurePushSubscription({ userRole: 'admin', shopId: admin.shop_id });
+    }
+  }, [admin?.shop_id]);
 
   useEffect(() => {
     let filtered = customers;

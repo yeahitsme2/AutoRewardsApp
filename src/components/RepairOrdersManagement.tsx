@@ -299,6 +299,7 @@ export function RepairOrdersManagement() {
 
   const handleStatusChange = async (orderId: string, status: RepairOrderStatus) => {
     try {
+      const order = orders.find((o) => o.id === orderId);
       const updates: Partial<RepairOrder> = {
         status,
         updated_at: new Date().toISOString(),
@@ -317,6 +318,18 @@ export function RepairOrdersManagement() {
         .update(updates)
         .eq('id', orderId);
       if (error) throw error;
+
+      if (status === 'awaiting_approval' && order?.customer_id) {
+        await supabase.functions.invoke('send-push', {
+          body: {
+            target: 'customer',
+            customer_id: order.customer_id,
+            title: 'Repair Order Ready',
+            message: `${order.ro_number} is ready for your approval`,
+            url: '/',
+          },
+        });
+      }
 
       showMessage('success', 'Repair order updated');
       setOrders((prev) =>
