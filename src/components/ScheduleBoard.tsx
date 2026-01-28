@@ -58,7 +58,9 @@ export function ScheduleBoard() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const isMissingColumn = (error: any) =>
-    error?.code === '42703' || (typeof error?.message === 'string' && error.message.includes('does not exist'));
+    error?.code === '42703'
+    || error?.code === 'PGRST204'
+    || (typeof error?.message === 'string' && error.message.includes('does not exist'));
 
   const normalizeAppointment = (apt: Appointment) => ({
     ...apt,
