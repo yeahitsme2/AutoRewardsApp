@@ -57,6 +57,15 @@ export function ScheduleBoard() {
   });
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  const isMissingColumn = (error: any) =>
+    error?.code === '42703' || (typeof error?.message === 'string' && error.message.includes('does not exist'));
+
+  const normalizeAppointment = (apt: Appointment) => ({
+    ...apt,
+    scheduled_date: (apt as any).scheduled_date ?? (apt as any).requested_date,
+    scheduled_time: (apt as any).scheduled_time ?? (apt as any).requested_time,
+  });
+
   useEffect(() => {
     if (!admin?.shop_id) return;
     loadAppointments();
@@ -68,16 +77,38 @@ export function ScheduleBoard() {
     if (!admin?.shop_id) return;
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      let appointmentsData: Appointment[] = [];
+      const primary = await supabase
         .from('appointments')
         .select('*')
         .eq('shop_id', admin.shop_id)
         .eq('scheduled_date', date)
         .order('scheduled_time', { ascending: true });
 
-      if (error) throw error;
+      if (primary.error) {
+        if (!isMissingColumn(primary.error)) throw primary.error;
+        const { data: customerRows, error: customerError } = await supabase
+          .from('customers')
+          .select('id')
+          .eq('shop_id', admin.shop_id);
+        if (customerError) throw customerError;
+        const customerIds = (customerRows || []).map((c) => c.id);
+        if (customerIds.length === 0) {
+          setAppointments([]);
+          return;
+        }
+        const fallback = await supabase
+          .from('appointments')
+          .select('*')
+          .in('customer_id', customerIds)
+          .eq('requested_date', date)
+          .order('requested_time', { ascending: true });
+        if (fallback.error) throw fallback.error;
+        appointmentsData = (fallback.data || []) as Appointment[];
+      } else {
+        appointmentsData = (primary.data || []) as Appointment[];
+      }
 
-      const appointmentsData = (data || []) as Appointment[];
       const customerIds = [...new Set(appointmentsData.map((a) => a.customer_id))];
       const vehicleIds = [...new Set(appointmentsData.map((a) => a.vehicle_id).filter(Boolean) as string[])];
 
@@ -90,7 +121,7 @@ export function ScheduleBoard() {
       if (vehiclesRes.error) throw vehiclesRes.error;
 
       const withDetails: AppointmentWithDetails[] = appointmentsData.map((apt) => ({
-        ...apt,
+        ...normalizeAppointment(apt),
         customer: customersRes.data?.find((cust) => cust.id === apt.customer_id),
         vehicle: vehiclesRes.data?.find((veh) => veh.id === apt.vehicle_id),
       }));
@@ -115,12 +146,45 @@ export function ScheduleBoard() {
 
   const loadVehicles = async () => {
     if (!admin?.shop_id) return;
-    const { data } = await supabase
+    const primary = await supabase
       .from('vehicles')
       .select('*')
       .eq('shop_id', admin.shop_id)
       .order('created_at', { ascending: false });
-    setVehicles((data || []) as Vehicle[]);
+    if (primary.error && isMissingColumn(primary.error)) {
+      const { data: customerRows, error: customerError } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('shop_id', admin.shop_id);
+      if (customerError) {
+        console.error('Error loading vehicles:', customerError);
+        setVehicles([]);
+        return;
+      }
+      const customerIds = (customerRows || []).map((c) => c.id);
+      if (customerIds.length === 0) {
+        setVehicles([]);
+        return;
+      }
+      const fallback = await supabase
+        .from('vehicles')
+        .select('*')
+        .in('customer_id', customerIds)
+        .order('created_at', { ascending: false });
+      if (fallback.error) {
+        console.error('Error loading vehicles:', fallback.error);
+        setVehicles([]);
+        return;
+      }
+      setVehicles((fallback.data || []) as Vehicle[]);
+      return;
+    }
+    if (primary.error) {
+      console.error('Error loading vehicles:', primary.error);
+      setVehicles([]);
+      return;
+    }
+    setVehicles((primary.data || []) as Vehicle[]);
   };
 
   const showMessage = (type: 'success' | 'error', text: string) => {
@@ -169,37 +233,58 @@ export function ScheduleBoard() {
         newVehicle.year || newVehicle.make || newVehicle.model || newVehicle.license_plate || newVehicle.vin || newVehicle.color
       );
       if (createVehicle && hasVehicleInput) {
-        const { data: createdVehicle, error: vehicleError } = await supabase
+        const createPayload: any = {
+          customer_id: customerId,
+          year: newVehicle.year ? Number(newVehicle.year) : new Date().getFullYear(),
+          make: newVehicle.make || 'Unknown',
+          model: newVehicle.model || 'Unknown',
+          license_plate: newVehicle.license_plate || null,
+          vin: newVehicle.vin || null,
+          color: newVehicle.color || null,
+        };
+        const primaryVehicle = await supabase
           .from('vehicles')
-          .insert({
-            shop_id: admin.shop_id,
-            customer_id: customerId,
-            year: newVehicle.year ? Number(newVehicle.year) : new Date().getFullYear(),
-            make: newVehicle.make || 'Unknown',
-            model: newVehicle.model || 'Unknown',
-            license_plate: newVehicle.license_plate || null,
-            vin: newVehicle.vin || null,
-            color: newVehicle.color || null,
-          })
+          .insert({ ...createPayload, shop_id: admin.shop_id })
           .select('*')
           .single();
-
-        if (vehicleError) throw vehicleError;
-        vehicleId = createdVehicle.id;
+        if (primaryVehicle.error && isMissingColumn(primaryVehicle.error)) {
+          const fallbackVehicle = await supabase
+            .from('vehicles')
+            .insert(createPayload)
+            .select('*')
+            .single();
+          if (fallbackVehicle.error) throw fallbackVehicle.error;
+          vehicleId = (fallbackVehicle.data as Vehicle).id;
+        } else if (primaryVehicle.error) {
+          throw primaryVehicle.error;
+        } else {
+          vehicleId = (primaryVehicle.data as Vehicle).id;
+        }
       }
 
-      const { error } = await supabase.from('appointments').insert({
+      const appointmentPayload: any = {
         customer_id: customerId,
         vehicle_id: vehicleId,
-        shop_id: admin.shop_id,
-        scheduled_date: formData.scheduled_date,
-        scheduled_time: formData.scheduled_time,
         service_type: formData.service_type,
         description: formData.description || null,
         status: formData.status,
+      };
+      const primaryAppointment = await supabase.from('appointments').insert({
+        ...appointmentPayload,
+        shop_id: admin.shop_id,
+        scheduled_date: formData.scheduled_date,
+        scheduled_time: formData.scheduled_time,
       });
-
-      if (error) throw error;
+      if (primaryAppointment.error && isMissingColumn(primaryAppointment.error)) {
+        const fallbackAppointment = await supabase.from('appointments').insert({
+          ...appointmentPayload,
+          requested_date: formData.scheduled_date,
+          requested_time: formData.scheduled_time,
+        });
+        if (fallbackAppointment.error) throw fallbackAppointment.error;
+      } else if (primaryAppointment.error) {
+        throw primaryAppointment.error;
+      }
       showMessage('success', 'Appointment added');
       setShowAdd(false);
       setFormData({

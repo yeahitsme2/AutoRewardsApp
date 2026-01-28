@@ -83,7 +83,12 @@ export function RepairOrdersManagement() {
         .order('created_at', { ascending: false });
 
       if (error) {
-        if (error.code === '42P01' || error.message?.includes('repair_orders')) {
+        const notFound = error.code === '42P01'
+          || error.code === '404'
+          || error.status === 404
+          || error.message?.includes('repair_orders')
+          || error.message?.includes('Not Found');
+        if (notFound) {
           setTableMissing(true);
           setOrders([]);
           return;

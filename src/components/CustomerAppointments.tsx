@@ -82,6 +82,15 @@ export function CustomerAppointments() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  const isMissingColumn = (error: any) =>
+    error?.code === '42703' || (typeof error?.message === 'string' && error.message.includes('does not exist'));
+
+  const normalizeAppointment = (apt: Appointment) => ({
+    ...apt,
+    scheduled_date: (apt as any).scheduled_date ?? (apt as any).requested_date,
+    scheduled_time: (apt as any).scheduled_time ?? (apt as any).requested_time,
+  });
+
   useEffect(() => {
     if (customer) {
       loadData();
@@ -90,12 +99,21 @@ export function CustomerAppointments() {
 
   const loadData = async () => {
     try {
-      const [appointmentsRes, vehiclesRes, settingsRes] = await Promise.all([
-        supabase
+      const appointmentsPrimary = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('customer_id', customer!.id)
+        .order('scheduled_date', { ascending: false });
+
+      const appointmentsRes = appointmentsPrimary.error && isMissingColumn(appointmentsPrimary.error)
+        ? await supabase
           .from('appointments')
           .select('*')
           .eq('customer_id', customer!.id)
-          .order('scheduled_date', { ascending: false }),
+          .order('requested_date', { ascending: false })
+        : appointmentsPrimary;
+
+      const [vehiclesRes, settingsRes] = await Promise.all([
         supabase
           .from('vehicles')
           .select('*')
@@ -113,7 +131,7 @@ export function CustomerAppointments() {
       if (settingsRes.error) throw settingsRes.error;
 
       const appointmentsWithVehicles = (appointmentsRes.data || []).map((apt) => ({
-        ...apt,
+        ...normalizeAppointment(apt as Appointment),
         vehicle: (vehiclesRes.data || []).find((v) => v.id === apt.vehicle_id),
       }));
 
@@ -165,16 +183,35 @@ export function CustomerAppointments() {
   };
 
   const fetchAppointmentsForRange = async (startDate: string, endDate: string) => {
-    const { data, error } = await supabase
+    const primary = await supabase
       .from('appointments')
-      .select('scheduled_date, scheduled_time, status')
+      .select('scheduled_date, scheduled_time, status, requested_date, requested_time')
       .eq('shop_id', customer!.shop_id)
       .gte('scheduled_date', startDate)
       .lte('scheduled_date', endDate)
       .neq('status', 'cancelled');
 
-    if (error) throw error;
-    return data || [];
+    if (primary.error && isMissingColumn(primary.error)) {
+      const fallback = await supabase
+        .from('appointments')
+        .select('requested_date, requested_time, status')
+        .eq('customer_id', customer!.id)
+        .gte('requested_date', startDate)
+        .lte('requested_date', endDate)
+        .neq('status', 'cancelled');
+      if (fallback.error) throw fallback.error;
+      return (fallback.data || []).map((apt: any) => ({
+        scheduled_date: apt.requested_date,
+        scheduled_time: apt.requested_time,
+        status: apt.status,
+      }));
+    }
+    if (primary.error) throw primary.error;
+    return (primary.data || []).map((apt: any) => ({
+      scheduled_date: apt.scheduled_date ?? apt.requested_date,
+      scheduled_time: apt.scheduled_time ?? apt.requested_time,
+      status: apt.status,
+    }));
   };
 
   const isSlotAvailable = (dateStr: string, timeStr: string, appointmentsData: any[]) => {
@@ -251,18 +288,29 @@ export function CustomerAppointments() {
       const autoConfirm = scheduleSettings.auto_confirm_services.includes(formData.service_type)
         && !scheduleSettings.approval_required_services.includes(formData.service_type);
 
-      const { error } = await supabase.from('appointments').insert({
+      const payload: any = {
         customer_id: customer!.id,
         vehicle_id: formData.vehicle_id,
-        shop_id: customer!.shop_id,
-        scheduled_date: formData.scheduled_date,
-        scheduled_time: formData.scheduled_time,
         service_type: formData.service_type,
         description: formData.description || null,
         status: autoConfirm ? 'confirmed' : 'pending',
+      };
+      const primaryInsert = await supabase.from('appointments').insert({
+        ...payload,
+        shop_id: customer!.shop_id,
+        scheduled_date: formData.scheduled_date,
+        scheduled_time: formData.scheduled_time,
       });
-
-      if (error) throw error;
+      if (primaryInsert.error && isMissingColumn(primaryInsert.error)) {
+        const fallbackInsert = await supabase.from('appointments').insert({
+          ...payload,
+          requested_date: formData.scheduled_date,
+          requested_time: formData.scheduled_time,
+        });
+        if (fallbackInsert.error) throw fallbackInsert.error;
+      } else if (primaryInsert.error) {
+        throw primaryInsert.error;
+      }
 
       showMessage('success', 'Appointment request submitted successfully');
       setShowBooking(false);

@@ -27,6 +27,15 @@ export function AppointmentsManagement() {
   const [adminNotes, setAdminNotes] = useState('');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  const isMissingColumn = (error: any) =>
+    error?.code === '42703' || (typeof error?.message === 'string' && error.message.includes('does not exist'));
+
+  const normalizeAppointment = (apt: Appointment) => ({
+    ...apt,
+    scheduled_date: (apt as any).scheduled_date ?? (apt as any).requested_date,
+    scheduled_time: (apt as any).scheduled_time ?? (apt as any).requested_time,
+  });
+
   useEffect(() => {
     loadAppointments();
 
@@ -36,17 +45,26 @@ export function AppointmentsManagement() {
 
   const loadAppointments = async () => {
     try {
-      const { data: appointmentsData, error: appointmentsError } = await supabase
+      const primary = await supabase
         .from('appointments')
         .select('*')
         .order('scheduled_date', { ascending: true })
         .order('scheduled_time', { ascending: true });
 
-      if (appointmentsError) throw appointmentsError;
+      const appointmentsRes = primary.error && isMissingColumn(primary.error)
+        ? await supabase
+          .from('appointments')
+          .select('*')
+          .order('requested_date', { ascending: true })
+          .order('requested_time', { ascending: true })
+        : primary;
 
-      const customerIds = [...new Set(appointmentsData?.map((a) => a.customer_id) || [])];
-      const vehicleIds = [...new Set(appointmentsData?.map((a) => a.vehicle_id).filter(Boolean) || [])];
-      const appointmentIds = [...new Set(appointmentsData?.map((a) => a.id) || [])];
+      if (appointmentsRes.error) throw appointmentsRes.error;
+      const appointmentsData = (appointmentsRes.data || []) as Appointment[];
+
+      const customerIds = [...new Set(appointmentsData.map((a) => a.customer_id) || [])];
+      const vehicleIds = [...new Set(appointmentsData.map((a) => a.vehicle_id).filter(Boolean) || [])];
+      const appointmentIds = [...new Set(appointmentsData.map((a) => a.id) || [])];
 
       const [customersRes, vehiclesRes, repairOrdersRes] = await Promise.all([
         supabase.from('customers').select('*').in('id', customerIds),
@@ -56,10 +74,16 @@ export function AppointmentsManagement() {
 
       if (customersRes.error) throw customersRes.error;
       if (vehiclesRes.error) throw vehiclesRes.error;
-      if (repairOrdersRes.error && repairOrdersRes.error.code !== '42P01') throw repairOrdersRes.error;
+      if (repairOrdersRes.error) {
+        const notFound = repairOrdersRes.error.code === '42P01'
+          || repairOrdersRes.error.code === '404'
+          || repairOrdersRes.error.message?.includes('repair_orders')
+          || repairOrdersRes.error.message?.includes('Not Found');
+        if (!notFound) throw repairOrdersRes.error;
+      }
 
-      const appointmentsWithDetails = (appointmentsData || []).map((apt) => ({
-        ...apt,
+      const appointmentsWithDetails = appointmentsData.map((apt) => ({
+        ...normalizeAppointment(apt),
         customer: customersRes.data?.find((c) => c.id === apt.customer_id),
         vehicle: vehiclesRes.data?.find((v) => v.id === apt.vehicle_id),
         repair_order_id: repairOrdersRes.data?.find((ro) => ro.appointment_id === apt.id)?.id || null,

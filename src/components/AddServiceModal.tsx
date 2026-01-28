@@ -80,18 +80,28 @@ export function AddServiceModal({ customer, onClose }: AddServiceModalProps) {
       const tierMultiplier = customer.tier_multiplier || 1.0;
       const pointsEarned = Math.floor(amount * pointsPerDollar * tierMultiplier);
 
-      const { error: insertError } = await supabase.from('services').insert({
+      const servicePayload: any = {
         vehicle_id: formData.vehicleId,
         customer_id: customer.id,
-        shop_id: customer.shop_id,
         service_type: formData.description || 'General Service',
         description: formData.notes || formData.description,
         service_date: new Date(formData.serviceDate).toISOString(),
         amount,
         points_earned: pointsEarned,
+      };
+
+      const primaryInsert = await supabase.from('services').insert({
+        ...servicePayload,
+        shop_id: customer.shop_id,
       });
 
-      if (insertError) throw insertError;
+      if (primaryInsert.error) {
+        const missingColumn = primaryInsert.error.code === '42703'
+          || (typeof primaryInsert.error.message === 'string' && primaryInsert.error.message.includes('does not exist'));
+        if (!missingColumn) throw primaryInsert.error;
+        const fallbackInsert = await supabase.from('services').insert(servicePayload);
+        if (fallbackInsert.error) throw fallbackInsert.error;
+      }
 
       if (formData.mileageAtService) {
         const mileage = parseInt(formData.mileageAtService);
