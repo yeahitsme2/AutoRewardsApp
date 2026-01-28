@@ -278,8 +278,8 @@ export function RepairOrdersManagement() {
 
       try {
         const quantityValue = Number(draft.quantity);
-        if (!Number.isInteger(quantityValue) || quantityValue < 1) {
-          showMessage('error', 'Quantity must be a whole number (1 or more)');
+        if (!Number.isFinite(quantityValue) || quantityValue <= 0) {
+          showMessage('error', 'Quantity must be greater than 0');
           return;
         }
         const total = quantityValue * Number(draft.unit_price);
@@ -587,14 +587,14 @@ export function RepairOrdersManagement() {
                     />
                       <input
                         type="number"
-                        min={1}
-                        step={1}
+                        min={0.01}
+                        step="0.01"
                         value={(itemDrafts[selectedOrder.id] || emptyItem).quantity}
                         onChange={(e) => setItemDrafts((prev) => ({
                           ...prev,
                           [selectedOrder.id]: {
                             ...(prev[selectedOrder.id] || emptyItem),
-                            quantity: Number.parseInt(e.target.value || '0', 10),
+                            quantity: Number.parseFloat(e.target.value || '0'),
                           },
                         }))}
                         className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
