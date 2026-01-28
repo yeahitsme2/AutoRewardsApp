@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
@@ -24,11 +24,19 @@ export function CustomerRepairOrders() {
   const [loading, setLoading] = useState(true);
   const [tableMissing, setTableMissing] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const prevOrderIdsRef = useRef<Set<string>>(new Set());
+  const prevStatusRef = useRef<Record<string, RepairOrder['status']>>({});
 
   useEffect(() => {
     loadOrders();
     const interval = setInterval(loadOrders, 5000);
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
   }, []);
 
   const loadOrders = async () => {
@@ -76,6 +84,30 @@ export function CustomerRepairOrders() {
         items: items.filter((item) => item.repair_order_id === order.id),
       }));
 
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        const prevIds = prevOrderIdsRef.current;
+        ordersWithItems.forEach((order) => {
+          const prevStatus = prevStatusRef.current[order.id];
+          if (!prevIds.has(order.id)) {
+            new Notification('New Repair Order', {
+              body: `${order.ro_number} is ready for review`,
+              icon: '/favicon.ico',
+            });
+          } else if (prevStatus && prevStatus !== order.status) {
+            new Notification('Repair Order Update', {
+              body: `${order.ro_number} ${order.status.replace('_', ' ')}`,
+              icon: '/favicon.ico',
+            });
+          }
+        });
+      }
+
+      prevOrderIdsRef.current = new Set(ordersWithItems.map((order) => order.id));
+      prevStatusRef.current = ordersWithItems.reduce((acc, order) => {
+        acc[order.id] = order.status;
+        return acc;
+      }, {} as Record<string, RepairOrder['status']>);
+
       setOrders(ordersWithItems);
     } catch (error) {
       console.error('Error loading repair orders:', error);
@@ -91,6 +123,9 @@ export function CustomerRepairOrders() {
         .update({
           status: 'approved',
           approved_at: new Date().toISOString(),
+          customer_approved_at: new Date().toISOString(),
+          customer_response_by: customer?.id || null,
+          admin_notified_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
         .eq('id', orderId);
@@ -112,6 +147,9 @@ export function CustomerRepairOrders() {
         .update({
           status: 'declined',
           customer_notes: reason || null,
+          customer_declined_at: new Date().toISOString(),
+          customer_response_by: customer?.id || null,
+          admin_notified_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
         .eq('id', orderId);

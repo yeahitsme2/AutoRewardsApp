@@ -540,6 +540,12 @@ export interface Database {
           updated_at: string;
           approved_at: string | null;
           closed_at: string | null;
+          approved_by?: string | null;
+          customer_response_by?: string | null;
+          customer_approved_at?: string | null;
+          customer_declined_at?: string | null;
+          customer_notified_at?: string | null;
+          admin_notified_at?: string | null;
         };
         Insert: {
           id?: string;
@@ -560,6 +566,12 @@ export interface Database {
           updated_at?: string;
           approved_at?: string | null;
           closed_at?: string | null;
+          approved_by?: string | null;
+          customer_response_by?: string | null;
+          customer_approved_at?: string | null;
+          customer_declined_at?: string | null;
+          customer_notified_at?: string | null;
+          admin_notified_at?: string | null;
         };
         Update: {
           id?: string;
@@ -580,6 +592,12 @@ export interface Database {
           updated_at?: string;
           approved_at?: string | null;
           closed_at?: string | null;
+          approved_by?: string | null;
+          customer_response_by?: string | null;
+          customer_approved_at?: string | null;
+          customer_declined_at?: string | null;
+          customer_notified_at?: string | null;
+          admin_notified_at?: string | null;
         };
       };
       repair_order_items: {

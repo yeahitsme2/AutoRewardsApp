@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
@@ -78,6 +78,14 @@ export function RepairOrdersManagement() {
   }, []);
 
   useEffect(() => {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  const statusMapRef = useRef<Record<string, RepairOrder['status']>>({});
+
+  useEffect(() => {
     if (!selectedOrderId) return;
     setItemDrafts((prev) => {
       if (prev[selectedOrderId]) return prev;
@@ -133,6 +141,24 @@ export function RepairOrdersManagement() {
         vehicle: vehiclesRes.data?.find((veh) => veh.id === order.vehicle_id) || null,
       }));
 
+      const nextMap: Record<string, RepairOrder['status']> = {};
+      nextOrders.forEach((order) => {
+        nextMap[order.id] = order.status;
+      });
+
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        nextOrders.forEach((order) => {
+          const prevStatus = statusMapRef.current[order.id];
+          if (prevStatus && prevStatus !== order.status && (order.status === 'approved' || order.status === 'declined')) {
+            new Notification('Repair Order Update', {
+              body: `${order.ro_number} ${order.status.replace('_', ' ')}`,
+              icon: '/favicon.ico',
+            });
+          }
+        });
+      }
+
+      statusMapRef.current = nextMap;
       setOrders(nextOrders);
     } catch (error) {
       console.error('Error loading repair orders:', error);
@@ -277,7 +303,13 @@ export function RepairOrdersManagement() {
         status,
         updated_at: new Date().toISOString(),
       };
-      if (status === 'approved') updates.approved_at = new Date().toISOString();
+      if (status === 'approved') {
+        updates.approved_at = new Date().toISOString();
+        updates.approved_by = admin?.id || null;
+      }
+      if (status === 'awaiting_approval') {
+        updates.customer_notified_at = new Date().toISOString();
+      }
       if (status === 'closed') updates.closed_at = new Date().toISOString();
 
       const { error } = await supabase
@@ -340,12 +372,13 @@ export function RepairOrdersManagement() {
           grand_total: 0,
           created_at: now,
           updated_at: now,
+          customer_notified_at: null,
         })
         .select('*')
         .single();
 
       if (error) throw error;
-      showMessage('success', 'Repair order created');
+        showMessage('success', 'Repair order created');
       setShowNewOrder(false);
       setNewOrder({ customer_id: '', vehicle_id: '', internal_notes: '' });
       setOrders((prev) => [{ ...(data as RepairOrder), customer: customers.find((c) => c.id === data.customer_id), vehicle: vehicles.find((v) => v.id === data.vehicle_id) || null }, ...prev]);
