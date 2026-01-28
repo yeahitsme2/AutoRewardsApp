@@ -2,8 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
-import { AlertCircle, CheckCircle, ClipboardList, DollarSign, Plus, Save, User, Car, X } from 'lucide-react';
-import type { Customer, RepairOrder, RepairOrderItem, RepairOrderMarkupRule, ShopSettings, Vehicle } from '../types/database';
+import { AlertCircle, CheckCircle, ClipboardList, DollarSign, Plus, Save, User, Car, X, MessageSquare, Boxes } from 'lucide-react';
+import { ChatThread } from './ChatThread';
+import { logAuditEvent } from '../lib/audit';
+import { logOutboundMessage } from '../lib/messaging';
+import { consumeReservedParts as consumeReservedPartsAction, reservePart as reservePartAction } from '../lib/inventory';
+import type { Customer, Part, RepairOrder, RepairOrderItem, RepairOrderMarkupRule, RepairOrderPartReservation, ShopLocation, ShopSettings, Vehicle } from '../types/database';
 
 interface RepairOrderWithDetails extends RepairOrder {
   customer?: Customer;
@@ -54,6 +58,9 @@ export function RepairOrdersManagement() {
   const [orders, setOrders] = useState<RepairOrderWithDetails[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [parts, setParts] = useState<Part[]>([]);
+  const [locations, setLocations] = useState<ShopLocation[]>([]);
+  const [reservations, setReservations] = useState<RepairOrderPartReservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [tableMissing, setTableMissing] = useState(false);
   const [markupRules, setMarkupRules] = useState<RepairOrderMarkupRule[]>([]);
@@ -68,6 +75,12 @@ export function RepairOrdersManagement() {
     internal_notes: '',
   });
   const [itemDrafts, setItemDrafts] = useState<Record<string, typeof emptyItem>>({});
+  const [reservationDraft, setReservationDraft] = useState({
+    part_id: '',
+    location_id: '',
+    quantity: 1,
+  });
+  const [showChat, setShowChat] = useState(false);
 
   useEffect(() => {
     loadOrders();
@@ -75,6 +88,8 @@ export function RepairOrdersManagement() {
     loadVehicles();
     loadMarkupRules();
     loadTaxSettings();
+    loadParts();
+    loadLocations();
   }, []);
 
   useEffect(() => {
@@ -197,6 +212,76 @@ export function RepairOrdersManagement() {
     if (!error) setVehicles((data || []) as Vehicle[]);
   };
 
+  const loadParts = async () => {
+    if (!admin?.shop_id) return;
+    const { data, error } = await supabase
+      .from('parts')
+      .select('*')
+      .eq('shop_id', admin.shop_id)
+      .order('created_at', { ascending: false });
+    if (!error) setParts((data || []) as Part[]);
+  };
+
+  const loadLocations = async () => {
+    if (!admin?.shop_id) return;
+    const { data, error } = await supabase
+      .from('shop_locations')
+      .select('*')
+      .eq('shop_id', admin.shop_id)
+      .eq('is_active', true)
+      .order('created_at', { ascending: true });
+    if (!error) setLocations((data || []) as ShopLocation[]);
+  };
+
+  const loadReservations = async (orderId: string) => {
+    const { data, error } = await supabase
+      .from('repair_order_part_reservations')
+      .select('*')
+      .eq('repair_order_id', orderId);
+    if (!error) setReservations((data || []) as RepairOrderPartReservation[]);
+  };
+
+  const reservePart = async (orderId: string) => {
+    if (!admin?.shop_id) return;
+    if (!reservationDraft.part_id || !reservationDraft.location_id || reservationDraft.quantity <= 0) {
+      showMessage('error', 'Select part, location, and quantity');
+      return;
+    }
+    try {
+      const reservation = await reservePartAction({
+        shopId: admin.shop_id,
+        orderId,
+        partId: reservationDraft.part_id,
+        locationId: reservationDraft.location_id,
+        quantity: Number(reservationDraft.quantity),
+      });
+      setReservationDraft({ part_id: '', location_id: '', quantity: 1 });
+      setReservations((prev) => [...prev, reservation]);
+      showMessage('success', 'Part reserved');
+    } catch (error) {
+      console.error('Error reserving part:', error);
+      showMessage('error', 'Failed to reserve part');
+    }
+  };
+
+  const consumeReservedParts = async (orderId: string) => {
+    if (!admin?.shop_id) return;
+    try {
+      await consumeReservedPartsAction({
+        shopId: admin.shop_id,
+        orderId,
+        reservations,
+      });
+      setReservations((prev) =>
+        prev.map((res) => (res.repair_order_id === orderId && res.status === 'reserved'
+          ? { ...res, status: 'consumed' }
+          : res))
+      );
+    } catch (error) {
+      console.error('Error consuming reserved parts:', error);
+    }
+  };
+
   const loadMarkupRules = async () => {
     if (!admin?.shop_id) return;
     const { data, error } = await supabase
@@ -287,6 +372,7 @@ export function RepairOrdersManagement() {
 
   const handleSelectOrder = async (orderId: string) => {
     setSelectedOrderId(orderId);
+    setReservations([]);
     const order = orders.find((o) => o.id === orderId);
     if (order && !order.items) {
       try {
@@ -295,6 +381,7 @@ export function RepairOrdersManagement() {
         console.error('Error loading RO items:', error);
       }
     }
+    await loadReservations(orderId);
   };
 
   const handleStatusChange = async (orderId: string, status: RepairOrderStatus) => {
@@ -329,6 +416,41 @@ export function RepairOrdersManagement() {
             url: '/',
           },
         });
+        if (admin?.shop_id) {
+          await logOutboundMessage({
+            shopId: admin.shop_id,
+            customerId: order.customer_id,
+            channel: 'email',
+            subject: 'Estimate ready for approval',
+            body: `Your estimate ${order.ro_number} is ready for review.`,
+            status: 'queued',
+          });
+        }
+      }
+
+      if (status === 'closed') {
+        await consumeReservedParts(orderId);
+        if (admin?.shop_id && order?.customer_id) {
+          await logOutboundMessage({
+            shopId: admin.shop_id,
+            customerId: order.customer_id,
+            channel: 'email',
+            subject: 'Your vehicle is ready',
+            body: `Repair order ${order.ro_number} is completed. Please contact the shop to arrange pickup.`,
+            status: 'queued',
+          });
+        }
+      }
+
+      if (admin?.shop_id) {
+        await logAuditEvent({
+          shopId: admin.shop_id,
+          actorRole: 'admin',
+          eventType: 'repair_order_status_updated',
+          entityType: 'repair_order',
+          entityId: orderId,
+          metadata: { status },
+        });
       }
 
       showMessage('success', 'Repair order updated');
@@ -339,29 +461,29 @@ export function RepairOrdersManagement() {
       console.error('Error updating RO status:', error);
       showMessage('error', 'Failed to update repair order');
     }
-    };
+  };
 
-    const handleDeleteOrder = async (orderId: string) => {
-      const confirmed = window.confirm('Delete this repair order? This cannot be undone.');
-      if (!confirmed) return;
+  const handleDeleteOrder = async (orderId: string) => {
+    const confirmed = window.confirm('Delete this repair order? This cannot be undone.');
+    if (!confirmed) return;
 
-      try {
-        const { error } = await supabase
-          .from('repair_orders')
-          .delete()
-          .eq('id', orderId);
-        if (error) throw error;
+    try {
+      const { error } = await supabase
+        .from('repair_orders')
+        .delete()
+        .eq('id', orderId);
+      if (error) throw error;
 
-        setOrders((prev) => prev.filter((order) => order.id !== orderId));
-        if (selectedOrderId === orderId) {
-          setSelectedOrderId(null);
-        }
-        showMessage('success', 'Repair order deleted');
-      } catch (error) {
-        console.error('Error deleting repair order:', error);
-        showMessage('error', 'Failed to delete repair order');
+      setOrders((prev) => prev.filter((order) => order.id !== orderId));
+      if (selectedOrderId === orderId) {
+        setSelectedOrderId(null);
       }
-    };
+      showMessage('success', 'Repair order deleted');
+    } catch (error) {
+      console.error('Error deleting repair order:', error);
+      showMessage('error', 'Failed to delete repair order');
+    }
+  };
   const handleCreateOrder = async () => {
     if (!admin?.shop_id || !newOrder.customer_id) {
       showMessage('error', 'Select a customer before creating an order');
@@ -690,6 +812,101 @@ export function RepairOrdersManagement() {
                           <div className="font-semibold text-slate-900">${item.total.toFixed(2)}</div>
                         </div>
                       ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-slate-700">
+                    <Boxes className="w-4 h-4" />
+                    <h4 className="font-semibold text-slate-900">Reserve Parts</h4>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <select
+                      value={reservationDraft.part_id}
+                      onChange={(e) => setReservationDraft({ ...reservationDraft, part_id: e.target.value })}
+                      className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                    >
+                      <option value="">Select part</option>
+                      {parts.map((part) => (
+                        <option key={part.id} value={part.id}>{part.name}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={reservationDraft.location_id}
+                      onChange={(e) => setReservationDraft({ ...reservationDraft, location_id: e.target.value })}
+                      className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                    >
+                      <option value="">Select location</option>
+                      {locations.map((loc) => (
+                        <option key={loc.id} value={loc.id}>{loc.name}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      min={0.01}
+                      step="0.01"
+                      value={reservationDraft.quantity}
+                      onChange={(e) => setReservationDraft({ ...reservationDraft, quantity: Number(e.target.value) })}
+                      className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                      placeholder="Qty"
+                    />
+                    <button
+                      onClick={() => reservePart(selectedOrder.id)}
+                      className="flex items-center justify-center gap-2 px-3 py-2 text-white rounded-lg text-sm"
+                      style={{ backgroundColor: brandSettings.primary_color }}
+                    >
+                      Reserve
+                    </button>
+                  </div>
+                  {reservations.length > 0 && (
+                    <div className="space-y-2">
+                      {reservations.map((res) => (
+                        <div key={res.id} className="border border-slate-200 rounded-lg p-3 text-sm flex items-center justify-between">
+                          <div>
+                            <p className="font-medium text-slate-900">{parts.find((p) => p.id === res.part_id)?.name || 'Part'}</p>
+                            <p className="text-xs text-slate-500">{locations.find((l) => l.id === res.location_id)?.name || 'Location'}</p>
+                          </div>
+                          <div className="text-xs text-slate-600">
+                            Qty {res.quantity} - {res.status}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold text-slate-900 flex items-center gap-2">
+                      <MessageSquare className="w-4 h-4" />
+                      Messages
+                    </h4>
+                    <button
+                      onClick={() => setShowChat(!showChat)}
+                      className="text-sm text-slate-600"
+                    >
+                      {showChat ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
+                  {showChat && (
+                    <div className="space-y-4">
+                      <ChatThread
+                        shopId={selectedOrder.shop_id}
+                        customerId={selectedOrder.customer_id}
+                        repairOrderId={selectedOrder.id}
+                        threadType="ro"
+                        title="Customer Thread"
+                        subtitle="Visible to the customer"
+                      />
+                      <ChatThread
+                        shopId={selectedOrder.shop_id}
+                        customerId={selectedOrder.customer_id}
+                        repairOrderId={selectedOrder.id}
+                        threadType="internal"
+                        title="Internal Notes Thread"
+                        subtitle="Staff only"
+                      />
                     </div>
                   )}
                 </div>

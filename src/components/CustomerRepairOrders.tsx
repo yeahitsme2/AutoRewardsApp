@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
-import { AlertCircle, CheckCircle, ClipboardList } from 'lucide-react';
-import type { RepairOrder, RepairOrderItem } from '../types/database';
+import { AlertCircle, CheckCircle, ClipboardList, ClipboardCheck, MessageSquare } from 'lucide-react';
+import { ChatThread } from './ChatThread';
+import type { DviItemMedia, DviReport, DviReportItem, RepairOrder, RepairOrderItem } from '../types/database';
 
 interface RepairOrderWithItems extends RepairOrder {
   items: RepairOrderItem[];
@@ -21,6 +22,10 @@ export function CustomerRepairOrders() {
   const { customer } = useAuth();
   const { brandSettings } = useBrand();
   const [orders, setOrders] = useState<RepairOrderWithItems[]>([]);
+  const [dviReports, setDviReports] = useState<Record<string, DviReport[]>>({});
+  const [dviItems, setDviItems] = useState<Record<string, DviReportItem[]>>({});
+  const [dviMedia, setDviMedia] = useState<Record<string, DviItemMedia[]>>({});
+  const [expandedChat, setExpandedChat] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [tableMissing, setTableMissing] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -84,6 +89,45 @@ export function CustomerRepairOrders() {
         items: items.filter((item) => item.repair_order_id === order.id),
       }));
 
+      const { data: reportRows, error: reportError } = await supabase
+        .from('dvi_reports')
+        .select('*')
+        .in('repair_order_id', orderIds)
+        .eq('status', 'published');
+      if (reportError) throw reportError;
+      const reportsList = (reportRows || []) as DviReport[];
+      const reportIds = reportsList.map((report) => report.id);
+
+      const { data: reportItemRows, error: reportItemError } = await supabase
+        .from('dvi_report_items')
+        .select('*')
+        .in('report_id', reportIds.length > 0 ? reportIds : ['00000000-0000-0000-0000-000000000000']);
+      if (reportItemError) throw reportItemError;
+
+      const reportItemList = (reportItemRows || []) as DviReportItem[];
+      const reportItemIds = reportItemList.map((item) => item.id);
+      const { data: mediaRows, error: mediaError } = await supabase
+        .from('dvi_item_media')
+        .select('*')
+        .in('report_item_id', reportItemIds.length > 0 ? reportItemIds : ['00000000-0000-0000-0000-000000000000']);
+      if (mediaError) throw mediaError;
+
+      const reportMap: Record<string, DviReport[]> = {};
+      reportsList.forEach((report) => {
+        if (!reportMap[report.repair_order_id]) reportMap[report.repair_order_id] = [];
+        reportMap[report.repair_order_id].push(report);
+      });
+      const itemMap: Record<string, DviReportItem[]> = {};
+      reportItemList.forEach((item) => {
+        if (!itemMap[item.report_id]) itemMap[item.report_id] = [];
+        itemMap[item.report_id].push(item);
+      });
+      const mediaMap: Record<string, DviItemMedia[]> = {};
+      (mediaRows || []).forEach((media) => {
+        if (!mediaMap[media.report_item_id]) mediaMap[media.report_item_id] = [];
+        mediaMap[media.report_item_id].push(media as DviItemMedia);
+      });
+
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         const prevIds = prevOrderIdsRef.current;
         ordersWithItems.forEach((order) => {
@@ -109,6 +153,9 @@ export function CustomerRepairOrders() {
       }, {} as Record<string, RepairOrder['status']>);
 
       setOrders(ordersWithItems);
+      setDviReports(reportMap);
+      setDviItems(itemMap);
+      setDviMedia(mediaMap);
     } catch (error) {
       console.error('Error loading repair orders:', error);
     } finally {
@@ -194,6 +241,8 @@ export function CustomerRepairOrders() {
     setTimeout(() => setMessage(null), 3000);
   };
 
+  const getMediaForItem = (itemId: string) => dviMedia[itemId] || [];
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -259,7 +308,7 @@ export function CustomerRepairOrders() {
                   <div>
                     <p className="font-medium text-slate-900">{item.description}</p>
                     <p className="text-xs text-slate-500">
-                      {item.item_type.toUpperCase()} • Qty {item.quantity} • ${item.unit_price.toFixed(2)}
+                      {item.item_type.toUpperCase()} - Qty {item.quantity} - ${item.unit_price.toFixed(2)}
                     </p>
                   </div>
                   <div className="font-semibold text-slate-900">${item.total.toFixed(2)}</div>
@@ -267,6 +316,64 @@ export function CustomerRepairOrders() {
               ))}
             </div>
           )}
+
+          {(dviReports[order.id] || []).length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-slate-700">
+                <ClipboardCheck className="w-4 h-4" />
+                <h4 className="font-semibold text-slate-900">Inspection Report</h4>
+              </div>
+              {(dviReports[order.id] || []).map((report) => (
+                <div key={report.id} className="border border-slate-200 rounded-lg p-3 space-y-2">
+                  {(dviItems[report.id] || []).map((item) => (
+                    <div key={item.id} className="border border-slate-200 rounded-lg p-3 bg-slate-50">
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium text-slate-900">{item.recommendation || 'Inspection finding'}</p>
+                        <span className={`text-xs px-2 py-1 rounded-full ${
+                          item.condition === 'green'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : item.condition === 'yellow'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-red-100 text-red-800'
+                        }`}>
+                          {item.condition.toUpperCase()}
+                        </span>
+                      </div>
+                      {item.notes && <p className="text-xs text-slate-600 mt-2">{item.notes}</p>}
+                      {getMediaForItem(item.id).length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {getMediaForItem(item.id).map((media) => (
+                            <span key={media.id} className="text-xs text-slate-500">{media.file_name}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="border-t border-slate-200 pt-4">
+            <button
+              onClick={() => setExpandedChat((prev) => ({ ...prev, [order.id]: !prev[order.id] }))}
+              className="flex items-center gap-2 text-sm text-slate-700"
+            >
+              <MessageSquare className="w-4 h-4" />
+              {expandedChat[order.id] ? 'Hide Messages' : 'Message the Shop'}
+            </button>
+            {expandedChat[order.id] && (
+              <div className="mt-3">
+                <ChatThread
+                  shopId={customer?.shop_id || ''}
+                  customerId={customer?.id || ''}
+                  repairOrderId={order.id}
+                  threadType="ro"
+                  title="Messages with your advisor"
+                />
+              </div>
+            )}
+          </div>
 
           <div className="flex items-center justify-between text-sm text-slate-600">
             <span>Estimated total</span>

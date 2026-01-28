@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
 import { useShop } from '../lib/ShopContext';
-import { Settings as SettingsIcon, Save, DollarSign, Award, Palette, Image, Store, QrCode, Download, Copy, Check, Wrench } from 'lucide-react';
+import { Settings as SettingsIcon, Save, DollarSign, Award, Palette, Image, Store, QrCode, Download, Copy, Check, Wrench, MessageSquare, Phone, Mail } from 'lucide-react';
 import QRCodeLib from 'qrcode';
 import type { ShopSettings } from '../types/database';
 
@@ -30,7 +30,7 @@ const defaultBusinessHours = [
   { day: 6, is_open: true, open_time: '09:00', close_time: '13:00' },
 ];
 
-type SettingsTab = 'shop' | 'brand' | 'scheduling' | 'rewards' | 'repair_orders';
+type SettingsTab = 'shop' | 'brand' | 'scheduling' | 'rewards' | 'repair_orders' | 'communications';
 
 type MarkupRuleDraft = {
   id?: string;
@@ -81,6 +81,14 @@ export function Settings() {
     tax_rate: 0,
     taxable_item_types: ['part'],
   });
+  const [communicationsSettings, setCommunicationsSettings] = useState({
+    sms_enabled: false,
+    sms_monthly_allowance: 200,
+    sms_allow_overage: false,
+    sms_overage_rate: 0,
+    email_from: '',
+  });
+  const [smsUsage, setSmsUsage] = useState<{ month: string; used: number }>({ month: '', used: 0 });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -151,6 +159,28 @@ export function Settings() {
     }
   };
 
+  const loadSmsUsage = async (shopId: string) => {
+    try {
+      const now = new Date();
+      const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+        .toISOString()
+        .slice(0, 10);
+      const { data, error } = await supabase
+        .from('sms_usage_monthly')
+        .select('*')
+        .eq('shop_id', shopId)
+        .eq('month', monthStart)
+        .maybeSingle();
+      if (error) throw error;
+      setSmsUsage({
+        month: monthStart,
+        used: Number(data?.outbound_segments || 0),
+      });
+    } catch (error) {
+      console.error('Failed to load SMS usage:', error);
+    }
+  };
+
   const loadSettings = async () => {
     if (!shop?.id) {
       setLoading(false);
@@ -207,6 +237,14 @@ export function Settings() {
           tax_rate: Number((data as any).tax_rate || 0),
           taxable_item_types: (data as any).taxable_item_types || ['part'],
         });
+        setCommunicationsSettings({
+          sms_enabled: Boolean((data as any).sms_enabled),
+          sms_monthly_allowance: Number((data as any).sms_monthly_allowance || 200),
+          sms_allow_overage: Boolean((data as any).sms_allow_overage),
+          sms_overage_rate: Number((data as any).sms_overage_rate || 0),
+          email_from: (data as any).email_from || '',
+        });
+        await loadSmsUsage(shop.id);
       }
 
       const { data: markupData, error: markupError } = await supabase
@@ -279,6 +317,11 @@ export function Settings() {
         shop_logo_url: brandSettings.logo_url || null,
         tax_rate: taxSettings.tax_rate,
         taxable_item_types: taxSettings.taxable_item_types,
+        sms_enabled: communicationsSettings.sms_enabled,
+        sms_monthly_allowance: communicationsSettings.sms_monthly_allowance,
+        sms_allow_overage: communicationsSettings.sms_allow_overage,
+        sms_overage_rate: communicationsSettings.sms_overage_rate,
+        email_from: communicationsSettings.email_from || null,
         ...(schedulerSupported ? {
           business_hours: scheduleSettings.business_hours,
           appointment_duration_minutes: scheduleSettings.appointment_duration_minutes,
@@ -376,7 +419,12 @@ export function Settings() {
     { id: 'scheduling', label: 'Scheduling Settings' },
     { id: 'rewards', label: 'Rewards Settings' },
     { id: 'repair_orders', label: 'Repair Order Settings' },
+    { id: 'communications', label: 'Communications' },
   ];
+  const smsRemaining = Math.max(communicationsSettings.sms_monthly_allowance - smsUsage.used, 0);
+  const smsUsagePercent = communicationsSettings.sms_monthly_allowance > 0
+    ? Math.round((smsUsage.used / communicationsSettings.sms_monthly_allowance) * 100)
+    : 0;
 
   if (loading) {
     return (
@@ -1216,6 +1264,113 @@ export function Settings() {
                   These will be pre-selected when adding line items, but can still be overridden per item.
                 </p>
               </div>
+            </div>
+          </div>
+          </>
+          )}
+
+          {activeTab === 'communications' && (
+          <>
+          <div className="space-y-4">
+            <h4 className="text-base font-semibold text-slate-900 mb-2 flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-slate-700" />
+              Communications Settings
+            </h4>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-900">Enable SMS fallback</p>
+                  <p className="text-xs text-slate-500">SMS is only used when enabled and the customer has opted in.</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={communicationsSettings.sms_enabled}
+                  onChange={(e) => setCommunicationsSettings({ ...communicationsSettings, sms_enabled: e.target.checked })}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Monthly Allowance</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="1"
+                    value={communicationsSettings.sms_monthly_allowance}
+                    onChange={(e) => setCommunicationsSettings({
+                      ...communicationsSettings,
+                      sms_monthly_allowance: Number(e.target.value || 0),
+                    })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">Outbound SMS segments included per month.</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Overage Rate (per segment)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={communicationsSettings.sms_overage_rate}
+                    onChange={(e) => setCommunicationsSettings({
+                      ...communicationsSettings,
+                      sms_overage_rate: Number(e.target.value || 0),
+                    })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 mt-6 md:mt-0">
+                  <input
+                    type="checkbox"
+                    checked={communicationsSettings.sms_allow_overage}
+                    onChange={(e) => setCommunicationsSettings({
+                      ...communicationsSettings,
+                      sms_allow_overage: e.target.checked,
+                    })}
+                  />
+                  <label className="text-sm text-slate-700">Allow overage</label>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-3">
+              <div className="flex items-center gap-2 text-slate-700">
+                <Phone className="w-4 h-4" />
+                <p className="font-semibold text-slate-900">SMS Usage (Current Month)</p>
+              </div>
+              <div className="flex items-center justify-between text-sm text-slate-600">
+                <span>Used: {smsUsage.used}</span>
+                <span>Remaining: {smsRemaining}</span>
+              </div>
+              <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                <div
+                  className={`h-full ${smsUsagePercent >= 100 ? 'bg-red-500' : smsUsagePercent >= 75 ? 'bg-yellow-500' : 'bg-emerald-500'}`}
+                  style={{ width: `${Math.min(smsUsagePercent, 100)}%` }}
+                />
+              </div>
+              <p className="text-xs text-slate-500">
+                {smsUsagePercent >= 100 ? 'Over allowance' : `${smsUsagePercent}% of monthly allowance used.`}
+              </p>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
+              <div className="flex items-center gap-2 text-slate-700">
+                <Mail className="w-4 h-4" />
+                <p className="font-semibold text-slate-900">Email Sender</p>
+              </div>
+              <input
+                type="email"
+                placeholder="noreply@yourshop.com"
+                value={communicationsSettings.email_from}
+                onChange={(e) => setCommunicationsSettings({ ...communicationsSettings, email_from: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+              />
+              <p className="text-xs text-slate-500">
+                Used for system notifications such as DVI published and appointment reminders.
+              </p>
             </div>
           </div>
           </>

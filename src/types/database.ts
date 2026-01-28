@@ -1,3 +1,4 @@
+
 export interface Database {
   public: {
     Tables: {
@@ -106,6 +107,12 @@ export interface Database {
           approval_required_services?: string[] | null;
           tax_rate?: number | null;
           taxable_item_types?: string[] | null;
+          allow_negative_stock?: boolean | null;
+          sms_monthly_allowance?: number | null;
+          sms_allow_overage?: boolean | null;
+          sms_overage_rate?: number | null;
+          email_from?: string | null;
+          sms_enabled?: boolean | null;
           updated_by: string | null;
           created_at: string;
           updated_at: string;
@@ -136,6 +143,12 @@ export interface Database {
           approval_required_services?: string[] | null;
           tax_rate?: number | null;
           taxable_item_types?: string[] | null;
+          allow_negative_stock?: boolean | null;
+          sms_monthly_allowance?: number | null;
+          sms_allow_overage?: boolean | null;
+          sms_overage_rate?: number | null;
+          email_from?: string | null;
+          sms_enabled?: boolean | null;
           updated_by?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -166,7 +179,57 @@ export interface Database {
           approval_required_services?: string[] | null;
           tax_rate?: number | null;
           taxable_item_types?: string[] | null;
+          allow_negative_stock?: boolean | null;
+          sms_monthly_allowance?: number | null;
+          sms_allow_overage?: boolean | null;
+          sms_overage_rate?: number | null;
+          email_from?: string | null;
+          sms_enabled?: boolean | null;
           updated_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      shop_locations: {
+        Row: {
+          id: string;
+          shop_id: string;
+          name: string;
+          address_line1: string | null;
+          address_line2: string | null;
+          city: string | null;
+          state: string | null;
+          postal_code: string | null;
+          timezone: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          shop_id: string;
+          name: string;
+          address_line1?: string | null;
+          address_line2?: string | null;
+          city?: string | null;
+          state?: string | null;
+          postal_code?: string | null;
+          timezone?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          shop_id?: string;
+          name?: string;
+          address_line1?: string | null;
+          address_line2?: string | null;
+          city?: string | null;
+          state?: string | null;
+          postal_code?: string | null;
+          timezone?: string | null;
+          is_active?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -441,6 +504,8 @@ export interface Database {
           is_used: boolean;
           used_at: string | null;
           assigned_at: string;
+          is_read?: boolean | null;
+          read_at?: string | null;
         };
         Insert: {
           id?: string;
@@ -450,6 +515,8 @@ export interface Database {
           is_used?: boolean;
           used_at?: string | null;
           assigned_at?: string;
+          is_read?: boolean | null;
+          read_at?: string | null;
         };
         Update: {
           id?: string;
@@ -459,6 +526,8 @@ export interface Database {
           is_used?: boolean;
           used_at?: string | null;
           assigned_at?: string;
+          is_read?: boolean | null;
+          read_at?: string | null;
         };
       };
       appointments: {
@@ -467,6 +536,10 @@ export interface Database {
           customer_id: string;
           vehicle_id: string | null;
           shop_id: string;
+          location_id?: string | null;
+          appointment_type_id?: string | null;
+          duration_minutes?: number | null;
+          resource_id?: string | null;
           service_type: string;
           scheduled_date: string;
           scheduled_time: string;
@@ -486,6 +559,10 @@ export interface Database {
           customer_id: string;
           vehicle_id?: string | null;
           shop_id: string;
+          location_id?: string | null;
+          appointment_type_id?: string | null;
+          duration_minutes?: number | null;
+          resource_id?: string | null;
           service_type: string;
           scheduled_date: string;
           scheduled_time: string;
@@ -505,6 +582,10 @@ export interface Database {
           customer_id?: string;
           vehicle_id?: string | null;
           shop_id?: string;
+          location_id?: string | null;
+          appointment_type_id?: string | null;
+          duration_minutes?: number | null;
+          resource_id?: string | null;
           service_type?: string;
           scheduled_date?: string;
           scheduled_time?: string;
@@ -518,6 +599,169 @@ export interface Database {
           confirmed_at?: string | null;
           created_at?: string;
           updated_at?: string;
+        };
+      };
+      appointment_types: {
+        Row: {
+          id: string;
+          shop_id: string;
+          location_id: string | null;
+          name: string;
+          description: string | null;
+          duration_minutes: number;
+          buffer_minutes: number;
+          capacity_per_slot: number;
+          color: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          shop_id: string;
+          location_id?: string | null;
+          name: string;
+          description?: string | null;
+          duration_minutes?: number;
+          buffer_minutes?: number;
+          capacity_per_slot?: number;
+          color?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          shop_id?: string;
+          location_id?: string | null;
+          name?: string;
+          description?: string | null;
+          duration_minutes?: number;
+          buffer_minutes?: number;
+          capacity_per_slot?: number;
+          color?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      appointment_resources: {
+        Row: {
+          id: string;
+          shop_id: string;
+          location_id: string;
+          name: string;
+          resource_type: 'bay' | 'tech';
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          shop_id: string;
+          location_id: string;
+          name: string;
+          resource_type: 'bay' | 'tech';
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          shop_id?: string;
+          location_id?: string;
+          name?: string;
+          resource_type?: 'bay' | 'tech';
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      appointment_assignments: {
+        Row: {
+          id: string;
+          appointment_id: string;
+          resource_id: string;
+          assigned_by: string | null;
+          assigned_at: string;
+        };
+        Insert: {
+          id?: string;
+          appointment_id: string;
+          resource_id: string;
+          assigned_by?: string | null;
+          assigned_at?: string;
+        };
+        Update: {
+          id?: string;
+          appointment_id?: string;
+          resource_id?: string;
+          assigned_by?: string | null;
+          assigned_at?: string;
+        };
+      };
+      appointment_capacity_rules: {
+        Row: {
+          id: string;
+          shop_id: string;
+          location_id: string | null;
+          appointment_type_id: string | null;
+          day_of_week: number;
+          start_time: string;
+          end_time: string;
+          capacity: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          shop_id: string;
+          location_id?: string | null;
+          appointment_type_id?: string | null;
+          day_of_week: number;
+          start_time: string;
+          end_time: string;
+          capacity: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          shop_id?: string;
+          location_id?: string | null;
+          appointment_type_id?: string | null;
+          day_of_week?: number;
+          start_time?: string;
+          end_time?: string;
+          capacity?: number;
+          created_at?: string;
+        };
+      };
+      appointment_reminders: {
+        Row: {
+          id: string;
+          appointment_id: string;
+          channel: 'app' | 'email' | 'sms';
+          scheduled_at: string;
+          sent_at: string | null;
+          status: 'pending' | 'sent' | 'failed';
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          appointment_id: string;
+          channel: 'app' | 'email' | 'sms';
+          scheduled_at: string;
+          sent_at?: string | null;
+          status?: 'pending' | 'sent' | 'failed';
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          appointment_id?: string;
+          channel?: 'app' | 'email' | 'sms';
+          scheduled_at?: string;
+          sent_at?: string | null;
+          status?: 'pending' | 'sent' | 'failed';
+          created_at?: string;
         };
       };
       repair_orders: {
@@ -667,6 +911,677 @@ export interface Database {
           updated_at?: string;
         };
       };
+      repair_order_part_reservations: {
+        Row: {
+          id: string;
+          repair_order_id: string;
+          repair_order_item_id: string | null;
+          part_id: string;
+          location_id: string | null;
+          quantity: number;
+          status: 'reserved' | 'consumed' | 'released';
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          repair_order_id: string;
+          repair_order_item_id?: string | null;
+          part_id: string;
+          location_id?: string | null;
+          quantity: number;
+          status?: 'reserved' | 'consumed' | 'released';
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          repair_order_id?: string;
+          repair_order_item_id?: string | null;
+          part_id?: string;
+          location_id?: string | null;
+          quantity?: number;
+          status?: 'reserved' | 'consumed' | 'released';
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      parts: {
+        Row: {
+          id: string;
+          shop_id: string;
+          sku: string | null;
+          name: string;
+          description: string | null;
+          unit_cost: number;
+          unit_price: number;
+          taxable: boolean;
+          reorder_threshold: number;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          shop_id: string;
+          sku?: string | null;
+          name: string;
+          description?: string | null;
+          unit_cost?: number;
+          unit_price?: number;
+          taxable?: boolean;
+          reorder_threshold?: number;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          shop_id?: string;
+          sku?: string | null;
+          name?: string;
+          description?: string | null;
+          unit_cost?: number;
+          unit_price?: number;
+          taxable?: boolean;
+          reorder_threshold?: number;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      part_locations: {
+        Row: {
+          id: string;
+          part_id: string;
+          location_id: string;
+          on_hand: number;
+          reserved: number;
+          reorder_threshold: number;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          part_id: string;
+          location_id: string;
+          on_hand?: number;
+          reserved?: number;
+          reorder_threshold?: number;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          part_id?: string;
+          location_id?: string;
+          on_hand?: number;
+          reserved?: number;
+          reorder_threshold?: number;
+          updated_at?: string;
+        };
+      };
+      vendors: {
+        Row: {
+          id: string;
+          shop_id: string;
+          name: string;
+          phone: string | null;
+          email: string | null;
+          address: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          shop_id: string;
+          name: string;
+          phone?: string | null;
+          email?: string | null;
+          address?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          shop_id?: string;
+          name?: string;
+          phone?: string | null;
+          email?: string | null;
+          address?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      purchase_orders: {
+        Row: {
+          id: string;
+          shop_id: string;
+          vendor_id: string | null;
+          location_id: string | null;
+          status: 'draft' | 'sent' | 'received' | 'closed' | 'cancelled';
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          shop_id: string;
+          vendor_id?: string | null;
+          location_id?: string | null;
+          status?: 'draft' | 'sent' | 'received' | 'closed' | 'cancelled';
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          shop_id?: string;
+          vendor_id?: string | null;
+          location_id?: string | null;
+          status?: 'draft' | 'sent' | 'received' | 'closed' | 'cancelled';
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      purchase_order_lines: {
+        Row: {
+          id: string;
+          purchase_order_id: string;
+          part_id: string | null;
+          quantity: number;
+          unit_cost: number;
+          received_qty: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          purchase_order_id: string;
+          part_id?: string | null;
+          quantity?: number;
+          unit_cost?: number;
+          received_qty?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          purchase_order_id?: string;
+          part_id?: string | null;
+          quantity?: number;
+          unit_cost?: number;
+          received_qty?: number;
+          created_at?: string;
+        };
+      };
+      inventory_transactions: {
+        Row: {
+          id: string;
+          shop_id: string;
+          location_id: string | null;
+          part_id: string | null;
+          transaction_type: 'receive' | 'adjust' | 'reserve' | 'consume' | 'release';
+          quantity: number;
+          reference_type: 'po' | 'ro' | 'adjustment' | null;
+          reference_id: string | null;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          shop_id: string;
+          location_id?: string | null;
+          part_id?: string | null;
+          transaction_type: 'receive' | 'adjust' | 'reserve' | 'consume' | 'release';
+          quantity: number;
+          reference_type?: 'po' | 'ro' | 'adjustment' | null;
+          reference_id?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          shop_id?: string;
+          location_id?: string | null;
+          part_id?: string | null;
+          transaction_type?: 'receive' | 'adjust' | 'reserve' | 'consume' | 'release';
+          quantity?: number;
+          reference_type?: 'po' | 'ro' | 'adjustment' | null;
+          reference_id?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+      };
+      audit_events: {
+        Row: {
+          id: string;
+          shop_id: string;
+          actor_auth_user_id: string | null;
+          actor_role: string | null;
+          event_type: string;
+          entity_type: string;
+          entity_id: string | null;
+          metadata: any | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          shop_id: string;
+          actor_auth_user_id?: string | null;
+          actor_role?: string | null;
+          event_type: string;
+          entity_type: string;
+          entity_id?: string | null;
+          metadata?: any | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          shop_id?: string;
+          actor_auth_user_id?: string | null;
+          actor_role?: string | null;
+          event_type?: string;
+          entity_type?: string;
+          entity_id?: string | null;
+          metadata?: any | null;
+          created_at?: string;
+        };
+      };
+      dvi_templates: {
+        Row: {
+          id: string;
+          shop_id: string;
+          name: string;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          shop_id: string;
+          name: string;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          shop_id?: string;
+          name?: string;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      dvi_template_sections: {
+        Row: {
+          id: string;
+          template_id: string;
+          title: string;
+          sort_order: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          template_id: string;
+          title: string;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          template_id?: string;
+          title?: string;
+          sort_order?: number;
+          created_at?: string;
+        };
+      };
+      dvi_template_items: {
+        Row: {
+          id: string;
+          section_id: string;
+          title: string;
+          description: string | null;
+          default_recommendation: string | null;
+          sort_order: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          section_id: string;
+          title: string;
+          description?: string | null;
+          default_recommendation?: string | null;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          section_id?: string;
+          title?: string;
+          description?: string | null;
+          default_recommendation?: string | null;
+          sort_order?: number;
+          created_at?: string;
+        };
+      };
+      dvi_reports: {
+        Row: {
+          id: string;
+          shop_id: string;
+          repair_order_id: string;
+          customer_id: string;
+          vehicle_id: string | null;
+          template_id: string | null;
+          status: 'draft' | 'published';
+          created_by: string | null;
+          created_at: string;
+          published_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          shop_id: string;
+          repair_order_id: string;
+          customer_id: string;
+          vehicle_id?: string | null;
+          template_id?: string | null;
+          status?: 'draft' | 'published';
+          created_by?: string | null;
+          created_at?: string;
+          published_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          shop_id?: string;
+          repair_order_id?: string;
+          customer_id?: string;
+          vehicle_id?: string | null;
+          template_id?: string | null;
+          status?: 'draft' | 'published';
+          created_by?: string | null;
+          created_at?: string;
+          published_at?: string | null;
+        };
+      };
+      dvi_report_items: {
+        Row: {
+          id: string;
+          report_id: string;
+          template_item_id: string | null;
+          condition: 'green' | 'yellow' | 'red';
+          notes: string | null;
+          recommendation: string | null;
+          repair_order_item_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          report_id: string;
+          template_item_id?: string | null;
+          condition?: 'green' | 'yellow' | 'red';
+          notes?: string | null;
+          recommendation?: string | null;
+          repair_order_item_id?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          report_id?: string;
+          template_item_id?: string | null;
+          condition?: 'green' | 'yellow' | 'red';
+          notes?: string | null;
+          recommendation?: string | null;
+          repair_order_item_id?: string | null;
+          created_at?: string;
+        };
+      };
+      dvi_item_media: {
+        Row: {
+          id: string;
+          report_item_id: string;
+          storage_path: string;
+          file_name: string;
+          mime_type: string | null;
+          file_size: number | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          report_item_id: string;
+          storage_path: string;
+          file_name: string;
+          mime_type?: string | null;
+          file_size?: number | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          report_item_id?: string;
+          storage_path?: string;
+          file_name?: string;
+          mime_type?: string | null;
+          file_size?: number | null;
+          created_at?: string;
+        };
+      };
+      chat_threads: {
+        Row: {
+          id: string;
+          shop_id: string;
+          customer_id: string | null;
+          repair_order_id: string | null;
+          thread_type: 'ro' | 'general' | 'internal';
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          shop_id: string;
+          customer_id?: string | null;
+          repair_order_id?: string | null;
+          thread_type?: 'ro' | 'general' | 'internal';
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          shop_id?: string;
+          customer_id?: string | null;
+          repair_order_id?: string | null;
+          thread_type?: 'ro' | 'general' | 'internal';
+          created_by?: string | null;
+          created_at?: string;
+        };
+      };
+      chat_participants: {
+        Row: {
+          id: string;
+          thread_id: string;
+          auth_user_id: string;
+          role: 'admin' | 'customer';
+          is_active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          thread_id: string;
+          auth_user_id: string;
+          role: 'admin' | 'customer';
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          thread_id?: string;
+          auth_user_id?: string;
+          role?: 'admin' | 'customer';
+          is_active?: boolean;
+          created_at?: string;
+        };
+      };
+      chat_messages: {
+        Row: {
+          id: string;
+          thread_id: string;
+          sender_auth_user_id: string | null;
+          message: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          thread_id: string;
+          sender_auth_user_id?: string | null;
+          message: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          thread_id?: string;
+          sender_auth_user_id?: string | null;
+          message?: string;
+          created_at?: string;
+        };
+      };
+      chat_attachments: {
+        Row: {
+          id: string;
+          message_id: string;
+          storage_path: string;
+          file_name: string;
+          mime_type: string | null;
+          file_size: number | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          message_id: string;
+          storage_path: string;
+          file_name: string;
+          mime_type?: string | null;
+          file_size?: number | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          message_id?: string;
+          storage_path?: string;
+          file_name?: string;
+          mime_type?: string | null;
+          file_size?: number | null;
+          created_at?: string;
+        };
+      };
+      outbound_message_log: {
+        Row: {
+          id: string;
+          shop_id: string;
+          customer_id: string | null;
+          channel: 'app' | 'email' | 'sms';
+          subject: string | null;
+          body: string | null;
+          status: string;
+          segments: number | null;
+          provider_message_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          shop_id: string;
+          customer_id?: string | null;
+          channel: 'app' | 'email' | 'sms';
+          subject?: string | null;
+          body?: string | null;
+          status?: string;
+          segments?: number | null;
+          provider_message_id?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          shop_id?: string;
+          customer_id?: string | null;
+          channel?: 'app' | 'email' | 'sms';
+          subject?: string | null;
+          body?: string | null;
+          status?: string;
+          segments?: number | null;
+          provider_message_id?: string | null;
+          created_at?: string;
+        };
+      };
+      sms_usage_monthly: {
+        Row: {
+          id: string;
+          shop_id: string;
+          month: string;
+          outbound_segments: number;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          shop_id: string;
+          month: string;
+          outbound_segments?: number;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          shop_id?: string;
+          month?: string;
+          outbound_segments?: number;
+          updated_at?: string;
+        };
+      };
+      sms_opt_out: {
+        Row: {
+          id: string;
+          shop_id: string;
+          customer_id: string;
+          status: 'opted_in' | 'opted_out';
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          shop_id: string;
+          customer_id: string;
+          status?: 'opted_in' | 'opted_out';
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          shop_id?: string;
+          customer_id?: string;
+          status?: 'opted_in' | 'opted_out';
+          updated_at?: string;
+        };
+      };
+      sms_overage_events: {
+        Row: {
+          id: string;
+          shop_id: string;
+          month: string;
+          segments_over: number;
+          rate_per_segment: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          shop_id: string;
+          month: string;
+          segments_over?: number;
+          rate_per_segment?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          shop_id?: string;
+          month?: string;
+          segments_over?: number;
+          rate_per_segment?: number;
+          created_at?: string;
+        };
+      };
       push_subscriptions: {
         Row: {
           id: string;
@@ -710,6 +1625,7 @@ export type SuperAdmin = Database['public']['Tables']['super_admins']['Row'];
 export type Admin = Database['public']['Tables']['admins']['Row'];
 export type Shop = Database['public']['Tables']['shops']['Row'];
 export type ShopSettings = Database['public']['Tables']['shop_settings']['Row'];
+export type ShopLocation = Database['public']['Tables']['shop_locations']['Row'];
 export type Customer = Database['public']['Tables']['customers']['Row'];
 export type Vehicle = Database['public']['Tables']['vehicles']['Row'];
 export type Service = Database['public']['Tables']['services']['Row'];
@@ -718,7 +1634,34 @@ export type RewardRedemption = Database['public']['Tables']['reward_redemptions'
 export type Promotion = Database['public']['Tables']['promotions']['Row'];
 export type CustomerPromotion = Database['public']['Tables']['customer_promotions']['Row'];
 export type Appointment = Database['public']['Tables']['appointments']['Row'];
+export type AppointmentType = Database['public']['Tables']['appointment_types']['Row'];
+export type AppointmentResource = Database['public']['Tables']['appointment_resources']['Row'];
+export type AppointmentAssignment = Database['public']['Tables']['appointment_assignments']['Row'];
+export type AppointmentCapacityRule = Database['public']['Tables']['appointment_capacity_rules']['Row'];
+export type AppointmentReminder = Database['public']['Tables']['appointment_reminders']['Row'];
 export type RepairOrder = Database['public']['Tables']['repair_orders']['Row'];
 export type RepairOrderItem = Database['public']['Tables']['repair_order_items']['Row'];
 export type RepairOrderMarkupRule = Database['public']['Tables']['repair_order_markup_rules']['Row'];
+export type RepairOrderPartReservation = Database['public']['Tables']['repair_order_part_reservations']['Row'];
+export type Vendor = Database['public']['Tables']['vendors']['Row'];
+export type Part = Database['public']['Tables']['parts']['Row'];
+export type PartLocation = Database['public']['Tables']['part_locations']['Row'];
+export type PurchaseOrder = Database['public']['Tables']['purchase_orders']['Row'];
+export type PurchaseOrderLine = Database['public']['Tables']['purchase_order_lines']['Row'];
+export type InventoryTransaction = Database['public']['Tables']['inventory_transactions']['Row'];
+export type AuditEvent = Database['public']['Tables']['audit_events']['Row'];
+export type DviTemplate = Database['public']['Tables']['dvi_templates']['Row'];
+export type DviTemplateSection = Database['public']['Tables']['dvi_template_sections']['Row'];
+export type DviTemplateItem = Database['public']['Tables']['dvi_template_items']['Row'];
+export type DviReport = Database['public']['Tables']['dvi_reports']['Row'];
+export type DviReportItem = Database['public']['Tables']['dvi_report_items']['Row'];
+export type DviItemMedia = Database['public']['Tables']['dvi_item_media']['Row'];
+export type ChatThread = Database['public']['Tables']['chat_threads']['Row'];
+export type ChatParticipant = Database['public']['Tables']['chat_participants']['Row'];
+export type ChatMessage = Database['public']['Tables']['chat_messages']['Row'];
+export type ChatAttachment = Database['public']['Tables']['chat_attachments']['Row'];
+export type OutboundMessageLog = Database['public']['Tables']['outbound_message_log']['Row'];
+export type SmsUsageMonthly = Database['public']['Tables']['sms_usage_monthly']['Row'];
+export type SmsOptOut = Database['public']['Tables']['sms_opt_out']['Row'];
+export type SmsOverageEvent = Database['public']['Tables']['sms_overage_events']['Row'];
 export type PushSubscription = Database['public']['Tables']['push_subscriptions']['Row'];

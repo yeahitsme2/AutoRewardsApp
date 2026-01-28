@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
-import { Calendar, Clock, Car, Plus, X, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
-import type { Appointment, Vehicle } from '../types/database';
+import { Calendar, Clock, Car, Plus, X, CheckCircle, XCircle, AlertCircle, MapPin, Layers } from 'lucide-react';
+import { logAuditEvent } from '../lib/audit';
+import { scheduleAppointmentReminders } from '../lib/appointments';
+import type { Appointment, AppointmentCapacityRule, AppointmentType, ShopLocation, Vehicle } from '../types/database';
 
 interface AppointmentWithVehicle extends Appointment {
   vehicle?: Vehicle;
@@ -67,12 +69,18 @@ export function CustomerAppointments() {
   const { brandSettings } = useBrand();
   const [appointments, setAppointments] = useState<AppointmentWithVehicle[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [locations, setLocations] = useState<ShopLocation[]>([]);
+  const [appointmentTypes, setAppointmentTypes] = useState<AppointmentType[]>([]);
+  const [capacityRules, setCapacityRules] = useState<AppointmentCapacityRule[]>([]);
   const [loading, setLoading] = useState(true);
   const [showBooking, setShowBooking] = useState(false);
   const [formData, setFormData] = useState({
     vehicle_id: '',
     scheduled_date: '',
     scheduled_time: '',
+    location_id: '',
+    appointment_type_id: '',
+    duration_minutes: 30,
     service_type: '',
     description: '',
   });
@@ -81,11 +89,6 @@ export function CustomerAppointments() {
   const [slotMessage, setSlotMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
-  const isMissingColumn = (error: any) =>
-    error?.code === '42703'
-    || error?.code === 'PGRST204'
-    || (typeof error?.message === 'string' && error.message.includes('does not exist'));
 
   const normalizeAppointment = (apt: Appointment) => ({
     ...apt,
@@ -106,7 +109,7 @@ export function CustomerAppointments() {
         .select('*')
         .eq('customer_id', customer!.id);
 
-      const [vehiclesRes, settingsRes] = await Promise.all([
+      const [vehiclesRes, settingsRes, locationsRes, typesRes, rulesRes] = await Promise.all([
         supabase
           .from('vehicles')
           .select('*')
@@ -117,11 +120,28 @@ export function CustomerAppointments() {
           .select('*')
           .eq('shop_id', customer!.shop_id)
           .maybeSingle(),
+        supabase
+          .from('shop_locations')
+          .select('*')
+          .eq('shop_id', customer!.shop_id)
+          .eq('is_active', true),
+        supabase
+          .from('appointment_types')
+          .select('*')
+          .eq('shop_id', customer!.shop_id)
+          .eq('is_active', true),
+        supabase
+          .from('appointment_capacity_rules')
+          .select('*')
+          .eq('shop_id', customer!.shop_id),
       ]);
 
       if (appointmentsRes.error) throw appointmentsRes.error;
       if (vehiclesRes.error) throw vehiclesRes.error;
       if (settingsRes.error) throw settingsRes.error;
+      if (locationsRes.error) throw locationsRes.error;
+      if (typesRes.error) throw typesRes.error;
+      if (rulesRes.error) throw rulesRes.error;
 
       const appointmentsWithVehicles = (appointmentsRes.data || []).map((apt) => ({
         ...normalizeAppointment(apt as Appointment),
@@ -139,6 +159,9 @@ export function CustomerAppointments() {
 
       setAppointments(sorted);
       setVehicles(vehiclesRes.data || []);
+      setLocations((locationsRes.data || []) as ShopLocation[]);
+      setAppointmentTypes((typesRes.data || []) as AppointmentType[]);
+      setCapacityRules((rulesRes.data || []) as AppointmentCapacityRule[]);
       if (settingsRes.data) {
         setScheduleSettings({
           timezone: settingsRes.data.timezone || defaultScheduleSettings.timezone,
@@ -163,6 +186,20 @@ export function CustomerAppointments() {
     const bayCount = Number(scheduleSettings.bay_count || 1);
     const techCount = Number(scheduleSettings.tech_count || 1);
     return Math.max(1, Math.min(bayCount, techCount));
+  };
+
+  const getCapacityForSlot = (dateStr: string, timeStr: string, typeId?: string) => {
+    const dayOfWeek = new Date(`${dateStr}T00:00:00`).getDay();
+    const rule = capacityRules.find((r) => {
+      if (r.day_of_week !== dayOfWeek) return false;
+      if (r.location_id && formData.location_id && r.location_id !== formData.location_id) return false;
+      if (r.appointment_type_id && typeId && r.appointment_type_id !== typeId) return false;
+      return timeStr >= r.start_time && timeStr <= r.end_time;
+    });
+    if (rule) return rule.capacity;
+    const type = appointmentTypes.find((t) => t.id === typeId);
+    if (type) return type.capacity_per_slot;
+    return getCapacity();
   };
 
   const getBusinessHoursForDate = (dateStr: string) => {
@@ -197,13 +234,19 @@ export function CustomerAppointments() {
         scheduled_date: apt.scheduled_date ?? apt.requested_date,
         scheduled_time: apt.scheduled_time ?? apt.requested_time,
         status: apt.status,
+        location_id: apt.location_id,
+        appointment_type_id: apt.appointment_type_id,
       }))
       .filter((apt: any) => apt.scheduled_date >= startDate && apt.scheduled_date <= endDate);
   };
 
-  const isSlotAvailable = (dateStr: string, timeStr: string, appointmentsData: any[]) => {
-    const count = appointmentsData.filter((apt) => apt.scheduled_date === dateStr && apt.scheduled_time === timeStr).length;
-    return count < getCapacity();
+  const isSlotAvailable = (dateStr: string, timeStr: string, appointmentsData: any[], typeId?: string, locationId?: string) => {
+    const count = appointmentsData.filter((apt) => {
+      if (apt.scheduled_date !== dateStr || apt.scheduled_time !== timeStr) return false;
+      if (locationId && apt.location_id && apt.location_id !== locationId) return false;
+      return true;
+    }).length;
+    return count < getCapacityForSlot(dateStr, timeStr, typeId);
   };
 
   const findAlternativeSlots = (dateStr: string, timeStr: string, appointmentsData: any[]) => {
@@ -224,7 +267,7 @@ export function CustomerAppointments() {
         const slotTime = minutesToTime(t);
         if (offset === 0 && slotTime <= timeStr) continue;
         if (!isAfterLeadTime(candidateDate, slotTime)) continue;
-        if (!isSlotAvailable(candidateDate, slotTime, appointmentsData)) continue;
+        if (!isSlotAvailable(candidateDate, slotTime, appointmentsData, formData.appointment_type_id, formData.location_id)) continue;
         alternatives.push({ date: candidateDate, time: slotTime });
         if (alternatives.length >= 5) return alternatives;
       }
@@ -237,6 +280,10 @@ export function CustomerAppointments() {
 
     if (!formData.vehicle_id || !formData.scheduled_date || !formData.scheduled_time || !formData.service_type) {
       showMessage('error', 'Please fill in all required fields');
+      return;
+    }
+    if (locations.length > 0 && !formData.location_id) {
+      showMessage('error', 'Select a location for your appointment');
       return;
     }
 
@@ -262,7 +309,7 @@ export function CustomerAppointments() {
       const endDate = new Date(new Date(startDate).getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
       const rangeAppointments = await fetchAppointmentsForRange(startDate, endDate);
 
-      if (!isSlotAvailable(formData.scheduled_date, formData.scheduled_time, rangeAppointments)) {
+      if (!isSlotAvailable(formData.scheduled_date, formData.scheduled_time, rangeAppointments, formData.appointment_type_id, formData.location_id)) {
         const alternatives = findAlternativeSlots(formData.scheduled_date, formData.scheduled_time, rangeAppointments);
         setAlternativeSlots(alternatives);
         setSlotMessage(alternatives.length > 0
@@ -281,25 +328,34 @@ export function CustomerAppointments() {
         service_type: formData.service_type,
         description: formData.description || null,
         status: autoConfirm ? 'confirmed' : 'pending',
+        location_id: formData.location_id || null,
+        appointment_type_id: formData.appointment_type_id || null,
+        duration_minutes: formData.duration_minutes || scheduleSettings.appointment_duration_minutes,
       };
-      const primaryInsert = await supabase.from('appointments').insert({
+      const { data: inserted, error: insertError } = await supabase.from('appointments').insert({
         ...payload,
         shop_id: customer!.shop_id,
         scheduled_date: formData.scheduled_date,
         scheduled_time: formData.scheduled_time,
-        requested_date: formData.scheduled_date,
-        requested_time: formData.scheduled_time,
-      });
-      if (primaryInsert.error && isMissingColumn(primaryInsert.error)) {
-        const fallbackInsert = await supabase.from('appointments').insert({
-          ...payload,
-          requested_date: formData.scheduled_date,
-          requested_time: formData.scheduled_time,
+      }).select('*').single();
+      if (insertError) throw insertError;
+      if (inserted) {
+        await scheduleAppointmentReminders({
+          appointmentId: inserted.id,
+          shopId: customer!.shop_id,
+          customerId: customer!.id,
+          scheduledAt: new Date(`${formData.scheduled_date}T${formData.scheduled_time}`),
         });
-        if (fallbackInsert.error) throw fallbackInsert.error;
-      } else if (primaryInsert.error) {
-        throw primaryInsert.error;
       }
+
+      await logAuditEvent({
+        shopId: customer!.shop_id,
+        actorRole: 'customer',
+        eventType: 'appointment_created',
+        entityType: 'appointment',
+        entityId: inserted?.id || null,
+        metadata: { scheduled_date: formData.scheduled_date, scheduled_time: formData.scheduled_time },
+      });
 
       showMessage('success', 'Appointment request submitted successfully');
       setShowBooking(false);
@@ -307,6 +363,9 @@ export function CustomerAppointments() {
         vehicle_id: '',
         scheduled_date: '',
         scheduled_time: '',
+        location_id: '',
+        appointment_type_id: '',
+        duration_minutes: 30,
         service_type: '',
         description: '',
       });
@@ -482,6 +541,25 @@ export function CustomerAppointments() {
                 </select>
               </div>
 
+              {locations.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Location <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.location_id}
+                    onChange={(e) => setFormData({ ...formData, location_id: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                    required
+                  >
+                    <option value="">Select a location</option>
+                    {locations.map((loc) => (
+                      <option key={loc.id} value={loc.id}>{loc.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Preferred Date <span className="text-red-500">*</span>
@@ -544,11 +622,38 @@ export function CustomerAppointments() {
                   required
                 >
                   <option value="">Select service type</option>
-                  {serviceCatalog.map((service) => (
+                  {(appointmentTypes.length > 0 ? appointmentTypes.map((t) => t.name) : serviceCatalog).map((service) => (
                     <option key={service} value={service}>{service}</option>
                   ))}
                 </select>
               </div>
+
+              {appointmentTypes.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Appointment Type
+                  </label>
+                  <select
+                    value={formData.appointment_type_id}
+                    onChange={(e) => {
+                      const typeId = e.target.value;
+                      const type = appointmentTypes.find((t) => t.id === typeId);
+                      setFormData({
+                        ...formData,
+                        appointment_type_id: typeId,
+                        duration_minutes: type?.duration_minutes || formData.duration_minutes,
+                        service_type: type?.name || formData.service_type,
+                      });
+                    }}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                  >
+                    <option value="">Select appointment type</option>
+                    {appointmentTypes.map((type) => (
+                      <option key={type.id} value={type.id}>{type.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -610,6 +715,18 @@ export function CustomerAppointments() {
                       <Clock className="w-4 h-4" />
                       <span>{formatTime(appointment.scheduled_time)}</span>
                     </div>
+                    {appointment.location_id && (
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-4 h-4" />
+                        <span>{locations.find((loc) => loc.id === appointment.location_id)?.name || 'Location'}</span>
+                      </div>
+                    )}
+                    {appointment.appointment_type_id && (
+                      <div className="flex items-center gap-2">
+                        <Layers className="w-4 h-4" />
+                        <span>{appointmentTypes.find((type) => type.id === appointment.appointment_type_id)?.name || 'Appointment type'}</span>
+                      </div>
+                    )}
                     {appointment.vehicle && (
                       <div className="flex items-center gap-2">
                         <Car className="w-4 h-4" />

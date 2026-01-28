@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
-import { Calendar, Clock, Plus, User, Car, X, CheckCircle } from 'lucide-react';
-import type { Appointment, Customer, Vehicle } from '../types/database';
+import { Calendar, Clock, Plus, User, Car, X, CheckCircle, MapPin, Layers } from 'lucide-react';
+import { logAuditEvent } from '../lib/audit';
+import { scheduleAppointmentReminders } from '../lib/appointments';
+import type { Appointment, AppointmentCapacityRule, AppointmentResource, AppointmentType, Customer, ShopLocation, Vehicle } from '../types/database';
 
 interface AppointmentWithDetails extends Appointment {
   customer?: Customer;
@@ -26,6 +28,12 @@ export function ScheduleBoard() {
   const { admin } = useAuth();
   const { brandSettings } = useBrand();
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
+  const [locations, setLocations] = useState<ShopLocation[]>([]);
+  const [appointmentTypes, setAppointmentTypes] = useState<AppointmentType[]>([]);
+  const [resources, setResources] = useState<AppointmentResource[]>([]);
+  const [capacityRules, setCapacityRules] = useState<AppointmentCapacityRule[]>([]);
+  const [selectedLocationId, setSelectedLocationId] = useState<string>('');
   const [appointments, setAppointments] = useState<AppointmentWithDetails[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -36,6 +44,10 @@ export function ScheduleBoard() {
     vehicle_id: '',
     scheduled_date: '',
     scheduled_time: '',
+    location_id: '',
+    appointment_type_id: '',
+    duration_minutes: 30,
+    resource_id: '',
     service_type: '',
     description: '',
     status: 'confirmed',
@@ -55,12 +67,14 @@ export function ScheduleBoard() {
     vin: '',
     color: '',
   });
+  const [newType, setNewType] = useState({
+    name: '',
+    duration_minutes: 30,
+    capacity_per_slot: 1,
+    color: '#1f2937',
+  });
+  const [showTypeForm, setShowTypeForm] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
-  const isMissingColumn = (error: any) =>
-    error?.code === '42703'
-    || error?.code === 'PGRST204'
-    || (typeof error?.message === 'string' && error.message.includes('does not exist'));
 
   const normalizeAppointment = (apt: Appointment) => ({
     ...apt,
@@ -70,10 +84,18 @@ export function ScheduleBoard() {
 
   useEffect(() => {
     if (!admin?.shop_id) return;
-    loadAppointments();
+    loadLocations();
+    loadAppointmentTypes();
+    loadResources();
+    loadCapacityRules();
     loadCustomers();
     loadVehicles();
-  }, [admin?.shop_id, date]);
+  }, [admin?.shop_id]);
+
+  useEffect(() => {
+    if (!admin?.shop_id) return;
+    loadAppointments();
+  }, [admin?.shop_id, date, viewMode, selectedLocationId]);
 
   const loadAppointments = async () => {
     if (!admin?.shop_id) return;
@@ -95,9 +117,15 @@ export function ScheduleBoard() {
         .in('customer_id', customerIds);
       if (error) throw error;
       const allAppointments = (data || []) as Appointment[];
+      const dateRange = viewMode === 'week' ? getWeekDates(date) : [date];
       const appointmentsData = allAppointments
         .map((apt) => normalizeAppointment(apt))
-        .filter((apt) => apt.scheduled_date === date);
+        .filter((apt) => dateRange.includes(apt.scheduled_date))
+        .filter((apt) => {
+          if (!selectedLocationId) return true;
+          const locationId = (apt as any).location_id;
+          return !locationId || locationId === selectedLocationId;
+        });
 
       const appointmentCustomerIds = [...new Set(appointmentsData.map((a) => a.customer_id))];
       const vehicleIds = [...new Set(appointmentsData.map((a) => a.vehicle_id).filter(Boolean) as string[])];
@@ -164,6 +192,99 @@ export function ScheduleBoard() {
     setVehicles((data || []) as Vehicle[]);
   };
 
+  const loadLocations = async () => {
+    if (!admin?.shop_id) return;
+    const { data, error } = await supabase
+      .from('shop_locations')
+      .select('*')
+      .eq('shop_id', admin.shop_id)
+      .eq('is_active', true)
+      .order('created_at', { ascending: true });
+    if (error) {
+      console.error('Error loading locations:', error);
+      setLocations([]);
+      return;
+    }
+    const nextLocations = (data || []) as ShopLocation[];
+    setLocations(nextLocations);
+    if (!selectedLocationId && nextLocations.length > 0) {
+      setSelectedLocationId(nextLocations[0].id);
+    }
+  };
+
+  const loadAppointmentTypes = async () => {
+    if (!admin?.shop_id) return;
+    const { data, error } = await supabase
+      .from('appointment_types')
+      .select('*')
+      .eq('shop_id', admin.shop_id)
+      .eq('is_active', true)
+      .order('created_at', { ascending: true });
+    if (error) {
+      console.error('Error loading appointment types:', error);
+      setAppointmentTypes([]);
+      return;
+    }
+    setAppointmentTypes((data || []) as AppointmentType[]);
+  };
+
+  const loadResources = async () => {
+    if (!admin?.shop_id) return;
+    const { data, error } = await supabase
+      .from('appointment_resources')
+      .select('*')
+      .eq('shop_id', admin.shop_id)
+      .eq('is_active', true)
+      .order('created_at', { ascending: true });
+    if (error) {
+      console.error('Error loading resources:', error);
+      setResources([]);
+      return;
+    }
+    setResources((data || []) as AppointmentResource[]);
+  };
+
+  const loadCapacityRules = async () => {
+    if (!admin?.shop_id) return;
+    const { data, error } = await supabase
+      .from('appointment_capacity_rules')
+      .select('*')
+      .eq('shop_id', admin.shop_id)
+      .order('day_of_week', { ascending: true });
+    if (error) {
+      console.error('Error loading capacity rules:', error);
+      setCapacityRules([]);
+      return;
+    }
+    setCapacityRules((data || []) as AppointmentCapacityRule[]);
+  };
+
+  const getWeekDates = (dateStr: string) => {
+    const current = new Date(`${dateStr}T00:00:00`);
+    const day = current.getDay();
+    const start = new Date(current);
+    start.setDate(current.getDate() - day);
+    return Array.from({ length: 7 }).map((_, idx) => {
+      const next = new Date(start);
+      next.setDate(start.getDate() + idx);
+      return next.toISOString().split('T')[0];
+    });
+  };
+
+  const getCapacityForSlot = (dateStr: string, timeStr: string, typeId?: string | null) => {
+    const dayOfWeek = new Date(`${dateStr}T00:00:00`).getDay();
+    const rule = capacityRules.find((r) => {
+      if (r.day_of_week !== dayOfWeek) return false;
+      if (r.location_id && selectedLocationId && r.location_id !== selectedLocationId) return false;
+      if (r.appointment_type_id && typeId && r.appointment_type_id !== typeId) return false;
+      return timeStr >= r.start_time && timeStr <= r.end_time;
+    });
+    if (rule) return rule.capacity;
+    const type = appointmentTypes.find((t) => t.id === typeId);
+    if (type) return type.capacity_per_slot;
+    return 1;
+  };
+
   const showMessage = (type: 'success' | 'error', text: string) => {
     setMessage({ type, text });
     setTimeout(() => setMessage(null), 3000);
@@ -173,6 +294,10 @@ export function ScheduleBoard() {
     e.preventDefault();
     if (!admin?.shop_id || !formData.scheduled_date || !formData.scheduled_time || !formData.service_type) {
       showMessage('error', 'Please fill in all required fields');
+      return;
+    }
+    if (locations.length > 0 && !formData.location_id) {
+      showMessage('error', 'Select a location');
       return;
     }
     if (!createCustomer && !formData.customer_id) {
@@ -239,31 +364,53 @@ export function ScheduleBoard() {
         }
       }
 
+      const slotCount = appointments.filter((apt) => {
+        if (apt.scheduled_date !== formData.scheduled_date) return false;
+        if (apt.scheduled_time !== formData.scheduled_time) return false;
+        if (formData.location_id && (apt as any).location_id && (apt as any).location_id !== formData.location_id) return false;
+        return true;
+      }).length;
+      const capacity = getCapacityForSlot(formData.scheduled_date, formData.scheduled_time, formData.appointment_type_id || null);
+      if (slotCount >= capacity) {
+        showMessage('error', 'That time slot is at capacity. Choose another time.');
+        return;
+      }
+
       const appointmentPayload: any = {
         customer_id: customerId,
         vehicle_id: vehicleId,
         service_type: formData.service_type,
         description: formData.description || null,
         status: formData.status,
+        location_id: formData.location_id || null,
+        appointment_type_id: formData.appointment_type_id || null,
+        duration_minutes: formData.duration_minutes || null,
+        resource_id: formData.resource_id || null,
       };
-      const primaryAppointment = await supabase.from('appointments').insert({
+      const { data: inserted, error: insertError } = await supabase.from('appointments').insert({
         ...appointmentPayload,
         shop_id: admin.shop_id,
         scheduled_date: formData.scheduled_date,
         scheduled_time: formData.scheduled_time,
-        requested_date: formData.scheduled_date,
-        requested_time: formData.scheduled_time,
-      });
-      if (primaryAppointment.error && isMissingColumn(primaryAppointment.error)) {
-        const fallbackAppointment = await supabase.from('appointments').insert({
-          ...appointmentPayload,
-          requested_date: formData.scheduled_date,
-          requested_time: formData.scheduled_time,
+      }).select('*').single();
+      if (insertError) throw insertError;
+      if (inserted) {
+        await scheduleAppointmentReminders({
+          appointmentId: inserted.id,
+          shopId: admin.shop_id,
+          customerId,
+          scheduledAt: new Date(`${formData.scheduled_date}T${formData.scheduled_time}`),
         });
-        if (fallbackAppointment.error) throw fallbackAppointment.error;
-      } else if (primaryAppointment.error) {
-        throw primaryAppointment.error;
       }
+
+      await logAuditEvent({
+        shopId: admin.shop_id,
+        actorRole: 'admin',
+        eventType: 'appointment_created',
+        entityType: 'appointment',
+        entityId: inserted?.id || null,
+        metadata: { scheduled_date: formData.scheduled_date, scheduled_time: formData.scheduled_time },
+      });
       showMessage('success', 'Appointment added');
       setShowAdd(false);
       setFormData({
@@ -271,6 +418,10 @@ export function ScheduleBoard() {
         vehicle_id: '',
         scheduled_date: '',
         scheduled_time: '',
+        location_id: '',
+        appointment_type_id: '',
+        duration_minutes: 30,
+        resource_id: '',
         service_type: '',
         description: '',
         status: 'confirmed',
@@ -288,12 +439,15 @@ export function ScheduleBoard() {
   };
 
   const groupedAppointments = useMemo(() => {
-    const groups: Record<string, AppointmentWithDetails[]> = {};
+    const groups: Record<string, Record<string, AppointmentWithDetails[]>> = {};
     appointments.forEach((apt) => {
-      if (!groups[apt.scheduled_time]) groups[apt.scheduled_time] = [];
-      groups[apt.scheduled_time].push(apt);
+      if (!groups[apt.scheduled_date]) groups[apt.scheduled_date] = {};
+      if (!groups[apt.scheduled_date][apt.scheduled_time]) {
+        groups[apt.scheduled_date][apt.scheduled_time] = [];
+      }
+      groups[apt.scheduled_date][apt.scheduled_time].push(apt);
     });
-    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
+    return groups;
   }, [appointments]);
 
   if (loading) {
@@ -318,18 +472,120 @@ export function ScheduleBoard() {
         </div>
       )}
 
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-slate-700">
+            <Layers className="w-4 h-4" />
+            <h3 className="font-semibold text-slate-900">Appointment Types</h3>
+          </div>
+          <button
+            onClick={() => setShowTypeForm(!showTypeForm)}
+            className="text-sm text-slate-600 hover:text-slate-900"
+          >
+            {showTypeForm ? 'Hide' : 'Add Type'}
+          </button>
+        </div>
+        {showTypeForm && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <input
+              value={newType.name}
+              onChange={(e) => setNewType({ ...newType, name: e.target.value })}
+              placeholder="Type name"
+              className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+            />
+            <input
+              type="number"
+              min={15}
+              step={5}
+              value={newType.duration_minutes}
+              onChange={(e) => setNewType({ ...newType, duration_minutes: Number(e.target.value) })}
+              placeholder="Duration (min)"
+              className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+            />
+            <input
+              type="number"
+              min={1}
+              value={newType.capacity_per_slot}
+              onChange={(e) => setNewType({ ...newType, capacity_per_slot: Number(e.target.value) })}
+              placeholder="Capacity"
+              className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+            />
+            <button
+              onClick={async () => {
+                if (!admin?.shop_id || !newType.name.trim()) {
+                  showMessage('error', 'Enter a type name');
+                  return;
+                }
+                const { error } = await supabase.from('appointment_types').insert({
+                  shop_id: admin.shop_id,
+                  location_id: selectedLocationId || null,
+                  name: newType.name.trim(),
+                  duration_minutes: newType.duration_minutes,
+                  capacity_per_slot: newType.capacity_per_slot,
+                  color: newType.color,
+                });
+                if (error) {
+                  showMessage('error', 'Failed to add appointment type');
+                  return;
+                }
+                showMessage('success', 'Appointment type added');
+                setNewType({ name: '', duration_minutes: 30, capacity_per_slot: 1, color: '#1f2937' });
+                loadAppointmentTypes();
+              }}
+              className="px-3 py-2 text-white rounded-lg"
+              style={{ backgroundColor: brandSettings.primary_color }}
+            >
+              Save Type
+            </button>
+          </div>
+        )}
+        {appointmentTypes.length > 0 && (
+          <div className="flex flex-wrap gap-2 text-xs text-slate-600">
+            {appointmentTypes.map((type) => (
+              <span key={type.id} className="px-2 py-1 bg-slate-100 rounded-full">{type.name}</span>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Schedule</h2>
           <p className="text-slate-600">View and add appointments by day</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setViewMode('day')}
+              className={`px-3 py-2 rounded-lg text-sm ${viewMode === 'day' ? 'text-white' : 'border border-slate-300 text-slate-600'}`}
+              style={viewMode === 'day' ? { backgroundColor: brandSettings.primary_color } : undefined}
+            >
+              Day
+            </button>
+            <button
+              onClick={() => setViewMode('week')}
+              className={`px-3 py-2 rounded-lg text-sm ${viewMode === 'week' ? 'text-white' : 'border border-slate-300 text-slate-600'}`}
+              style={viewMode === 'week' ? { backgroundColor: brandSettings.primary_color } : undefined}
+            >
+              Week
+            </button>
+          </div>
           <input
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
             className="px-3 py-2 border border-slate-300 rounded-lg"
           />
+          <select
+            value={selectedLocationId}
+            onChange={(e) => setSelectedLocationId(e.target.value)}
+            className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+          >
+            <option value="">All locations</option>
+            {locations.map((loc) => (
+              <option key={loc.id} value={loc.id}>{loc.name}</option>
+            ))}
+          </select>
           <button
             onClick={() => setShowAdd(true)}
             className="flex items-center gap-2 px-4 py-2 text-white font-medium rounded-lg"
@@ -522,6 +778,42 @@ export function ScheduleBoard() {
                   required
                 />
               </div>
+              <div>
+                <label className="text-sm font-medium text-slate-700">Location</label>
+                <select
+                  value={formData.location_id}
+                  onChange={(e) => setFormData({ ...formData, location_id: e.target.value })}
+                  className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg"
+                  required={locations.length > 0}
+                >
+                  <option value="">Select location</option>
+                  {locations.map((location) => (
+                    <option key={location.id} value={location.id}>{location.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-slate-700">Appointment Type</label>
+                <select
+                  value={formData.appointment_type_id}
+                  onChange={(e) => {
+                    const nextId = e.target.value;
+                    const type = appointmentTypes.find((t) => t.id === nextId);
+                    setFormData({
+                      ...formData,
+                      appointment_type_id: nextId,
+                      service_type: type?.name || formData.service_type,
+                      duration_minutes: type?.duration_minutes || formData.duration_minutes,
+                    });
+                  }}
+                  className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg"
+                >
+                  <option value="">Select type</option>
+                  {appointmentTypes.map((type) => (
+                    <option key={type.id} value={type.id}>{type.name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div>
@@ -533,11 +825,27 @@ export function ScheduleBoard() {
                 required
               >
                 <option value="">Select service type</option>
-                {serviceCatalog.map((service) => (
+                {(appointmentTypes.length > 0 ? appointmentTypes.map((t) => t.name) : serviceCatalog).map((service) => (
                   <option key={service} value={service}>{service}</option>
                 ))}
               </select>
             </div>
+
+            {resources.length > 0 && (
+              <div>
+                <label className="text-sm font-medium text-slate-700">Assign Resource</label>
+                <select
+                  value={formData.resource_id}
+                  onChange={(e) => setFormData({ ...formData, resource_id: e.target.value })}
+                  className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg"
+                >
+                  <option value="">Unassigned</option>
+                  {resources.map((res) => (
+                    <option key={res.id} value={res.id}>{res.name} ({res.resource_type})</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div>
               <label className="text-sm font-medium text-slate-700">Status</label>
@@ -582,7 +890,7 @@ export function ScheduleBoard() {
         </div>
       )}
 
-      {groupedAppointments.length === 0 ? (
+      {appointments.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
           <Calendar className="w-16 h-16 text-slate-300 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-slate-900 mb-2">No Appointments</h3>
@@ -590,39 +898,66 @@ export function ScheduleBoard() {
         </div>
       ) : (
         <div className="space-y-4">
-          {groupedAppointments.map(([time, group]) => (
-            <div key={time} className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-              <div className="flex items-center gap-2 text-slate-600 mb-3">
-                <Clock className="w-4 h-4" />
-                <span className="font-semibold text-slate-800">{time}</span>
-                <span className="text-xs text-slate-500">({group.length})</span>
-              </div>
-              <div className="space-y-3">
-                {group.map((apt) => (
-                  <div key={apt.id} className="flex items-start justify-between border border-slate-200 rounded-lg p-3">
-                    <div>
-                      <p className="font-semibold text-slate-900">{apt.service_type}</p>
-                      <div className="text-sm text-slate-600 flex flex-wrap items-center gap-2">
-                        <span className="inline-flex items-center gap-1">
-                          <User className="w-4 h-4" />
-                          {apt.customer?.full_name || 'Customer'}
-                        </span>
-                        {apt.vehicle && (
-                          <span className="inline-flex items-center gap-1">
-                            <Car className="w-4 h-4" />
-                            {apt.vehicle.year} {apt.vehicle.make} {apt.vehicle.model}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <span className={`text-xs px-2 py-1 rounded-full ${apt.status === 'confirmed' ? 'bg-emerald-100 text-emerald-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                      {apt.status}
-                    </span>
+          {(viewMode === 'week' ? getWeekDates(date) : [date]).map((dateKey) => {
+            const dayGroups = groupedAppointments[dateKey] || {};
+            const timeSlots = Object.entries(dayGroups).sort(([a], [b]) => a.localeCompare(b));
+            return (
+              <div key={dateKey} className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+                <div className="flex items-center gap-2 text-slate-600 mb-3">
+                  <Calendar className="w-4 h-4" />
+                  <span className="font-semibold text-slate-800">{dateKey}</span>
+                </div>
+                {timeSlots.length === 0 ? (
+                  <p className="text-sm text-slate-500">No appointments scheduled.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {timeSlots.map(([time, group]) => {
+                      const capacity = getCapacityForSlot(dateKey, time, group[0]?.appointment_type_id || null);
+                      return (
+                        <div key={`${dateKey}-${time}`} className="border border-slate-200 rounded-lg p-3">
+                          <div className="flex items-center gap-2 text-slate-600 mb-2">
+                            <Clock className="w-4 h-4" />
+                            <span className="font-semibold text-slate-800">{time}</span>
+                            <span className="text-xs text-slate-500">({group.length}/{capacity})</span>
+                          </div>
+                          <div className="space-y-2">
+                            {group.map((apt) => (
+                              <div key={apt.id} className="flex items-start justify-between border border-slate-200 rounded-lg p-3 bg-slate-50">
+                                <div>
+                                  <p className="font-semibold text-slate-900">{apt.service_type}</p>
+                                  <div className="text-sm text-slate-600 flex flex-wrap items-center gap-2">
+                                    <span className="inline-flex items-center gap-1">
+                                      <User className="w-4 h-4" />
+                                      {apt.customer?.full_name || 'Customer'}
+                                    </span>
+                                    {apt.vehicle && (
+                                      <span className="inline-flex items-center gap-1">
+                                        <Car className="w-4 h-4" />
+                                        {apt.vehicle.year} {apt.vehicle.make} {apt.vehicle.model}
+                                      </span>
+                                    )}
+                                    {(apt as any).location_id && (
+                                      <span className="inline-flex items-center gap-1">
+                                        <MapPin className="w-4 h-4" />
+                                        {locations.find((loc) => loc.id === (apt as any).location_id)?.name || 'Location'}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <span className={`text-xs px-2 py-1 rounded-full ${apt.status === 'confirmed' ? 'bg-emerald-100 text-emerald-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                                  {apt.status}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

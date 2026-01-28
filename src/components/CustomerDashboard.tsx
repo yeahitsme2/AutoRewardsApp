@@ -3,12 +3,13 @@ import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
 import { useShop } from '../lib/ShopContext';
 import { supabase } from '../lib/supabase';
-import { Car, Calendar, Award, LogOut, Wrench, Gift, Tag, Plus, ClipboardList } from 'lucide-react';
+import { Car, Calendar, Award, LogOut, Wrench, Gift, Tag, Plus, ClipboardList, MessageSquare } from 'lucide-react';
 import { CustomerRewards } from './CustomerRewards';
 import { CustomerServices } from './CustomerServices';
 import { CustomerPromotions } from './CustomerPromotions';
 import { CustomerAppointments } from './CustomerAppointments';
 import { CustomerRepairOrders } from './CustomerRepairOrders';
+import { MessagesCenter } from './MessagesCenter';
 import { TierProgress } from './TierProgress';
 import { RewardProgress } from './RewardProgress';
 import { ServiceReminders } from './ServiceReminders';
@@ -20,7 +21,7 @@ interface VehicleWithServices extends Vehicle {
   services: Service[];
 }
 
-type TabType = 'vehicles' | 'services' | 'appointments' | 'repair_orders' | 'rewards' | 'offers';
+type TabType = 'vehicles' | 'services' | 'appointments' | 'repair_orders' | 'rewards' | 'offers' | 'messages';
 
 export function CustomerDashboard() {
   const { customer, signOut, refreshCustomer } = useAuth();
@@ -264,6 +265,17 @@ export function CustomerDashboard() {
                 </span>
               )}
             </button>
+            <button
+              onClick={() => setActiveTab('messages')}
+              className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-3 font-medium transition-colors border-b-2 whitespace-nowrap flex-shrink-0"
+              style={activeTab === 'messages' ? {
+                borderBottomColor: brandSettings.primary_color,
+                color: brandSettings.primary_color
+              } : { borderBottomColor: 'transparent', color: '#475569' }}
+            >
+              <MessageSquare className="w-5 h-5" />
+              <span className="text-sm sm:text-base">Messages</span>
+            </button>
           </div>
         </div>
 
@@ -386,6 +398,8 @@ export function CustomerDashboard() {
         {activeTab === 'rewards' && <CustomerRewards />}
 
         {activeTab === 'offers' && <CustomerPromotions />}
+
+        {activeTab === 'messages' && <MessagesCenter mode="customer" />}
       </main>
 
       {showAddVehicleModal && customer && (

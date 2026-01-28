@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
 import { supabase } from '../lib/supabase';
-import { LogOut, Wrench, Users, UserCheck, UserX, Search, Gift, Crown, Settings as SettingsIcon, Tag, Calendar, TrendingUp, X, Car, Award, ClipboardList, Clock, Briefcase } from 'lucide-react';
+import { LogOut, Wrench, Users, UserCheck, UserX, Search, Gift, Crown, Settings as SettingsIcon, Tag, Calendar, TrendingUp, X, Car, Award, ClipboardList, Clock, Briefcase, ClipboardCheck, Boxes, MessageSquare } from 'lucide-react';
 import { AddServiceModal } from './AddServiceModal';
 import { AddVehicleModal } from './AddVehicleModal';
 import { RewardsManagement } from './RewardsManagement';
@@ -10,6 +10,9 @@ import { PromotionsManagement } from './PromotionsManagement';
 import { AppointmentsManagement } from './AppointmentsManagement';
 import { RepairOrdersManagement } from './RepairOrdersManagement';
 import { ScheduleBoard } from './ScheduleBoard';
+import { DviManagement } from './DviManagement';
+import { InventoryManagement } from './InventoryManagement';
+import { MessagesCenter } from './MessagesCenter';
 import { Settings } from './Settings';
 import { UserManagement } from './UserManagement';
 import { Insights } from './Insights';
@@ -23,7 +26,7 @@ interface CustomerWithVehicles extends Customer {
 }
 
 type TabType = 'customers' | 'appointments' | 'my_shop' | 'rewards' | 'promotions' | 'users' | 'settings';
-type MyShopTab = 'schedule' | 'repair_orders' | 'insights';
+type MyShopTab = 'schedule' | 'repair_orders' | 'inspections' | 'inventory' | 'messages' | 'insights';
 
 export function AdminDashboard() {
   const { admin, signOut } = useAuth();
@@ -608,7 +611,7 @@ export function AdminDashboard() {
         {activeTab === 'my_shop' && (
           <div className="space-y-6">
             <div className="flex gap-2 flex-wrap">
-              {(['schedule', 'repair_orders', 'insights'] as const).map((tab) => (
+              {(['schedule', 'repair_orders', 'inspections', 'inventory', 'messages', 'insights'] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setMyShopTab(tab)}
@@ -621,14 +624,30 @@ export function AdminDashboard() {
                 >
                   {tab === 'schedule' && <Clock className="w-4 h-4" />}
                   {tab === 'repair_orders' && <ClipboardList className="w-4 h-4" />}
+                  {tab === 'inspections' && <ClipboardCheck className="w-4 h-4" />}
+                  {tab === 'inventory' && <Boxes className="w-4 h-4" />}
+                  {tab === 'messages' && <MessageSquare className="w-4 h-4" />}
                   {tab === 'insights' && <TrendingUp className="w-4 h-4" />}
-                  {tab === 'schedule' ? 'Schedule' : tab === 'repair_orders' ? 'Repair Orders' : 'Insights'}
+                  {tab === 'schedule'
+                    ? 'Schedule'
+                    : tab === 'repair_orders'
+                      ? 'Repair Orders'
+                      : tab === 'inspections'
+                        ? 'DVI'
+                        : tab === 'inventory'
+                          ? 'Inventory'
+                          : tab === 'messages'
+                            ? 'Messages'
+                            : 'Insights'}
                 </button>
               ))}
             </div>
 
             {myShopTab === 'schedule' && <ScheduleBoard />}
             {myShopTab === 'repair_orders' && <RepairOrdersManagement />}
+            {myShopTab === 'inspections' && <DviManagement />}
+            {myShopTab === 'inventory' && <InventoryManagement />}
+            {myShopTab === 'messages' && <MessagesCenter mode="admin" />}
             {myShopTab === 'insights' && <Insights />}
           </div>
         )}

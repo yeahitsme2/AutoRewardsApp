@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
-import { Calendar, Clock, Car, User, CheckCircle, XCircle, AlertCircle, Edit2, Save, X, ClipboardList } from 'lucide-react';
-import type { Appointment, Customer, Vehicle } from '../types/database';
+import { Calendar, Clock, Car, User, CheckCircle, XCircle, AlertCircle, Edit2, Save, X, ClipboardList, MapPin } from 'lucide-react';
+import { logAuditEvent } from '../lib/audit';
+import { logOutboundMessage } from '../lib/messaging';
+import type { Appointment, AppointmentType, Customer, ShopLocation, Vehicle } from '../types/database';
 
 interface AppointmentWithDetails extends Appointment {
   customer?: Customer;
@@ -21,6 +23,8 @@ export function AppointmentsManagement() {
   const { admin } = useAuth();
   const { brandSettings } = useBrand();
   const [appointments, setAppointments] = useState<AppointmentWithDetails[]>([]);
+  const [locations, setLocations] = useState<ShopLocation[]>([]);
+  const [appointmentTypes, setAppointmentTypes] = useState<AppointmentType[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'confirmed' | 'cancelled' | 'completed'>('all');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -35,10 +39,32 @@ export function AppointmentsManagement() {
 
   useEffect(() => {
     loadAppointments();
+    loadLocations();
+    loadAppointmentTypes();
 
     const interval = setInterval(loadAppointments, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  const loadLocations = async () => {
+    if (!admin?.shop_id) return;
+    const { data, error } = await supabase
+      .from('shop_locations')
+      .select('*')
+      .eq('shop_id', admin.shop_id)
+      .order('created_at', { ascending: true });
+    if (!error) setLocations((data || []) as ShopLocation[]);
+  };
+
+  const loadAppointmentTypes = async () => {
+    if (!admin?.shop_id) return;
+    const { data, error } = await supabase
+      .from('appointment_types')
+      .select('*')
+      .eq('shop_id', admin.shop_id)
+      .order('created_at', { ascending: true });
+    if (!error) setAppointmentTypes((data || []) as AppointmentType[]);
+  };
 
   const loadAppointments = async () => {
     try {
@@ -134,6 +160,31 @@ export function AppointmentsManagement() {
         .eq('id', appointmentId);
 
       if (error) throw error;
+
+      if (admin?.shop_id) {
+        await logAuditEvent({
+          shopId: admin.shop_id,
+          actorRole: 'admin',
+          eventType: `appointment_${newStatus}`,
+          entityType: 'appointment',
+          entityId: appointmentId,
+          metadata: { status: newStatus },
+        });
+      }
+
+      if (admin?.shop_id && newStatus === 'confirmed') {
+        const appointment = appointments.find((apt) => apt.id === appointmentId);
+        if (appointment?.customer_id) {
+          await logOutboundMessage({
+            shopId: admin.shop_id,
+            customerId: appointment.customer_id,
+            channel: 'email',
+            subject: 'Appointment confirmed',
+            body: 'Your appointment has been confirmed by the shop.',
+            status: 'queued',
+          });
+        }
+      }
 
       showMessage('success', `Appointment ${newStatus}`);
       setEditingId(null);
@@ -376,6 +427,19 @@ export function AppointmentsManagement() {
                         <Clock className="w-4 h-4 text-slate-500" />
                         <span className="text-slate-900">{formatTime(appointment.scheduled_time)}</span>
                       </div>
+                      {appointment.location_id && (
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-4 h-4 text-slate-500" />
+                          <span className="text-slate-900">
+                            {locations.find((loc) => loc.id === appointment.location_id)?.name || 'Location'}
+                          </span>
+                        </div>
+                      )}
+                      {appointment.appointment_type_id && (
+                        <div className="text-slate-600 ml-6">
+                          {appointmentTypes.find((type) => type.id === appointment.appointment_type_id)?.name || 'Appointment type'}
+                        </div>
+                      )}
                       {appointment.vehicle && (
                         <div className="flex items-center gap-2">
                           <Car className="w-4 h-4 text-slate-500" />
