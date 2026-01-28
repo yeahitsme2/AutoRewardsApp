@@ -294,8 +294,29 @@ export function RepairOrdersManagement() {
       console.error('Error updating RO status:', error);
       showMessage('error', 'Failed to update repair order');
     }
-  };
+    };
 
+    const handleDeleteOrder = async (orderId: string) => {
+      const confirmed = window.confirm('Delete this repair order? This cannot be undone.');
+      if (!confirmed) return;
+
+      try {
+        const { error } = await supabase
+          .from('repair_orders')
+          .delete()
+          .eq('id', orderId);
+        if (error) throw error;
+
+        setOrders((prev) => prev.filter((order) => order.id !== orderId));
+        if (selectedOrderId === orderId) {
+          setSelectedOrderId(null);
+        }
+        showMessage('success', 'Repair order deleted');
+      } catch (error) {
+        console.error('Error deleting repair order:', error);
+        showMessage('error', 'Failed to delete repair order');
+      }
+    };
   const handleCreateOrder = async () => {
     if (!admin?.shop_id || !newOrder.customer_id) {
       showMessage('error', 'Select a customer before creating an order');
@@ -748,29 +769,36 @@ export function RepairOrdersManagement() {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => handleStatusChange(selectedOrder.id, 'awaiting_approval')}
-                    className="flex items-center gap-2 px-3 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg text-sm"
-                  >
-                    <AlertCircle className="w-4 h-4" />
-                    Send for Approval
-                  </button>
-                  <button
-                    onClick={() => handleStatusChange(selectedOrder.id, 'approved')}
-                    className="flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm"
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                    Mark Approved
-                  </button>
-                  <button
-                    onClick={() => handleStatusChange(selectedOrder.id, 'closed')}
-                    className="flex items-center gap-2 px-3 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-sm"
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                    Close RO
-                  </button>
-                </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => handleStatusChange(selectedOrder.id, 'awaiting_approval')}
+                      className="flex items-center gap-2 px-3 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg text-sm"
+                    >
+                      <AlertCircle className="w-4 h-4" />
+                      Send for Approval
+                    </button>
+                    <button
+                      onClick={() => handleStatusChange(selectedOrder.id, 'approved')}
+                      className="flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      Mark Approved
+                    </button>
+                    <button
+                      onClick={() => handleStatusChange(selectedOrder.id, 'closed')}
+                      className="flex items-center gap-2 px-3 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-sm"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      Close RO
+                    </button>
+                    <button
+                      onClick={() => handleDeleteOrder(selectedOrder.id)}
+                      className="flex items-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm"
+                    >
+                      <X className="w-4 h-4" />
+                      Delete RO
+                    </button>
+                  </div>
               </div>
             )}
           </div>
