@@ -176,7 +176,9 @@ export interface Database {
           is_admin: boolean;
           tier: string;
           reward_points: number;
-          lifetime_spending: number;
+          lifetime_spending?: number | null;
+          total_lifetime_spending?: number | null;
+          total_spent?: number | null;
           has_account: boolean;
           is_deactivated: boolean;
           created_at: string;
@@ -192,7 +194,9 @@ export interface Database {
           is_admin?: boolean;
           tier?: string;
           reward_points?: number;
-          lifetime_spending?: number;
+          lifetime_spending?: number | null;
+          total_lifetime_spending?: number | null;
+          total_spent?: number | null;
           has_account?: boolean;
           is_deactivated?: boolean;
           created_at?: string;
@@ -208,7 +212,9 @@ export interface Database {
           is_admin?: boolean;
           tier?: string;
           reward_points?: number;
-          lifetime_spending?: number;
+          lifetime_spending?: number | null;
+          total_lifetime_spending?: number | null;
+          total_spent?: number | null;
           has_account?: boolean;
           is_deactivated?: boolean;
           created_at?: string;
@@ -318,7 +324,8 @@ export interface Database {
           shop_id: string;
           name: string;
           description: string | null;
-          points_required: number;
+          points_required?: number | null;
+          points_cost?: number | null;
           is_active: boolean;
           created_at: string;
           updated_at: string;
@@ -328,7 +335,8 @@ export interface Database {
           shop_id: string;
           name: string;
           description?: string | null;
-          points_required: number;
+          points_required?: number | null;
+          points_cost?: number | null;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -338,7 +346,8 @@ export interface Database {
           shop_id?: string;
           name?: string;
           description?: string | null;
-          points_required?: number;
+          points_required?: number | null;
+          points_cost?: number | null;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;

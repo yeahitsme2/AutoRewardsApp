@@ -27,9 +27,6 @@ export function AppointmentsManagement() {
   const [adminNotes, setAdminNotes] = useState('');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const isMissingColumn = (error: any) =>
-    error?.code === '42703' || (typeof error?.message === 'string' && error.message.includes('does not exist'));
-
   const normalizeAppointment = (apt: Appointment) => ({
     ...apt,
     scheduled_date: (apt as any).scheduled_date ?? (apt as any).requested_date,
@@ -45,22 +42,31 @@ export function AppointmentsManagement() {
 
   const loadAppointments = async () => {
     try {
-      const primary = await supabase
-        .from('appointments')
-        .select('*')
-        .order('scheduled_date', { ascending: true })
-        .order('scheduled_time', { ascending: true });
-
-      const appointmentsRes = primary.error && isMissingColumn(primary.error)
-        ? await supabase
+      let appointmentsData: Appointment[] = [];
+      if (admin?.shop_id) {
+        const { data: customerRows, error: customerError } = await supabase
+          .from('customers')
+          .select('id')
+          .eq('shop_id', admin.shop_id);
+        if (customerError) throw customerError;
+        const customerIds = (customerRows || []).map((c) => c.id);
+        if (customerIds.length === 0) {
+          setAppointments([]);
+          return;
+        }
+        const { data, error } = await supabase
           .from('appointments')
           .select('*')
-          .order('requested_date', { ascending: true })
-          .order('requested_time', { ascending: true })
-        : primary;
-
-      if (appointmentsRes.error) throw appointmentsRes.error;
-      const appointmentsData = (appointmentsRes.data || []) as Appointment[];
+          .in('customer_id', customerIds);
+        if (error) throw error;
+        appointmentsData = (data || []) as Appointment[];
+      } else {
+        const { data, error } = await supabase
+          .from('appointments')
+          .select('*');
+        if (error) throw error;
+        appointmentsData = (data || []) as Appointment[];
+      }
 
       const customerIds = [...new Set(appointmentsData.map((a) => a.customer_id) || [])];
       const vehicleIds = [...new Set(appointmentsData.map((a) => a.vehicle_id).filter(Boolean) || [])];
@@ -89,7 +95,16 @@ export function AppointmentsManagement() {
         repair_order_id: repairOrdersRes.data?.find((ro) => ro.appointment_id === apt.id)?.id || null,
       }));
 
-      setAppointments(appointmentsWithDetails);
+      const sorted = appointmentsWithDetails.sort((a, b) => {
+        const dateA = a.scheduled_date || '';
+        const dateB = b.scheduled_date || '';
+        if (dateA !== dateB) return dateA.localeCompare(dateB);
+        const timeA = a.scheduled_time || '';
+        const timeB = b.scheduled_time || '';
+        return timeA.localeCompare(timeB);
+      });
+
+      setAppointments(sorted);
     } catch (error) {
       console.error('Error loading appointments:', error);
     } finally {

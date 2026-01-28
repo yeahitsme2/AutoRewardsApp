@@ -40,6 +40,12 @@ export function AdminDashboard() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [pendingAppointments, setPendingAppointments] = useState(0);
 
+  const getLifetimeSpending = (customer: Customer) =>
+    (customer as any).lifetime_spending ??
+    (customer as any).total_lifetime_spending ??
+    (customer as any).total_spent ??
+    0;
+
   useEffect(() => {
     loadData();
     loadPendingAppointments();
@@ -448,7 +454,7 @@ export function AdminDashboard() {
                       <div>
                         <p className="text-sm text-slate-600">Lifetime Spending</p>
                         <p className="text-xl font-semibold text-slate-900">
-                          ${Number(cust.lifetime_spending).toFixed(2)}
+                          ${Number(getLifetimeSpending(cust)).toFixed(2)}
                         </p>
                       </div>
                       {(() => {

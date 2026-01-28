@@ -77,43 +77,31 @@ export function ScheduleBoard() {
     if (!admin?.shop_id) return;
     try {
       setLoading(true);
-      let appointmentsData: Appointment[] = [];
-      const primary = await supabase
+      const { data: customerRows, error: customerError } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('shop_id', admin.shop_id);
+      if (customerError) throw customerError;
+      const customerIds = (customerRows || []).map((c) => c.id);
+      if (customerIds.length === 0) {
+        setAppointments([]);
+        return;
+      }
+      const { data, error } = await supabase
         .from('appointments')
         .select('*')
-        .eq('shop_id', admin.shop_id)
-        .eq('scheduled_date', date)
-        .order('scheduled_time', { ascending: true });
+        .in('customer_id', customerIds);
+      if (error) throw error;
+      const allAppointments = (data || []) as Appointment[];
+      const appointmentsData = allAppointments
+        .map((apt) => normalizeAppointment(apt))
+        .filter((apt) => apt.scheduled_date === date);
 
-      if (primary.error) {
-        if (!isMissingColumn(primary.error)) throw primary.error;
-        const { data: customerRows, error: customerError } = await supabase
-          .from('customers')
-          .select('id')
-          .eq('shop_id', admin.shop_id);
-        if (customerError) throw customerError;
-        const customerIds = (customerRows || []).map((c) => c.id);
-        if (customerIds.length === 0) {
-          setAppointments([]);
-          return;
-        }
-        const fallback = await supabase
-          .from('appointments')
-          .select('*')
-          .in('customer_id', customerIds)
-          .eq('requested_date', date)
-          .order('requested_time', { ascending: true });
-        if (fallback.error) throw fallback.error;
-        appointmentsData = (fallback.data || []) as Appointment[];
-      } else {
-        appointmentsData = (primary.data || []) as Appointment[];
-      }
-
-      const customerIds = [...new Set(appointmentsData.map((a) => a.customer_id))];
+      const appointmentCustomerIds = [...new Set(appointmentsData.map((a) => a.customer_id))];
       const vehicleIds = [...new Set(appointmentsData.map((a) => a.vehicle_id).filter(Boolean) as string[])];
 
       const [customersRes, vehiclesRes] = await Promise.all([
-        customerIds.length > 0 ? supabase.from('customers').select('*').in('id', customerIds) : Promise.resolve({ data: [], error: null }),
+        appointmentCustomerIds.length > 0 ? supabase.from('customers').select('*').in('id', appointmentCustomerIds) : Promise.resolve({ data: [], error: null }),
         vehicleIds.length > 0 ? supabase.from('vehicles').select('*').in('id', vehicleIds) : Promise.resolve({ data: [], error: null }),
       ]);
 
@@ -121,12 +109,13 @@ export function ScheduleBoard() {
       if (vehiclesRes.error) throw vehiclesRes.error;
 
       const withDetails: AppointmentWithDetails[] = appointmentsData.map((apt) => ({
-        ...normalizeAppointment(apt),
+        ...apt,
         customer: customersRes.data?.find((cust) => cust.id === apt.customer_id),
         vehicle: vehiclesRes.data?.find((veh) => veh.id === apt.vehicle_id),
       }));
 
-      setAppointments(withDetails);
+      const sorted = withDetails.sort((a, b) => (a.scheduled_time || '').localeCompare(b.scheduled_time || ''));
+      setAppointments(sorted);
     } catch (error) {
       console.error('Error loading schedule:', error);
     } finally {
@@ -146,45 +135,31 @@ export function ScheduleBoard() {
 
   const loadVehicles = async () => {
     if (!admin?.shop_id) return;
-    const primary = await supabase
-      .from('vehicles')
-      .select('*')
-      .eq('shop_id', admin.shop_id)
-      .order('created_at', { ascending: false });
-    if (primary.error && isMissingColumn(primary.error)) {
-      const { data: customerRows, error: customerError } = await supabase
-        .from('customers')
-        .select('id')
-        .eq('shop_id', admin.shop_id);
-      if (customerError) {
-        console.error('Error loading vehicles:', customerError);
-        setVehicles([]);
-        return;
-      }
-      const customerIds = (customerRows || []).map((c) => c.id);
-      if (customerIds.length === 0) {
-        setVehicles([]);
-        return;
-      }
-      const fallback = await supabase
-        .from('vehicles')
-        .select('*')
-        .in('customer_id', customerIds)
-        .order('created_at', { ascending: false });
-      if (fallback.error) {
-        console.error('Error loading vehicles:', fallback.error);
-        setVehicles([]);
-        return;
-      }
-      setVehicles((fallback.data || []) as Vehicle[]);
-      return;
-    }
-    if (primary.error) {
-      console.error('Error loading vehicles:', primary.error);
+    const { data: customerRows, error: customerError } = await supabase
+      .from('customers')
+      .select('id')
+      .eq('shop_id', admin.shop_id);
+    if (customerError) {
+      console.error('Error loading vehicles:', customerError);
       setVehicles([]);
       return;
     }
-    setVehicles((primary.data || []) as Vehicle[]);
+    const customerIds = (customerRows || []).map((c) => c.id);
+    if (customerIds.length === 0) {
+      setVehicles([]);
+      return;
+    }
+    const { data, error } = await supabase
+      .from('vehicles')
+      .select('*')
+      .in('customer_id', customerIds)
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.error('Error loading vehicles:', error);
+      setVehicles([]);
+      return;
+    }
+    setVehicles((data || []) as Vehicle[]);
   };
 
   const showMessage = (type: 'success' | 'error', text: string) => {

@@ -99,19 +99,10 @@ export function CustomerAppointments() {
 
   const loadData = async () => {
     try {
-      const appointmentsPrimary = await supabase
+      const appointmentsRes = await supabase
         .from('appointments')
         .select('*')
-        .eq('customer_id', customer!.id)
-        .order('scheduled_date', { ascending: false });
-
-      const appointmentsRes = appointmentsPrimary.error && isMissingColumn(appointmentsPrimary.error)
-        ? await supabase
-          .from('appointments')
-          .select('*')
-          .eq('customer_id', customer!.id)
-          .order('requested_date', { ascending: false })
-        : appointmentsPrimary;
+        .eq('customer_id', customer!.id);
 
       const [vehiclesRes, settingsRes] = await Promise.all([
         supabase
@@ -135,7 +126,16 @@ export function CustomerAppointments() {
         vehicle: (vehiclesRes.data || []).find((v) => v.id === apt.vehicle_id),
       }));
 
-      setAppointments(appointmentsWithVehicles);
+      const sorted = appointmentsWithVehicles.sort((a, b) => {
+        const dateA = a.scheduled_date || '';
+        const dateB = b.scheduled_date || '';
+        if (dateA !== dateB) return dateB.localeCompare(dateA);
+        const timeA = a.scheduled_time || '';
+        const timeB = b.scheduled_time || '';
+        return timeB.localeCompare(timeA);
+      });
+
+      setAppointments(sorted);
       setVehicles(vehiclesRes.data || []);
       if (settingsRes.data) {
         setScheduleSettings({
@@ -183,35 +183,20 @@ export function CustomerAppointments() {
   };
 
   const fetchAppointmentsForRange = async (startDate: string, endDate: string) => {
-    const primary = await supabase
+    const { data, error } = await supabase
       .from('appointments')
-      .select('scheduled_date, scheduled_time, status, requested_date, requested_time')
-      .eq('shop_id', customer!.shop_id)
-      .gte('scheduled_date', startDate)
-      .lte('scheduled_date', endDate)
+      .select('*')
+      .eq('customer_id', customer!.id)
       .neq('status', 'cancelled');
+    if (error) throw error;
 
-    if (primary.error && isMissingColumn(primary.error)) {
-      const fallback = await supabase
-        .from('appointments')
-        .select('requested_date, requested_time, status')
-        .eq('customer_id', customer!.id)
-        .gte('requested_date', startDate)
-        .lte('requested_date', endDate)
-        .neq('status', 'cancelled');
-      if (fallback.error) throw fallback.error;
-      return (fallback.data || []).map((apt: any) => ({
-        scheduled_date: apt.requested_date,
-        scheduled_time: apt.requested_time,
+    return (data || [])
+      .map((apt: any) => ({
+        scheduled_date: apt.scheduled_date ?? apt.requested_date,
+        scheduled_time: apt.scheduled_time ?? apt.requested_time,
         status: apt.status,
-      }));
-    }
-    if (primary.error) throw primary.error;
-    return (primary.data || []).map((apt: any) => ({
-      scheduled_date: apt.scheduled_date ?? apt.requested_date,
-      scheduled_time: apt.scheduled_time ?? apt.requested_time,
-      status: apt.status,
-    }));
+      }))
+      .filter((apt: any) => apt.scheduled_date >= startDate && apt.scheduled_date <= endDate);
   };
 
   const isSlotAvailable = (dateStr: string, timeStr: string, appointmentsData: any[]) => {

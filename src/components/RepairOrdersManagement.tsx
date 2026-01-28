@@ -134,10 +134,20 @@ export function RepairOrdersManagement() {
 
   const loadVehicles = async () => {
     if (!admin?.shop_id) return;
+    const { data: customerRows, error: customerError } = await supabase
+      .from('customers')
+      .select('id')
+      .eq('shop_id', admin.shop_id);
+    if (customerError) return;
+    const customerIds = (customerRows || []).map((c) => c.id);
+    if (customerIds.length === 0) {
+      setVehicles([]);
+      return;
+    }
     const { data, error } = await supabase
       .from('vehicles')
       .select('*')
-      .eq('shop_id', admin.shop_id)
+      .in('customer_id', customerIds)
       .order('created_at', { ascending: false });
     if (!error) setVehicles((data || []) as Vehicle[]);
   };
