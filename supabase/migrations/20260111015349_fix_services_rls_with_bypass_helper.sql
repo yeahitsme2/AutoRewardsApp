@@ -14,10 +14,26 @@
 -- Drop existing admin policy for services
 DROP POLICY IF EXISTS "Shop admins can manage their shop services" ON services;
 
--- Recreate policy using the bypass helper function
-CREATE POLICY "Shop admins can manage their shop services"
-  ON services
-  FOR ALL
-  TO authenticated
-  USING (is_admin_for_shop(shop_id))
-  WITH CHECK (is_admin_for_shop(shop_id));
+DO $do$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'services' AND column_name = 'shop_id'
+  ) THEN
+    -- Recreate policy using the bypass helper function
+    CREATE POLICY "Shop admins can manage their shop services"
+      ON services
+      FOR ALL
+      TO authenticated
+      USING (is_admin_for_shop(shop_id))
+      WITH CHECK (is_admin_for_shop(shop_id));
+  ELSE
+    CREATE POLICY "Shop admins can manage their shop services"
+      ON services
+      FOR ALL
+      TO authenticated
+      USING (is_admin_for_shop((SELECT shop_id FROM customers WHERE id = services.customer_id)))
+      WITH CHECK (is_admin_for_shop((SELECT shop_id FROM customers WHERE id = services.customer_id)));
+  END IF;
+END
+$do$;
