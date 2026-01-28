@@ -98,6 +98,13 @@ export function DviManagement() {
         return { ...(template as DviTemplate), sections };
       });
       setTemplates(nextTemplates);
+      const defaultTemplateId =
+        nextTemplates.find((template) => template.is_default)?.id
+        || nextTemplates[0]?.id
+        || null;
+      if (defaultTemplateId) {
+        setSelectedTemplateId((current) => current || defaultTemplateId);
+      }
     } catch (error) {
       console.error('Failed to load templates:', error);
     }

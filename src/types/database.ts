@@ -30,6 +30,7 @@ export interface Database {
           email: string;
           full_name: string;
           is_active: boolean;
+          role: string;
           created_at: string;
           updated_at: string;
         };
@@ -40,6 +41,7 @@ export interface Database {
           email: string;
           full_name: string;
           is_active?: boolean;
+          role?: string;
           created_at?: string;
           updated_at?: string;
         };
@@ -1194,6 +1196,7 @@ export interface Database {
           shop_id: string;
           name: string;
           is_active: boolean;
+          is_default: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -1202,6 +1205,7 @@ export interface Database {
           shop_id: string;
           name: string;
           is_active?: boolean;
+          is_default?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -1210,6 +1214,7 @@ export interface Database {
           shop_id?: string;
           name?: string;
           is_active?: boolean;
+          is_default?: boolean;
           created_at?: string;
           updated_at?: string;
         };

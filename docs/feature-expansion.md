@@ -44,3 +44,7 @@ In Supabase SQL Editor, paste each file contents in order and run. Do not reorde
 - Admin: create via existing admin tooling.
 - Customer: create via customer signup or SQL insert into `customers` (ensure `shop_id` is set).
 - Minimum setup: one `shop`, one `shop_settings`, one `shop_location`, one `customer`, one `vehicle`.
+
+## Technician role
+- Technicians are stored in `admins.role` and can manage DVI templates/reports while keeping other admin access limited.
+- Each repair order now auto-creates a “Default inspection checklist” DVI (Exterior/Interior/Dashboard/Lights/Tires) that techs can trim or build out as needed.
