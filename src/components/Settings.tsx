@@ -165,7 +165,7 @@ export function Settings() {
           platinum_multiplier: Number(data.platinum_multiplier || 2.0),
         });
         setBrandSettings({
-          logo_url: data.logo_url || '',
+          logo_url: data.shop_logo_url || '',
           primary_color: data.primary_color || '#10b981',
           secondary_color: data.secondary_color || '#0f172a',
           welcome_message: data.welcome_message || 'Welcome back',
@@ -226,8 +226,10 @@ export function Settings() {
       const updateData = {
         points_per_dollar: pointsPerDollar,
         ...tierSettings,
-        ...brandSettings,
-        logo_url: brandSettings.logo_url || null,
+        primary_color: brandSettings.primary_color,
+        secondary_color: brandSettings.secondary_color,
+        welcome_message: brandSettings.welcome_message,
+        shop_logo_url: brandSettings.logo_url || null,
         ...(schedulerSupported ? {
           business_hours: scheduleSettings.business_hours,
           appointment_duration_minutes: scheduleSettings.appointment_duration_minutes,

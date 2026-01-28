@@ -85,7 +85,7 @@ export interface Database {
           shop_id: string;
           primary_color: string;
           secondary_color: string;
-          logo_url: string | null;
+          shop_logo_url: string | null;
           welcome_message: string;
           points_per_dollar: number;
           bronze_points_min: number;
@@ -113,7 +113,7 @@ export interface Database {
           shop_id: string;
           primary_color?: string;
           secondary_color?: string;
-          logo_url?: string | null;
+          shop_logo_url?: string | null;
           welcome_message?: string;
           points_per_dollar?: number;
           bronze_points_min?: number;
@@ -141,7 +141,7 @@ export interface Database {
           shop_id?: string;
           primary_color?: string;
           secondary_color?: string;
-          logo_url?: string | null;
+          shop_logo_url?: string | null;
           welcome_message?: string;
           points_per_dollar?: number;
           bronze_points_min?: number;
