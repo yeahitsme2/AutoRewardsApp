@@ -276,19 +276,24 @@ export function RepairOrdersManagement() {
       return;
     }
 
-    try {
-      const total = Number(draft.quantity) * Number(draft.unit_price);
-      const { data, error } = await supabase
-        .from('repair_order_items')
-        .insert({
-          repair_order_id: orderId,
-          item_type: draft.item_type,
-          description: draft.description.trim(),
-          quantity: Number(draft.quantity),
-          unit_price: Number(draft.unit_price),
-          total,
-          taxable: Boolean(draft.taxable),
-        })
+      try {
+        const quantityValue = Number(draft.quantity);
+        if (!Number.isInteger(quantityValue) || quantityValue < 1) {
+          showMessage('error', 'Quantity must be a whole number (1 or more)');
+          return;
+        }
+        const total = quantityValue * Number(draft.unit_price);
+        const { data, error } = await supabase
+          .from('repair_order_items')
+          .insert({
+            repair_order_id: orderId,
+            item_type: draft.item_type,
+            description: draft.description.trim(),
+            quantity: quantityValue,
+            unit_price: Number(draft.unit_price),
+            total,
+            taxable: Boolean(draft.taxable),
+          })
         .select('*')
         .single();
 
@@ -580,16 +585,20 @@ export function RepairOrdersManagement() {
                       placeholder="Description"
                       className="border border-slate-300 rounded-lg px-3 py-2 text-sm md:col-span-2"
                     />
-                    <input
-                      type="number"
-                      min={1}
-                      value={(itemDrafts[selectedOrder.id] || emptyItem).quantity}
-                      onChange={(e) => setItemDrafts((prev) => ({
-                        ...prev,
-                        [selectedOrder.id]: { ...(prev[selectedOrder.id] || emptyItem), quantity: Number(e.target.value) },
-                      }))}
-                      className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                    />
+                      <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={(itemDrafts[selectedOrder.id] || emptyItem).quantity}
+                        onChange={(e) => setItemDrafts((prev) => ({
+                          ...prev,
+                          [selectedOrder.id]: {
+                            ...(prev[selectedOrder.id] || emptyItem),
+                            quantity: Number.parseInt(e.target.value || '0', 10),
+                          },
+                        }))}
+                        className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                      />
                     <input
                       type="number"
                       min={0}
