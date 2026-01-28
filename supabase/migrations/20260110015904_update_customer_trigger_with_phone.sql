@@ -23,9 +23,18 @@ BEGIN
   v_phone := NEW.raw_user_meta_data->>'phone';
 
   IF v_shop_id IS NOT NULL THEN
-    INSERT INTO customers (auth_user_id, shop_id, email, full_name, phone)
-    VALUES (NEW.id, v_shop_id, v_email, COALESCE(v_full_name, 'Customer'), v_phone)
-    ON CONFLICT (auth_user_id) DO NOTHING;
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'customers' AND column_name = 'auth_user_id'
+    ) THEN
+      INSERT INTO customers (auth_user_id, shop_id, email, full_name, phone)
+      VALUES (NEW.id, v_shop_id, v_email, COALESCE(v_full_name, 'Customer'), v_phone)
+      ON CONFLICT (auth_user_id) DO NOTHING;
+    ELSE
+      INSERT INTO customers (id, shop_id, email, full_name, phone)
+      VALUES (NEW.id, v_shop_id, v_email, COALESCE(v_full_name, 'Customer'), v_phone)
+      ON CONFLICT (id) DO NOTHING;
+    END IF;
   END IF;
 
   RETURN NEW;

@@ -41,10 +41,20 @@ AS $$
 DECLARE
   v_shop_id uuid;
 BEGIN
-  SELECT shop_id INTO v_shop_id
-  FROM public.customers
-  WHERE auth_user_id = auth.uid()
-  LIMIT 1;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'customers' AND column_name = 'auth_user_id'
+  ) THEN
+    SELECT shop_id INTO v_shop_id
+    FROM public.customers
+    WHERE auth_user_id = auth.uid()
+    LIMIT 1;
+  ELSE
+    SELECT shop_id INTO v_shop_id
+    FROM public.customers
+    WHERE id = auth.uid()
+    LIMIT 1;
+  END IF;
   
   RETURN v_shop_id;
 END;
@@ -61,10 +71,20 @@ AS $$
 DECLARE
   v_is_admin boolean;
 BEGIN
-  SELECT is_admin INTO v_is_admin
-  FROM public.customers
-  WHERE auth_user_id = auth.uid()
-  LIMIT 1;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'customers' AND column_name = 'auth_user_id'
+  ) THEN
+    SELECT is_admin INTO v_is_admin
+    FROM public.customers
+    WHERE auth_user_id = auth.uid()
+    LIMIT 1;
+  ELSE
+    SELECT is_admin INTO v_is_admin
+    FROM public.customers
+    WHERE id = auth.uid()
+    LIMIT 1;
+  END IF;
   
   RETURN COALESCE(v_is_admin, false);
 END;

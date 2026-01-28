@@ -20,81 +20,167 @@ DROP POLICY IF EXISTS "Admins can delete shop vehicles" ON vehicles;
 DROP POLICY IF EXISTS "Users can manage their own vehicles" ON vehicles;
 DROP POLICY IF EXISTS "Shop admins can manage their shop vehicles" ON vehicles;
 
--- Create new simplified policies using admins table
-CREATE POLICY "Shop admins can view vehicles"
-  ON vehicles FOR SELECT
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM admins
-      WHERE admins.auth_user_id = auth.uid()
-      AND admins.shop_id = vehicles.shop_id
-    )
-  );
+DO $do$
+BEGIN
+  -- Create new simplified policies using admins table
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'vehicles' AND column_name = 'shop_id'
+  ) THEN
+    CREATE POLICY "Shop admins can view vehicles"
+      ON vehicles FOR SELECT
+      TO authenticated
+      USING (
+        EXISTS (
+          SELECT 1 FROM admins
+          WHERE admins.auth_user_id = auth.uid()
+          AND admins.shop_id = vehicles.shop_id
+        )
+      );
 
-CREATE POLICY "Shop admins can insert vehicles"
-  ON vehicles FOR INSERT
-  TO authenticated
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM admins
-      WHERE admins.auth_user_id = auth.uid()
-      AND admins.shop_id = vehicles.shop_id
-    )
-  );
+    CREATE POLICY "Shop admins can insert vehicles"
+      ON vehicles FOR INSERT
+      TO authenticated
+      WITH CHECK (
+        EXISTS (
+          SELECT 1 FROM admins
+          WHERE admins.auth_user_id = auth.uid()
+          AND admins.shop_id = vehicles.shop_id
+        )
+      );
 
-CREATE POLICY "Shop admins can update vehicles"
-  ON vehicles FOR UPDATE
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM admins
-      WHERE admins.auth_user_id = auth.uid()
-      AND admins.shop_id = vehicles.shop_id
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM admins
-      WHERE admins.auth_user_id = auth.uid()
-      AND admins.shop_id = vehicles.shop_id
-    )
-  );
+    CREATE POLICY "Shop admins can update vehicles"
+      ON vehicles FOR UPDATE
+      TO authenticated
+      USING (
+        EXISTS (
+          SELECT 1 FROM admins
+          WHERE admins.auth_user_id = auth.uid()
+          AND admins.shop_id = vehicles.shop_id
+        )
+      )
+      WITH CHECK (
+        EXISTS (
+          SELECT 1 FROM admins
+          WHERE admins.auth_user_id = auth.uid()
+          AND admins.shop_id = vehicles.shop_id
+        )
+      );
 
-CREATE POLICY "Shop admins can delete vehicles"
-  ON vehicles FOR DELETE
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM admins
-      WHERE admins.auth_user_id = auth.uid()
-      AND admins.shop_id = vehicles.shop_id
-    )
-  );
+    CREATE POLICY "Shop admins can delete vehicles"
+      ON vehicles FOR DELETE
+      TO authenticated
+      USING (
+        EXISTS (
+          SELECT 1 FROM admins
+          WHERE admins.auth_user_id = auth.uid()
+          AND admins.shop_id = vehicles.shop_id
+        )
+      );
+  ELSE
+    CREATE POLICY "Shop admins can view vehicles"
+      ON vehicles FOR SELECT
+      TO authenticated
+      USING (
+        EXISTS (
+          SELECT 1
+          FROM admins
+          JOIN customers ON customers.id = vehicles.customer_id
+          WHERE admins.auth_user_id = auth.uid()
+          AND admins.shop_id = customers.shop_id
+        )
+      );
 
--- Allow customers to manage their own vehicles
-CREATE POLICY "Customers can view own vehicles"
-  ON vehicles FOR SELECT
-  TO authenticated
-  USING (
-    customer_id IN (
-      SELECT id FROM customers
-      WHERE auth_user_id = auth.uid()
-    )
-  );
+    CREATE POLICY "Shop admins can insert vehicles"
+      ON vehicles FOR INSERT
+      TO authenticated
+      WITH CHECK (
+        EXISTS (
+          SELECT 1
+          FROM admins
+          JOIN customers ON customers.id = vehicles.customer_id
+          WHERE admins.auth_user_id = auth.uid()
+          AND admins.shop_id = customers.shop_id
+        )
+      );
 
-CREATE POLICY "Customers can update own vehicles"
-  ON vehicles FOR UPDATE
-  TO authenticated
-  USING (
-    customer_id IN (
-      SELECT id FROM customers
-      WHERE auth_user_id = auth.uid()
-    )
-  )
-  WITH CHECK (
-    customer_id IN (
-      SELECT id FROM customers
-      WHERE auth_user_id = auth.uid()
-    )
-  );
+    CREATE POLICY "Shop admins can update vehicles"
+      ON vehicles FOR UPDATE
+      TO authenticated
+      USING (
+        EXISTS (
+          SELECT 1
+          FROM admins
+          JOIN customers ON customers.id = vehicles.customer_id
+          WHERE admins.auth_user_id = auth.uid()
+          AND admins.shop_id = customers.shop_id
+        )
+      )
+      WITH CHECK (
+        EXISTS (
+          SELECT 1
+          FROM admins
+          JOIN customers ON customers.id = vehicles.customer_id
+          WHERE admins.auth_user_id = auth.uid()
+          AND admins.shop_id = customers.shop_id
+        )
+      );
+
+    CREATE POLICY "Shop admins can delete vehicles"
+      ON vehicles FOR DELETE
+      TO authenticated
+      USING (
+        EXISTS (
+          SELECT 1
+          FROM admins
+          JOIN customers ON customers.id = vehicles.customer_id
+          WHERE admins.auth_user_id = auth.uid()
+          AND admins.shop_id = customers.shop_id
+        )
+      );
+  END IF;
+
+  -- Allow customers to manage their own vehicles
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'customers' AND column_name = 'auth_user_id'
+  ) THEN
+    CREATE POLICY "Customers can view own vehicles"
+      ON vehicles FOR SELECT
+      TO authenticated
+      USING (
+        customer_id IN (
+          SELECT id FROM customers
+          WHERE auth_user_id = auth.uid()
+        )
+      );
+
+    CREATE POLICY "Customers can update own vehicles"
+      ON vehicles FOR UPDATE
+      TO authenticated
+      USING (
+        customer_id IN (
+          SELECT id FROM customers
+          WHERE auth_user_id = auth.uid()
+        )
+      )
+      WITH CHECK (
+        customer_id IN (
+          SELECT id FROM customers
+          WHERE auth_user_id = auth.uid()
+        )
+      );
+  ELSE
+    CREATE POLICY "Customers can view own vehicles"
+      ON vehicles FOR SELECT
+      TO authenticated
+      USING (customer_id = auth.uid());
+
+    CREATE POLICY "Customers can update own vehicles"
+      ON vehicles FOR UPDATE
+      TO authenticated
+      USING (customer_id = auth.uid())
+      WITH CHECK (customer_id = auth.uid());
+  END IF;
+END
+$do$;
