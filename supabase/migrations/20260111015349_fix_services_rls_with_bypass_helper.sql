@@ -14,6 +14,22 @@
 -- Drop existing admin policy for services
 DROP POLICY IF EXISTS "Shop admins can manage their shop services" ON services;
 
+-- Ensure helper exists (safe to recreate)
+CREATE OR REPLACE FUNCTION is_admin_for_shop(check_shop_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM admins
+    WHERE auth_user_id = auth.uid()
+    AND shop_id = check_shop_id
+    AND is_active = true
+  );
+$$;
+
 DO $do$
 BEGIN
   IF EXISTS (
