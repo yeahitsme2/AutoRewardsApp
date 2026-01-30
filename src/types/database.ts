@@ -91,6 +91,7 @@ export interface Database {
           shop_logo_url: string | null;
           welcome_message: string;
           points_per_dollar: number;
+          tier_thresholds?: Record<string, unknown> | null;
           bronze_points_min: number;
           bronze_multiplier: number;
           silver_points_min: number;
@@ -128,6 +129,7 @@ export interface Database {
           shop_logo_url?: string | null;
           welcome_message?: string;
           points_per_dollar?: number;
+          tier_thresholds?: Record<string, unknown> | null;
           bronze_points_min?: number;
           bronze_multiplier?: number;
           silver_points_min?: number;
@@ -165,6 +167,7 @@ export interface Database {
           shop_logo_url?: string | null;
           welcome_message?: string;
           points_per_dollar?: number;
+          tier_thresholds?: Record<string, unknown> | null;
           bronze_points_min?: number;
           bronze_multiplier?: number;
           silver_points_min?: number;
