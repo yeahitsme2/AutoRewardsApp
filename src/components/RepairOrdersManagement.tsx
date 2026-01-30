@@ -156,17 +156,43 @@ export function RepairOrdersManagement() {
     quantity: 1,
   });
   const [showChat, setShowChat] = useState(false);
+  const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleReload = () => {
+    if (reloadTimerRef.current) return;
+    reloadTimerRef.current = setTimeout(() => {
+      reloadTimerRef.current = null;
+      loadOrders();
+    }, 400);
+  };
 
   useEffect(() => {
     loadOrders();
-    const interval = setInterval(loadOrders, 5000);
     loadCustomers();
     loadVehicles();
     loadMarkupRules();
     loadTaxSettings();
     loadParts();
     loadLocations();
-    return () => clearInterval(interval);
+    const channel = supabase
+      .channel('ro-admin-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'repair_orders' },
+        scheduleReload
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'repair_order_items' },
+        scheduleReload
+      )
+      .subscribe();
+    return () => {
+      channel.unsubscribe();
+      if (reloadTimerRef.current) {
+        clearTimeout(reloadTimerRef.current);
+        reloadTimerRef.current = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
