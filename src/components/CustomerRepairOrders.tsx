@@ -193,6 +193,15 @@ export function CustomerRepairOrders() {
   const handleApprove = async (orderId: string) => {
     try {
       const order = orders.find((o) => o.id === orderId);
+      if (order) {
+        const { error: itemError } = await supabase
+          .from('repair_order_items')
+          .update({ status: 'approved' })
+          .eq('repair_order_id', orderId)
+          .eq('item_type', 'labor')
+          .neq('status', 'declined');
+        if (itemError) throw itemError;
+      }
       const { error } = await supabase
         .from('repair_orders')
         .update({
@@ -394,7 +403,7 @@ export function CustomerRepairOrders() {
                     }`}>
                       {item.status || 'pending'}
                     </span>
-                    {order.status === 'awaiting_approval' && item.status !== 'approved' && item.status !== 'declined' && (
+                    {order.status === 'awaiting_approval' && !item.parent_item_id && item.status !== 'approved' && item.status !== 'declined' && (
                       <div className="mt-2 flex gap-2">
                         <button
                           onClick={() => updateLineItemStatus(order, item.id, 'approved')}
@@ -544,14 +553,14 @@ export function CustomerRepairOrders() {
 
               {order.status === 'awaiting_approval' && (
                 <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => handleApprove(order.id)}
-                    className="flex items-center gap-2 px-4 py-2 text-white rounded-lg"
-                    style={{ backgroundColor: brandSettings.primary_color }}
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                    Approve
-                  </button>
+              <button
+                onClick={() => handleApprove(order.id)}
+                className="flex items-center gap-2 px-4 py-2 text-white rounded-lg"
+                style={{ backgroundColor: brandSettings.primary_color }}
+              >
+                <CheckCircle className="w-4 h-4" />
+                Approve
+              </button>
                   <button
                     onClick={() => handleDecline(order.id)}
                     className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg"
@@ -603,6 +612,8 @@ export function CustomerRepairOrders() {
 
   const updateLineItemStatus = async (order: RepairOrderWithItems, itemId: string, status: 'approved' | 'declined') => {
     try {
+      const item = (order.items || []).find((entry) => entry.id === itemId);
+      if (item?.parent_item_id) return;
       const { error } = await supabase
         .from('repair_order_items')
         .update({ status })
