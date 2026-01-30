@@ -980,6 +980,17 @@ export function TechnicianDashboard() {
           </div>
         </div>
       )}
+
+      {selectedReportId && !drawerOpen && (
+        <button
+          type="button"
+          onClick={() => setDrawerOpen(true)}
+          className="fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-lg"
+        >
+          <ListChecks className="h-4 w-4" />
+          Open panel
+        </button>
+      )}
     </div>
   );
 }
