@@ -113,6 +113,7 @@ export interface Database {
           sms_monthly_allowance?: number | null;
           sms_allow_overage?: boolean | null;
           sms_overage_rate?: number | null;
+          labor_rate?: number | null;
           email_from?: string | null;
           sms_enabled?: boolean | null;
           updated_by: string | null;
@@ -149,6 +150,7 @@ export interface Database {
           sms_monthly_allowance?: number | null;
           sms_allow_overage?: boolean | null;
           sms_overage_rate?: number | null;
+          labor_rate?: number | null;
           email_from?: string | null;
           sms_enabled?: boolean | null;
           updated_by?: string | null;
@@ -185,6 +187,7 @@ export interface Database {
           sms_monthly_allowance?: number | null;
           sms_allow_overage?: boolean | null;
           sms_overage_rate?: number | null;
+          labor_rate?: number | null;
           email_from?: string | null;
           sms_enabled?: boolean | null;
           updated_by?: string | null;

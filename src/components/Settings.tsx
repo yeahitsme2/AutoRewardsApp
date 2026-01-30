@@ -81,6 +81,7 @@ export function Settings() {
     tax_rate: 0,
     taxable_item_types: ['part'],
   });
+  const [laborRate, setLaborRate] = useState(0);
   const [communicationsSettings, setCommunicationsSettings] = useState({
     sms_enabled: false,
     sms_monthly_allowance: 200,
@@ -237,6 +238,7 @@ export function Settings() {
           tax_rate: Number((data as any).tax_rate || 0),
           taxable_item_types: (data as any).taxable_item_types || ['part'],
         });
+        setLaborRate(Number((data as any).labor_rate || 0));
         setCommunicationsSettings({
           sms_enabled: Boolean((data as any).sms_enabled),
           sms_monthly_allowance: Number((data as any).sms_monthly_allowance || 200),
@@ -317,6 +319,7 @@ export function Settings() {
         shop_logo_url: brandSettings.logo_url || null,
         tax_rate: taxSettings.tax_rate,
         taxable_item_types: taxSettings.taxable_item_types,
+        labor_rate: laborRate,
         sms_enabled: communicationsSettings.sms_enabled,
         sms_monthly_allowance: communicationsSettings.sms_monthly_allowance,
         sms_allow_overage: communicationsSettings.sms_allow_overage,
@@ -1120,6 +1123,21 @@ export function Settings() {
               <Wrench className="w-5 h-5 text-slate-700" />
               Repair Order Markup Rules (Parts Only)
             </h4>
+
+            <div className="bg-white border border-slate-200 rounded-lg p-4">
+              <label className="block text-sm font-medium text-slate-700 mb-2">Default Labor Rate ($/hr)</label>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={laborRate}
+                onChange={(e) => setLaborRate(Number(e.target.value || 0))}
+                className="w-full md:w-64 px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+              <p className="text-xs text-slate-500 mt-2">
+                Used to calculate labor totals (hours x rate) for repair orders.
+              </p>
+            </div>
 
             {!markupRulesSupported && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">

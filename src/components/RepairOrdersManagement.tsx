@@ -71,6 +71,7 @@ export function RepairOrdersManagement() {
   const [markupRules, setMarkupRules] = useState<RepairOrderMarkupRule[]>([]);
   const [taxRate, setTaxRate] = useState(0);
   const [taxableTypes, setTaxableTypes] = useState<string[]>(['part']);
+  const [laborRate, setLaborRate] = useState(0);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showNewOrder, setShowNewOrder] = useState(false);
@@ -81,6 +82,8 @@ export function RepairOrdersManagement() {
   const [dviSelected, setDviSelected] = useState<Record<string, boolean>>({});
   const [dviSearch, setDviSearch] = useState('');
   const [dviAvailable, setDviAvailable] = useState(false);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editDrafts, setEditDrafts] = useState<Record<string, Partial<RepairOrderItem>>>({});
   const selectedOrder = useMemo(
     () => orders.find((order) => order.id === selectedOrderId) || null,
     [orders, selectedOrderId]
@@ -186,10 +189,14 @@ export function RepairOrdersManagement() {
       if (prev[selectedOrderId]) return prev;
       return {
         ...prev,
-        [selectedOrderId]: { ...emptyItem, taxable: taxableTypes.includes('part') },
+        [selectedOrderId]: {
+          ...emptyItem,
+          taxable: taxableTypes.includes('part'),
+          unit_price: laborRate,
+        },
       };
     });
-  }, [selectedOrderId, taxableTypes]);
+  }, [selectedOrderId, taxableTypes, laborRate]);
 
 
   const loadOrders = async () => {
@@ -341,14 +348,15 @@ export function RepairOrdersManagement() {
     }
     try {
       const newRows = selectedItems.map((item) => {
-        const unitPriceValue = 0;
+        const unitPriceValue = laborRate;
         return {
           repair_order_id: order.id,
           item_type: 'labor' as RepairOrderItem['item_type'],
           description: `${item.title}${item.notes ? ` - ${item.notes}` : ''}`,
           quantity: 1,
+          labor_hours: null,
           unit_price: unitPriceValue,
-          total: unitPriceValue,
+          total: 0,
           taxable: false,
           source_type: 'dvi',
           source_id: item.id,
@@ -508,7 +516,7 @@ export function RepairOrdersManagement() {
     if (!admin?.shop_id) return;
     const { data, error } = await supabase
       .from('shop_settings')
-      .select('tax_rate, taxable_item_types')
+      .select('tax_rate, taxable_item_types, labor_rate')
       .eq('shop_id', admin.shop_id)
       .maybeSingle();
     if (error) {
@@ -518,6 +526,90 @@ export function RepairOrdersManagement() {
     const settings = data as ShopSettings | null;
     setTaxRate(Number(settings?.tax_rate || 0));
     setTaxableTypes((settings?.taxable_item_types as string[]) || ['part']);
+    setLaborRate(Number(settings?.labor_rate || 0));
+  };
+
+  const startEditItem = (item: RepairOrderItem) => {
+    setEditingItemId(item.id);
+    setEditDrafts((prev) => ({
+      ...prev,
+      [item.id]: {
+        description: item.description,
+        item_type: item.item_type,
+        quantity: item.quantity,
+        labor_hours: item.labor_hours,
+        unit_price: item.unit_price,
+        taxable: item.taxable,
+        parent_item_id: item.parent_item_id || null,
+      },
+    }));
+  };
+
+  const updateEditDraft = (itemId: string, patch: Partial<RepairOrderItem>) => {
+    setEditDrafts((prev) => ({
+      ...prev,
+      [itemId]: { ...prev[itemId], ...patch },
+    }));
+  };
+
+  const cancelEdit = () => {
+    setEditingItemId(null);
+  };
+
+  const saveEdit = async (orderId: string, itemId: string) => {
+    const draft = editDrafts[itemId];
+    if (!draft?.description) {
+      showMessage('error', 'Description is required');
+      return;
+    }
+    const isLabor = draft.item_type === 'labor';
+    const quantityValue = isLabor ? 1 : Number(draft.quantity || 0);
+    if (!Number.isFinite(quantityValue) || quantityValue <= 0) {
+      showMessage('error', 'Quantity must be greater than 0');
+      return;
+    }
+    if (isLabor && (draft.labor_hours === null || draft.labor_hours === undefined)) {
+      showMessage('error', 'Enter labor hours for labor line items');
+      return;
+    }
+    const unitPriceValue = roundToCents(Number(draft.unit_price || 0));
+    const total = roundToCents((isLabor ? Number(draft.labor_hours || 0) : quantityValue) * unitPriceValue);
+
+    try {
+      const { data, error } = await supabase
+        .from('repair_order_items')
+        .update({
+          description: draft.description,
+          quantity: quantityValue,
+          labor_hours: isLabor ? draft.labor_hours : null,
+          unit_price: unitPriceValue,
+          total,
+          taxable: Boolean(draft.taxable),
+          parent_item_id: draft.parent_item_id || null,
+        })
+        .eq('id', itemId)
+        .select('*')
+        .single();
+      if (error) throw error;
+
+      setOrders((prev) =>
+        prev.map((order) => {
+          if (order.id !== orderId) return order;
+          const nextItems = (order.items || []).map((item) => (item.id === itemId ? (data as RepairOrderItem) : item));
+          return { ...order, items: nextItems };
+        })
+      );
+
+      const updatedOrder = orders.find((order) => order.id === orderId);
+      const nextItems = (updatedOrder?.items || []).map((item) => (item.id === itemId ? (data as RepairOrderItem) : item));
+      await updateOrderTotals(orderId, nextItems);
+
+      setEditingItemId(null);
+      showMessage('success', 'Item updated');
+    } catch (error) {
+      console.error('Failed to update line item:', error);
+      showMessage('error', 'Failed to update line item');
+    }
   };
 
   const getMarkupPercent = (cost: number) => {
@@ -734,26 +826,31 @@ export function RepairOrdersManagement() {
     }
 
       try {
-        const quantityValue = Number(draft.quantity);
+        const isLabor = draft.item_type === 'labor';
+        const quantityValue = isLabor ? 1 : Number(draft.quantity);
         if (!Number.isFinite(quantityValue) || quantityValue <= 0) {
           showMessage('error', 'Quantity must be greater than 0');
           return;
         }
+        if (isLabor && (draft.labor_hours === null || draft.labor_hours === undefined)) {
+          showMessage('error', 'Enter labor hours for labor line items');
+          return;
+        }
         const unitPriceValue = roundToCents(Number(draft.unit_price));
-        const total = roundToCents(quantityValue * unitPriceValue);
+        const total = roundToCents((isLabor ? Number(draft.labor_hours || 0) : quantityValue) * unitPriceValue);
         const { data, error } = await supabase
           .from('repair_order_items')
-        .insert({
-          repair_order_id: orderId,
-          item_type: draft.item_type,
-          description: draft.description.trim(),
-          quantity: quantityValue,
-          labor_hours: draft.item_type === 'labor' ? draft.labor_hours : null,
-          unit_price: unitPriceValue,
-          total,
-          taxable: Boolean(draft.taxable),
-          parent_item_id: draft.parent_item_id || null,
-        })
+          .insert({
+            repair_order_id: orderId,
+            item_type: draft.item_type,
+            description: draft.description.trim(),
+            quantity: quantityValue,
+            labor_hours: isLabor ? draft.labor_hours : null,
+            unit_price: unitPriceValue,
+            total,
+            taxable: Boolean(draft.taxable),
+            parent_item_id: draft.parent_item_id || null,
+          })
         .select('*')
         .single();
 
@@ -766,7 +863,10 @@ export function RepairOrdersManagement() {
           return { ...order, items: nextItems };
         })
       );
-      setItemDrafts((prev) => ({ ...prev, [orderId]: { ...emptyItem, taxable: taxableTypes.includes('part') } }));
+      setItemDrafts((prev) => ({
+        ...prev,
+        [orderId]: { ...emptyItem, taxable: taxableTypes.includes('part'), unit_price: laborRate },
+      }));
       const updatedOrder = orders.find((order) => order.id === orderId);
       const nextItems = [...(updatedOrder?.items || []), data as RepairOrderItem];
       await updateOrderTotals(orderId, nextItems);
@@ -1098,37 +1198,207 @@ export function RepairOrdersManagement() {
                     <div className="text-sm text-slate-600">No line items yet.</div>
                   ) : (
                     <div className="space-y-3">
-                      {nestedLineItems.map(({ item, children }) => (
-                        <div key={item.id} className="space-y-2">
-                          <div className="flex items-start justify-between p-3 border border-slate-200 rounded-lg">
-                            <div>
-                              <p className="font-medium text-slate-900">{item.description}</p>
-                              <p className="text-xs text-slate-500">
-                                {item.item_type.toUpperCase()} ? Qty {item.quantity} ? ${item.unit_price.toFixed(2)}
-                                {item.item_type === 'labor' && item.labor_hours !== null && (
-                                  <> ? {item.labor_hours} hrs</>
-                                )}
-                              </p>
-                            </div>
-                            <div className="font-semibold text-slate-900">${item.total.toFixed(2)}</div>
-                          </div>
-                          {children.length > 0 && (
-                            <div className="space-y-2 pl-4 border-l border-slate-200">
-                              {children.map((child) => (
-                                <div key={child.id} className="flex items-start justify-between p-3 border border-slate-200 rounded-lg bg-slate-50">
-                                  <div>
-                                    <p className="font-medium text-slate-900">{child.description}</p>
+                      {nestedLineItems.map(({ item, children }) => {
+                        const isEditing = editingItemId === item.id;
+                        const draft = editDrafts[item.id] || item;
+                        return (
+                          <div key={item.id} className="space-y-2">
+                            <div className="flex items-start justify-between p-3 border border-slate-200 rounded-lg">
+                              <div className="flex-1 space-y-2">
+                                {isEditing ? (
+                                  <>
+                                    <input
+                                      value={String(draft.description || '')}
+                                      onChange={(e) => updateEditDraft(item.id, { description: e.target.value })}
+                                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                    />
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                      {draft.item_type === 'labor' ? (
+                                        <>
+                                          <input
+                                            type="number"
+                                            min={0}
+                                            step="0.1"
+                                            value={draft.labor_hours ?? ''}
+                                            onChange={(e) => updateEditDraft(item.id, { labor_hours: e.target.value === '' ? null : Number(e.target.value) })}
+                                            className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                            placeholder="Labor hrs"
+                                          />
+                                          <input
+                                            type="number"
+                                            min={0}
+                                            step="0.01"
+                                            value={draft.unit_price ?? 0}
+                                            onChange={(e) => updateEditDraft(item.id, { unit_price: Number(e.target.value) })}
+                                            className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                            placeholder="Labor rate"
+                                          />
+                                        </>
+                                      ) : (
+                                        <>
+                                          <input
+                                            type="number"
+                                            min={0.01}
+                                            step="0.01"
+                                            value={draft.quantity ?? 1}
+                                            onChange={(e) => updateEditDraft(item.id, { quantity: Number(e.target.value) })}
+                                            className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                            placeholder="Qty"
+                                          />
+                                          <input
+                                            type="number"
+                                            min={0}
+                                            step="0.01"
+                                            value={draft.unit_price ?? 0}
+                                            onChange={(e) => updateEditDraft(item.id, { unit_price: Number(e.target.value) })}
+                                            className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                            placeholder="Unit price"
+                                          />
+                                          <select
+                                            value={draft.parent_item_id || ''}
+                                            onChange={(e) => updateEditDraft(item.id, { parent_item_id: e.target.value || null })}
+                                            className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                          >
+                                            <option value="">Attach to labor line (optional)</option>
+                                            {laborLineItems.map((labor) => (
+                                              <option key={labor.id} value={labor.id}>{labor.description}</option>
+                                            ))}
+                                          </select>
+                                        </>
+                                      )}
+                                    </div>
+                                    <label className="flex items-center gap-2 text-xs text-slate-600">
+                                      <input
+                                        type="checkbox"
+                                        checked={Boolean(draft.taxable)}
+                                        onChange={(e) => updateEditDraft(item.id, { taxable: e.target.checked })}
+                                      />
+                                      Taxable
+                                    </label>
+                                  </>
+                                ) : (
+                                  <>
+                                    <p className="font-medium text-slate-900">{item.description}</p>
                                     <p className="text-xs text-slate-500">
-                                      {child.item_type.toUpperCase()} ? Qty {child.quantity} ? ${child.unit_price.toFixed(2)}
+                                      {item.item_type.toUpperCase()} - {item.item_type === 'labor' ? `${item.labor_hours ?? 0} hrs` : `Qty ${item.quantity}`} - $${item.unit_price.toFixed(2)}
                                     </p>
+                                  </>
+                                )}
+                              </div>
+                              <div className="flex flex-col items-end gap-2">
+                                <div className="font-semibold text-slate-900">$${item.total.toFixed(2)}</div>
+                                {isEditing ? (
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => saveEdit(selectedOrder.id, item.id)}
+                                      className="px-3 py-1 text-xs rounded-lg border border-slate-300"
+                                    >
+                                      Save
+                                    </button>
+                                    <button
+                                      onClick={cancelEdit}
+                                      className="px-3 py-1 text-xs rounded-lg border border-slate-200 text-slate-500"
+                                    >
+                                      Cancel
+                                    </button>
                                   </div>
-                                  <div className="font-semibold text-slate-900">${child.total.toFixed(2)}</div>
-                                </div>
-                              ))}
+                                ) : (
+                                  <button
+                                    onClick={() => startEditItem(item)}
+                                    className="px-3 py-1 text-xs rounded-lg border border-slate-300"
+                                  >
+                                    Edit
+                                  </button>
+                                )}
+                              </div>
                             </div>
-                          )}
-                        </div>
-                      ))}
+                            {children.length > 0 && (
+                              <div className="space-y-2 pl-4 border-l border-slate-200">
+                                {children.map((child) => {
+                                  const isChildEditing = editingItemId === child.id;
+                                  const childDraft = editDrafts[child.id] || child;
+                                  return (
+                                    <div key={child.id} className="flex items-start justify-between p-3 border border-slate-200 rounded-lg bg-slate-50">
+                                      <div className="flex-1 space-y-2">
+                                        {isChildEditing ? (
+                                          <>
+                                            <input
+                                              value={String(childDraft.description || '')}
+                                              onChange={(e) => updateEditDraft(child.id, { description: e.target.value })}
+                                              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                            />
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                              <input
+                                                type="number"
+                                                min={0.01}
+                                                step="0.01"
+                                                value={childDraft.quantity ?? 1}
+                                                onChange={(e) => updateEditDraft(child.id, { quantity: Number(e.target.value) })}
+                                                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                                placeholder="Qty"
+                                              />
+                                              <input
+                                                type="number"
+                                                min={0}
+                                                step="0.01"
+                                                value={childDraft.unit_price ?? 0}
+                                                onChange={(e) => updateEditDraft(child.id, { unit_price: Number(e.target.value) })}
+                                                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                                placeholder="Unit price"
+                                              />
+                                              <select
+                                                value={childDraft.parent_item_id || ''}
+                                                onChange={(e) => updateEditDraft(child.id, { parent_item_id: e.target.value || null })}
+                                                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                              >
+                                                <option value="">Attach to labor line (optional)</option>
+                                                {laborLineItems.map((labor) => (
+                                                  <option key={labor.id} value={labor.id}>{labor.description}</option>
+                                                ))}
+                                              </select>
+                                            </div>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <p className="font-medium text-slate-900">{child.description}</p>
+                                            <p className="text-xs text-slate-500">{child.item_type.toUpperCase()} - Qty {child.quantity} - $${child.unit_price.toFixed(2)}</p>
+                                          </>
+                                        )}
+                                      </div>
+                                      <div className="flex flex-col items-end gap-2">
+                                        <div className="font-semibold text-slate-900">$${child.total.toFixed(2)}</div>
+                                        {isChildEditing ? (
+                                          <div className="flex gap-2">
+                                            <button
+                                              onClick={() => saveEdit(selectedOrder.id, child.id)}
+                                              className="px-3 py-1 text-xs rounded-lg border border-slate-300"
+                                            >
+                                              Save
+                                            </button>
+                                            <button
+                                              onClick={cancelEdit}
+                                              className="px-3 py-1 text-xs rounded-lg border border-slate-200 text-slate-500"
+                                            >
+                                              Cancel
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <button
+                                            onClick={() => startEditItem(child)}
+                                            className="px-3 py-1 text-xs rounded-lg border border-slate-300"
+                                          >
+                                            Edit
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -1238,7 +1508,9 @@ export function RepairOrdersManagement() {
                           [selectedOrder.id]: {
                             ...(prev[selectedOrder.id] || emptyItem),
                             item_type: e.target.value as RepairOrderItem['item_type'],
-                            unit_price: e.target.value === 'part'
+                            unit_price: e.target.value === 'labor'
+                              ? laborRate
+                              : e.target.value === 'part'
                               ? (() => {
                                 const costValue = Number((prev[selectedOrder.id] || emptyItem).cost || 0);
                                 const markup = getMarkupPercent(costValue);
@@ -1266,20 +1538,23 @@ export function RepairOrdersManagement() {
                       placeholder="Description"
                         className="border border-slate-300 rounded-lg px-3 py-2 text-sm md:col-span-2"
                     />
-                      <input
-                        type="number"
-                        min={0.01}
-                        step="0.01"
-                        value={(itemDrafts[selectedOrder.id] || emptyItem).quantity}
-                        onChange={(e) => setItemDrafts((prev) => ({
-                          ...prev,
-                          [selectedOrder.id]: {
-                            ...(prev[selectedOrder.id] || emptyItem),
-                            quantity: Number.parseFloat(e.target.value || '0'),
-                          },
-                        }))}
-                        className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                      />
+                      {(itemDrafts[selectedOrder.id] || emptyItem).item_type !== 'labor' && (
+                        <input
+                          type="number"
+                          min={0.01}
+                          step="0.01"
+                          value={(itemDrafts[selectedOrder.id] || emptyItem).quantity}
+                          onChange={(e) => setItemDrafts((prev) => ({
+                            ...prev,
+                            [selectedOrder.id]: {
+                              ...(prev[selectedOrder.id] || emptyItem),
+                              quantity: Number.parseFloat(e.target.value || '0'),
+                            },
+                          }))}
+                          className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                          placeholder="Qty"
+                        />
+                      )}
                       {(itemDrafts[selectedOrder.id] || emptyItem).item_type === 'labor' && (
                         <input
                           type="number"
