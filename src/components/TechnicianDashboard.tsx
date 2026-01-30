@@ -176,13 +176,6 @@ export function TechnicianDashboard() {
   }, [admin?.shop_id]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (window.matchMedia('(min-width: 1024px)').matches) {
-      setDrawerOpen(true);
-    }
-  }, []);
-
-  useEffect(() => {
     if (!selectedReportId) return;
     loadReportItems(selectedReportId);
     loadReportMedia(selectedReportId);
@@ -286,8 +279,8 @@ export function TechnicianDashboard() {
       setReports((data || []) as DviReport[]);
       await loadReportItemCounts((data || []) as DviReport[]);
       if (!selectedReportId && data && data.length > 0) {
-        setSelectedReportId(data[0].id);
-        setSelectedRoId(data[0].repair_order_id);
+        setSelectedReportId(null);
+        setSelectedRoId(null);
       }
     } catch (error) {
       console.error('Failed to load reports:', error);
