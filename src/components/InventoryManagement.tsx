@@ -1358,28 +1358,34 @@ export function InventoryManagement() {
                     <option key={part.id} value={part.id}>{part.name}</option>
                   ))}
                 </select>
-                <input
-                  type="number"
-                  value={line.quantity}
-                  onChange={(e) => {
-                    const next = [...poLines];
-                    next[idx] = { ...line, quantity: Number(e.target.value) };
-                    setPoLines(next);
-                  }}
-                  placeholder="Qty"
-                  className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                />
-                <input
-                  type="number"
-                  value={line.unit_cost}
-                  onChange={(e) => {
-                    const next = [...poLines];
-                    next[idx] = { ...line, unit_cost: Number(e.target.value) };
-                    setPoLines(next);
-                  }}
-                  placeholder="Unit cost"
-                  className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                />
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-500">Quantity</label>
+                  <input
+                    type="number"
+                    value={line.quantity}
+                    onChange={(e) => {
+                      const next = [...poLines];
+                      next[idx] = { ...line, quantity: Number(e.target.value) };
+                      setPoLines(next);
+                    }}
+                    placeholder="0"
+                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm w-full"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-500">Unit Cost</label>
+                  <input
+                    type="number"
+                    value={line.unit_cost}
+                    onChange={(e) => {
+                      const next = [...poLines];
+                      next[idx] = { ...line, unit_cost: Number(e.target.value) };
+                      setPoLines(next);
+                    }}
+                    placeholder="0.00"
+                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm w-full"
+                  />
+                </div>
                 <button
                   onClick={() => setPoLines(poLines.filter((_, lineIdx) => lineIdx !== idx))}
                   className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
@@ -1595,13 +1601,16 @@ export function InventoryManagement() {
                   <option key={loc.id} value={loc.id}>{loc.name}</option>
                 ))}
               </select>
-              <input
-                type="number"
-                value={stockAdjustment.quantity}
-                onChange={(e) => setStockAdjustment({ ...stockAdjustment, quantity: Number(e.target.value) })}
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                placeholder="+/- qty"
-              />
+              <div className="space-y-1">
+                <label className="text-xs text-slate-500">Adjustment Qty</label>
+                <input
+                  type="number"
+                  value={stockAdjustment.quantity}
+                  onChange={(e) => setStockAdjustment({ ...stockAdjustment, quantity: Number(e.target.value) })}
+                  className="px-3 py-2 border border-slate-300 rounded-lg text-sm w-full"
+                  placeholder="+/- qty"
+                />
+              </div>
               <button
                 onClick={handleAdjustStock}
                 className="flex items-center gap-2 px-4 py-2 text-white rounded-lg"
