@@ -33,12 +33,44 @@ export function CustomerRepairOrders() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const prevOrderIdsRef = useRef<Set<string>>(new Set());
   const prevStatusRef = useRef<Record<string, RepairOrder['status']>>({});
+  const expandedOrdersKey = `drewards_customer_ro_expanded_${customer?.id || 'anon'}`;
+  const expandedDviKey = `drewards_customer_dvi_expanded_${customer?.id || 'anon'}`;
 
   useEffect(() => {
     loadOrders();
     const interval = setInterval(loadOrders, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (!customer) return;
+    const storedOrders = localStorage.getItem(expandedOrdersKey);
+    const storedDvi = localStorage.getItem(expandedDviKey);
+    if (storedOrders) {
+      try {
+        setExpandedOrders(JSON.parse(storedOrders));
+      } catch {
+        setExpandedOrders({});
+      }
+    }
+    if (storedDvi) {
+      try {
+        setExpandedDviReports(JSON.parse(storedDvi));
+      } catch {
+        setExpandedDviReports({});
+      }
+    }
+  }, [customer, expandedOrdersKey, expandedDviKey]);
+
+  useEffect(() => {
+    if (!customer) return;
+    localStorage.setItem(expandedOrdersKey, JSON.stringify(expandedOrders));
+  }, [expandedOrders, customer, expandedOrdersKey]);
+
+  useEffect(() => {
+    if (!customer) return;
+    localStorage.setItem(expandedDviKey, JSON.stringify(expandedDviReports));
+  }, [expandedDviReports, customer, expandedDviKey]);
 
   useEffect(() => {
     if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
