@@ -25,8 +25,8 @@ BEGIN
   VALUES (NEW.shop_id, NEW.id, NEW.customer_id, NEW.vehicle_id, v_template_id, 'draft')
   RETURNING id INTO v_report_id;
 
-  INSERT INTO dvi_report_items (report_id, template_item_id, condition)
-  SELECT v_report_id, id, 'green'
+  INSERT INTO dvi_report_items (report_id, template_item_id, item_title, condition)
+  SELECT v_report_id, id, title, 'green'
   FROM dvi_template_items
   WHERE section_id IN (
     SELECT id FROM dvi_template_sections WHERE template_id = v_template_id

@@ -1320,6 +1320,7 @@ export interface Database {
             recommendation_status: string | null;
             suggested_for_template: boolean | null;
             repair_order_item_id: string | null;
+            item_title: string | null;
             is_custom: boolean;
             custom_title: string | null;
             custom_description: string | null;
@@ -1338,6 +1339,7 @@ export interface Database {
             recommendation_status?: string | null;
             suggested_for_template?: boolean | null;
             repair_order_item_id?: string | null;
+            item_title?: string | null;
             is_custom?: boolean;
             custom_title?: string | null;
             custom_description?: string | null;
@@ -1356,6 +1358,7 @@ export interface Database {
             recommendation_status?: string | null;
             suggested_for_template?: boolean | null;
             repair_order_item_id?: string | null;
+            item_title?: string | null;
             is_custom?: boolean;
             custom_title?: string | null;
             custom_description?: string | null;

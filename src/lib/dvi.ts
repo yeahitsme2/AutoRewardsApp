@@ -15,6 +15,7 @@ export function buildReportItems(reportId: string, template: TemplateWithSection
       report_id: reportId,
       template_item_id: item.id,
       condition: 'green' as const,
+      item_title: item.title,
       recommendation: item.default_recommendation || null,
     }))
   );

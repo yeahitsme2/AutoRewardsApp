@@ -27,7 +27,6 @@ export function CustomerRepairOrders() {
   const [dviItems, setDviItems] = useState<Record<string, DviReportItem[]>>({});
   const [dviMedia, setDviMedia] = useState<Record<string, DviItemMedia[]>>({});
   const [dviMediaUrls, setDviMediaUrls] = useState<Record<string, string>>({});
-  const [templateItemTitles, setTemplateItemTitles] = useState<Record<string, string>>({});
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
   const [expandedDviReports, setExpandedDviReports] = useState<Record<string, boolean>>({});
   const [expandedChat, setExpandedChat] = useState<Record<string, boolean>>({});
@@ -36,6 +35,7 @@ export function CustomerRepairOrders() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const prevOrderIdsRef = useRef<Set<string>>(new Set());
   const prevStatusRef = useRef<Record<string, RepairOrder['status']>>({});
+  const mediaUrlRef = useRef<Record<string, string>>({});
 
   useEffect(() => {
     loadOrders();
@@ -110,23 +110,6 @@ export function CustomerRepairOrders() {
       if (reportItemError) throw reportItemError;
 
       const reportItemList = (reportItemRows || []) as DviReportItem[];
-      const templateItemIds = reportItemList
-        .map((item) => item.template_item_id)
-        .filter(Boolean) as string[];
-      if (templateItemIds.length > 0) {
-        const { data: templateRows, error: templateError } = await supabase
-          .from('dvi_template_items')
-          .select('id, title')
-          .in('id', templateItemIds);
-        if (templateError) throw templateError;
-        const templateMap: Record<string, string> = {};
-        (templateRows || []).forEach((row) => {
-          templateMap[row.id] = row.title;
-        });
-        setTemplateItemTitles(templateMap);
-      } else {
-        setTemplateItemTitles({});
-      }
       const reportItemIds = reportItemList.map((item) => item.id);
       const { data: mediaRows, error: mediaError } = await supabase
         .from('dvi_item_media')
@@ -149,9 +132,10 @@ export function CustomerRepairOrders() {
         if (!mediaMap[media.report_item_id]) mediaMap[media.report_item_id] = [];
         mediaMap[media.report_item_id].push(media as DviItemMedia);
       });
-      const mediaUrlMap: Record<string, string> = {};
+      const mediaUrlMap: Record<string, string> = { ...mediaUrlRef.current };
+      const missingMedia = (mediaRows || []).filter((media) => !mediaUrlMap[media.id]);
       await Promise.all(
-        (mediaRows || []).map(async (media) => {
+        missingMedia.map(async (media) => {
           const { data: signed } = await supabase.storage
             .from('dvi-attachments')
             .createSignedUrl(media.storage_path, 3600);
@@ -189,6 +173,7 @@ export function CustomerRepairOrders() {
       setDviReports(reportMap);
       setDviItems(itemMap);
       setDviMedia(mediaMap);
+      mediaUrlRef.current = mediaUrlMap;
       setDviMediaUrls(mediaUrlMap);
     } catch (error) {
       console.error('Error loading repair orders:', error);
@@ -278,7 +263,7 @@ export function CustomerRepairOrders() {
   const getMediaForItem = (itemId: string) => dviMedia[itemId] || [];
   const getItemTitle = (item: DviReportItem) =>
     item.custom_title
-    || (item.template_item_id ? templateItemTitles[item.template_item_id] : null)
+    || item.item_title
     || item.recommendation
     || 'Inspection finding';
 
@@ -424,17 +409,28 @@ export function CustomerRepairOrders() {
                                     }
                                     if (media.mime_type?.startsWith('image/')) {
                                       return (
-                                        <img
+                                        <button
                                           key={media.id}
-                                          src={mediaUrl}
-                                          alt={media.file_name}
-                                          className="w-20 h-20 rounded-lg object-cover border border-slate-200"
-                                        />
+                                          type="button"
+                                          onClick={() => window.open(mediaUrl, '_blank')}
+                                          className="block"
+                                        >
+                                          <img
+                                            src={mediaUrl}
+                                            alt={media.file_name}
+                                            className="w-20 h-20 rounded-lg object-cover border border-slate-200"
+                                          />
+                                        </button>
                                       );
                                     }
                                     if (media.mime_type?.startsWith('video/')) {
                                       return (
-                                        <video key={media.id} src={mediaUrl} controls className="w-32 h-20 rounded-lg border border-slate-200" />
+                                        <video
+                                          key={media.id}
+                                          src={mediaUrl}
+                                          controls
+                                          className="w-32 h-20 rounded-lg border border-slate-200"
+                                        />
                                       );
                                     }
                                     if (media.mime_type?.startsWith('audio/')) {
