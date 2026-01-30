@@ -71,6 +71,18 @@ export function RepairOrdersManagement() {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showNewOrder, setShowNewOrder] = useState(false);
+  const openOrders = useMemo(
+    () => orders.filter((order) => order.status !== 'closed' && order.status !== 'inspection_complete'),
+    [orders]
+  );
+  const inspectionCompleteOrders = useMemo(
+    () => orders.filter((order) => order.status === 'inspection_complete'),
+    [orders]
+  );
+  const pastOrders = useMemo(
+    () => orders.filter((order) => order.status === 'closed'),
+    [orders]
+  );
   const [newOrder, setNewOrder] = useState({
     customer_id: '',
     vehicle_id: '',
@@ -644,13 +656,19 @@ export function RepairOrdersManagement() {
             className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
           >
             <option value="">Open Repair Orders</option>
-            {orders
-              .filter((order) => order.status !== 'closed')
-              .map((order) => (
-                <option key={order.id} value={order.id}>
-                  {order.ro_number}
-                </option>
-              ))}
+            {openOrders.map((order) => (
+              <option key={order.id} value={order.id}>
+                {order.ro_number}
+              </option>
+            ))}
+            {inspectionCompleteOrders.length > 0 && (
+              <option disabled>— Inspection Complete —</option>
+            )}
+            {inspectionCompleteOrders.map((order) => (
+              <option key={order.id} value={order.id}>
+                {order.ro_number}
+              </option>
+            ))}
             <option value="__new__">+ Create New RO</option>
           </select>
         </div>
@@ -733,30 +751,98 @@ export function RepairOrdersManagement() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="space-y-4 lg:col-span-1">
-            {orders.map((order) => (
-              <button
-                key={order.id}
-                onClick={() => handleSelectOrder(order.id)}
-                className={`w-full text-left rounded-xl border p-4 transition-colors ${
-                  order.id === selectedOrderId ? 'border-slate-400 bg-slate-50' : 'border-slate-200 bg-white hover:bg-slate-50'
-                }`}
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="font-semibold text-slate-900">{order.ro_number}</p>
-                    <p className="text-sm text-slate-600">{getCustomerLabel(order.customer)}</p>
-                    <p className="text-xs text-slate-500">{getVehicleLabel(order.vehicle)}</p>
+            <div className="space-y-3">
+              <div className="text-xs uppercase tracking-[0.3em] text-slate-400">Open</div>
+              {openOrders.length === 0 && (
+                <p className="text-sm text-slate-500">No open repair orders.</p>
+              )}
+              {openOrders.map((order) => (
+                <button
+                  key={order.id}
+                  onClick={() => handleSelectOrder(order.id)}
+                  className={`w-full text-left rounded-xl border p-4 transition-colors ${
+                    order.id === selectedOrderId ? 'border-slate-400 bg-slate-50' : 'border-slate-200 bg-white hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="font-semibold text-slate-900">{order.ro_number}</p>
+                      <p className="text-sm text-slate-600">{getCustomerLabel(order.customer)}</p>
+                      <p className="text-xs text-slate-500">{getVehicleLabel(order.vehicle)}</p>
+                    </div>
+                    <span className={`text-xs px-2 py-1 rounded-full ${statusStyles[order.status].bg} ${statusStyles[order.status].text}`}>
+                      {statusLabels[order.status]}
+                    </span>
                   </div>
-                  <span className={`text-xs px-2 py-1 rounded-full ${statusStyles[order.status].bg} ${statusStyles[order.status].text}`}>
-                    {statusLabels[order.status]}
-                  </span>
-                </div>
-                <div className="mt-3 flex items-center gap-2 text-sm text-slate-700">
-                  <DollarSign className="w-4 h-4" />
-                  ${order.grand_total.toFixed(2)}
-                </div>
-              </button>
-            ))}
+                  <div className="mt-3 flex items-center gap-2 text-sm text-slate-700">
+                    <DollarSign className="w-4 h-4" />
+                    ${order.grand_total.toFixed(2)}
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <div className="space-y-3">
+              <div className="text-xs uppercase tracking-[0.3em] text-slate-400">Inspection Complete</div>
+              {inspectionCompleteOrders.length === 0 && (
+                <p className="text-sm text-slate-500">No inspections completed yet.</p>
+              )}
+              {inspectionCompleteOrders.map((order) => (
+                <button
+                  key={order.id}
+                  onClick={() => handleSelectOrder(order.id)}
+                  className={`w-full text-left rounded-xl border p-4 transition-colors ${
+                    order.id === selectedOrderId ? 'border-slate-400 bg-slate-50' : 'border-slate-200 bg-white hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="font-semibold text-slate-900">{order.ro_number}</p>
+                      <p className="text-sm text-slate-600">{getCustomerLabel(order.customer)}</p>
+                      <p className="text-xs text-slate-500">{getVehicleLabel(order.vehicle)}</p>
+                    </div>
+                    <span className={`text-xs px-2 py-1 rounded-full ${statusStyles[order.status].bg} ${statusStyles[order.status].text}`}>
+                      {statusLabels[order.status]}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex items-center gap-2 text-sm text-slate-700">
+                    <DollarSign className="w-4 h-4" />
+                    ${order.grand_total.toFixed(2)}
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <div className="space-y-3">
+              <div className="text-xs uppercase tracking-[0.3em] text-slate-400">Past (Closed)</div>
+              {pastOrders.length === 0 && (
+                <p className="text-sm text-slate-500">No closed repair orders.</p>
+              )}
+              {pastOrders.map((order) => (
+                <button
+                  key={order.id}
+                  onClick={() => handleSelectOrder(order.id)}
+                  className={`w-full text-left rounded-xl border p-4 transition-colors ${
+                    order.id === selectedOrderId ? 'border-slate-400 bg-slate-50' : 'border-slate-200 bg-white hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="font-semibold text-slate-900">{order.ro_number}</p>
+                      <p className="text-sm text-slate-600">{getCustomerLabel(order.customer)}</p>
+                      <p className="text-xs text-slate-500">{getVehicleLabel(order.vehicle)}</p>
+                    </div>
+                    <span className={`text-xs px-2 py-1 rounded-full ${statusStyles[order.status].bg} ${statusStyles[order.status].text}`}>
+                      {statusLabels[order.status]}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex items-center gap-2 text-sm text-slate-700">
+                    <DollarSign className="w-4 h-4" />
+                    ${order.grand_total.toFixed(2)}
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 lg:col-span-2">
