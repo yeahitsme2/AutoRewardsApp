@@ -856,6 +856,9 @@ export interface Database {
           unit_price: number;
           total: number;
           taxable: boolean;
+          source_type: string | null;
+          source_id: string | null;
+          metadata: Record<string, unknown> | null;
           created_at: string;
         };
         Insert: {
@@ -867,6 +870,9 @@ export interface Database {
           unit_price: number;
           total?: number;
           taxable?: boolean;
+          source_type?: string | null;
+          source_id?: string | null;
+          metadata?: Record<string, unknown> | null;
           created_at?: string;
         };
         Update: {
@@ -878,6 +884,9 @@ export interface Database {
           unit_price?: number;
           total?: number;
           taxable?: boolean;
+          source_type?: string | null;
+          source_id?: string | null;
+          metadata?: Record<string, unknown> | null;
           created_at?: string;
         };
       };

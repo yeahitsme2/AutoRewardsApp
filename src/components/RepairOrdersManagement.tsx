@@ -2,12 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
-import { AlertCircle, CheckCircle, ClipboardList, DollarSign, Plus, Save, User, Car, X, MessageSquare, Boxes } from 'lucide-react';
+import { AlertCircle, CheckCircle, ClipboardList, DollarSign, Plus, Save, User, Car, X, MessageSquare, Boxes, AlertTriangle, Camera, Mic, Video } from 'lucide-react';
 import { ChatThread } from './ChatThread';
 import { logAuditEvent } from '../lib/audit';
 import { logOutboundMessage } from '../lib/messaging';
 import { consumeReservedParts as consumeReservedPartsAction, reservePart as reservePartAction } from '../lib/inventory';
-import type { Customer, Part, RepairOrder, RepairOrderItem, RepairOrderMarkupRule, RepairOrderPartReservation, ShopLocation, ShopSettings, Vehicle } from '../types/database';
+import { buildMediaCounts, buildRecommendations, selectLatestReport, type DviRecommendation } from '../lib/dviRecommendations';
+import type { Customer, DviItemMedia, DviReport, DviReportItem, Part, RepairOrder, RepairOrderItem, RepairOrderMarkupRule, RepairOrderPartReservation, ShopLocation, ShopSettings, Vehicle } from '../types/database';
 
 interface RepairOrderWithDetails extends RepairOrder {
   customer?: Customer;
@@ -71,6 +72,13 @@ export function RepairOrdersManagement() {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showNewOrder, setShowNewOrder] = useState(false);
+  const [dviModalOpen, setDviModalOpen] = useState(false);
+  const [dviLoading, setDviLoading] = useState(false);
+  const [dviReportStatus, setDviReportStatus] = useState<'published' | 'draft' | null>(null);
+  const [dviRecommendations, setDviRecommendations] = useState<{ priority: DviRecommendation[]; future: DviRecommendation[] } | null>(null);
+  const [dviSelected, setDviSelected] = useState<Record<string, boolean>>({});
+  const [dviSearch, setDviSearch] = useState('');
+  const [dviAvailable, setDviAvailable] = useState(false);
   const openOrders = useMemo(
     () => orders.filter((order) => order.status !== 'closed' && order.status !== 'inspection_complete'),
     [orders]
@@ -83,6 +91,29 @@ export function RepairOrdersManagement() {
     () => orders.filter((order) => order.status === 'closed'),
     [orders]
   );
+  const filteredPriority = useMemo(() => {
+    if (!dviRecommendations) return [];
+    if (!dviSearch.trim()) return dviRecommendations.priority;
+    const term = dviSearch.toLowerCase();
+    return dviRecommendations.priority.filter((item) =>
+      item.title.toLowerCase().includes(term) || (item.notes || '').toLowerCase().includes(term)
+    );
+  }, [dviRecommendations, dviSearch]);
+
+  const filteredFuture = useMemo(() => {
+    if (!dviRecommendations) return [];
+    if (!dviSearch.trim()) return dviRecommendations.future;
+    const term = dviSearch.toLowerCase();
+    return dviRecommendations.future.filter((item) =>
+      item.title.toLowerCase().includes(term) || (item.notes || '').toLowerCase().includes(term)
+    );
+  }, [dviRecommendations, dviSearch]);
+
+  const selectedCount = useMemo(() => {
+    if (!dviRecommendations) return 0;
+    const items = [...dviRecommendations.priority, ...dviRecommendations.future];
+    return items.filter((item) => dviSelected[item.id] && !item.alreadyAdded).length;
+  }, [dviRecommendations, dviSelected]);
   const [newOrder, setNewOrder] = useState({
     customer_id: '',
     vehicle_id: '',
@@ -105,6 +136,14 @@ export function RepairOrdersManagement() {
     loadParts();
     loadLocations();
   }, []);
+
+  useEffect(() => {
+    if (!selectedOrderId) {
+      setDviAvailable(false);
+      return;
+    }
+    checkDviAvailability(selectedOrderId);
+  }, [selectedOrderId]);
 
   useEffect(() => {
     if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
@@ -193,6 +232,133 @@ export function RepairOrdersManagement() {
       console.error('Error loading repair orders:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkDviAvailability = async (orderId: string) => {
+    try {
+      setDviAvailable(false);
+      const { data, error } = await supabase
+        .from('dvi_reports')
+        .select('id,status,created_at')
+        .eq('repair_order_id', orderId)
+        .order('created_at', { ascending: false })
+        .limit(5);
+      if (error) throw error;
+      setDviAvailable((data || []).length > 0);
+    } catch (error) {
+      console.error('Failed to check DVI availability:', error);
+      setDviAvailable(false);
+    }
+  };
+
+  const loadDviRecommendations = async (order: RepairOrderWithDetails) => {
+    setDviLoading(true);
+    try {
+      const { data: reports, error: reportError } = await supabase
+        .from('dvi_reports')
+        .select('*')
+        .eq('repair_order_id', order.id)
+        .order('created_at', { ascending: false })
+        .limit(5);
+      if (reportError) throw reportError;
+      const report = selectLatestReport((reports || []) as DviReport[]);
+      if (!report) {
+        setDviRecommendations(null);
+        setDviReportStatus(null);
+        setDviAvailable(false);
+        return;
+      }
+      setDviAvailable(true);
+      setDviReportStatus(report.status === 'published' ? 'published' : 'draft');
+
+      const { data: items, error: itemsError } = await supabase
+        .from('dvi_report_items')
+        .select('*')
+        .eq('report_id', report.id)
+        .order('created_at', { ascending: true });
+      if (itemsError) throw itemsError;
+
+      const reportItems = (items || []) as DviReportItem[];
+      const itemIds = reportItems.map((item) => item.id);
+
+      const { data: mediaRows, error: mediaError } = await supabase
+        .from('dvi_item_media')
+        .select('*')
+        .in('report_item_id', itemIds.length > 0 ? itemIds : ['00000000-0000-0000-0000-000000000000']);
+      if (mediaError) throw mediaError;
+      const mediaCounts = buildMediaCounts((mediaRows || []) as DviItemMedia[]);
+
+      const { data: existingRows, error: existingError } = await supabase
+        .from('repair_order_items')
+        .select('source_id')
+        .eq('repair_order_id', order.id)
+        .eq('source_type', 'dvi');
+      if (existingError) throw existingError;
+      const existingIds = new Set((existingRows || []).map((row) => row.source_id).filter(Boolean) as string[]);
+
+      const grouped = buildRecommendations(report.id, reportItems, mediaCounts, existingIds);
+      setDviRecommendations(grouped);
+      setDviSelected({});
+    } catch (error) {
+      console.error('Failed to load DVI recommendations:', error);
+      setDviRecommendations(null);
+    } finally {
+      setDviLoading(false);
+    }
+  };
+
+  const handleAddDviItems = async (order: RepairOrderWithDetails) => {
+    if (!dviRecommendations) return;
+    const selectedItems = [...dviRecommendations.priority, ...dviRecommendations.future]
+      .filter((item) => dviSelected[item.id] && !item.alreadyAdded);
+    if (selectedItems.length === 0) {
+      showMessage('error', 'Select at least one recommendation');
+      return;
+    }
+    try {
+      const newRows = selectedItems.map((item) => {
+        const unitPriceValue = 0;
+        return {
+          repair_order_id: order.id,
+          item_type: 'labor' as RepairOrderItem['item_type'],
+          description: `${item.title}${item.notes ? ` - ${item.notes}` : ''}`,
+          quantity: 1,
+          unit_price: unitPriceValue,
+          total: unitPriceValue,
+          taxable: false,
+          source_type: 'dvi',
+          source_id: item.id,
+          metadata: {
+            dvi_report_id: item.reportId,
+            condition: item.condition,
+            recommendation_status: item.recommendationStatus,
+          },
+        };
+      });
+      const { data, error } = await supabase
+        .from('repair_order_items')
+        .insert(newRows)
+        .select('*');
+      if (error) throw error;
+
+      setOrders((prev) =>
+        prev.map((current) => {
+          if (current.id !== order.id) return current;
+          return { ...current, items: [...(current.items || []), ...((data || []) as RepairOrderItem[])] };
+        })
+      );
+
+      const updatedOrder = orders.find((current) => current.id === order.id);
+      const nextItems = [...(updatedOrder?.items || []), ...((data || []) as RepairOrderItem[])];
+      await updateOrderTotals(order.id, nextItems);
+
+      showMessage('success', `Added ${selectedItems.length} items from DVI`);
+      setDviModalOpen(false);
+      setDviSelected({});
+    } catch (error) {
+      console.error('Failed to add DVI items:', error);
+      showMessage('error', 'Failed to add DVI items');
     }
   };
 
@@ -884,7 +1050,25 @@ export function RepairOrdersManagement() {
                 )}
 
                 <div className="space-y-3">
-                  <h4 className="font-semibold text-slate-900">Line Items</h4>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h4 className="font-semibold text-slate-900">Line Items</h4>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!selectedOrder) return;
+                        setDviModalOpen(true);
+                        loadDviRecommendations(selectedOrder);
+                      }}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm border ${
+                        dviAvailable ? 'border-slate-300 text-slate-700' : 'border-slate-200 text-slate-400 cursor-not-allowed'
+                      }`}
+                      disabled={!dviAvailable}
+                      title={dviAvailable ? 'Import items from the latest DVI' : 'No DVI recommendations available'}
+                    >
+                      <ClipboardCheck className="w-4 h-4" />
+                      DVI Recommendations
+                    </button>
+                  </div>
                   {(selectedOrder.items || []).length === 0 ? (
                     <div className="text-sm text-slate-600">No line items yet.</div>
                   ) : (
@@ -1152,6 +1336,182 @@ export function RepairOrdersManagement() {
                   </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {dviModalOpen && selectedOrder && (
+        <div className="fixed inset-0 z-50 flex items-end lg:items-center justify-center bg-black/40 p-4">
+          <div className="bg-white w-full max-w-3xl rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex items-start justify-between p-5 border-b border-slate-200">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">DVI Recommendations</h3>
+                <p className="text-xs text-slate-500">Select recommended work to import into this repair order.</p>
+                {dviReportStatus === 'draft' && (
+                  <span className="inline-flex mt-2 px-2 py-1 rounded-full bg-amber-100 text-amber-700 text-xs">
+                    Draft DVI
+                  </span>
+                )}
+              </div>
+              <button onClick={() => setDviModalOpen(false)} className="text-slate-500 hover:text-slate-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 overflow-y-auto">
+              {dviLoading && (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((idx) => (
+                    <div key={idx} className="h-16 rounded-xl bg-slate-100 animate-pulse" />
+                  ))}
+                </div>
+              )}
+
+              {!dviLoading && (
+                <>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      value={dviSearch}
+                      onChange={(event) => setDviSearch(event.target.value)}
+                      placeholder="Search recommendations"
+                      className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                    />
+                    <button
+                      className="px-3 py-2 border border-slate-200 rounded-lg text-xs"
+                      onClick={() => {
+                        const next: Record<string, boolean> = { ...dviSelected };
+                        filteredPriority.forEach((item) => {
+                          if (!item.alreadyAdded) next[item.id] = true;
+                        });
+                        setDviSelected(next);
+                      }}
+                    >
+                      Select all priority
+                    </button>
+                    <button
+                      className="px-3 py-2 border border-slate-200 rounded-lg text-xs"
+                      onClick={() => {
+                        const next: Record<string, boolean> = { ...dviSelected };
+                        filteredFuture.forEach((item) => {
+                          if (!item.alreadyAdded) next[item.id] = true;
+                        });
+                        setDviSelected(next);
+                      }}
+                    >
+                      Select all future
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                        <AlertTriangle className="w-4 h-4 text-rose-500" />
+                        Priority Work
+                      </div>
+                      <p className="text-xs text-slate-500 mb-2">Red / Needs Immediate Attention</p>
+                      {filteredPriority.length === 0 && (
+                        <p className="text-xs text-slate-500">No priority recommendations.</p>
+                      )}
+                      <div className="space-y-2">
+                        {filteredPriority.map((item) => (
+                          <label
+                            key={item.id}
+                            className={`flex items-start gap-3 p-3 border rounded-xl ${item.alreadyAdded ? 'border-slate-200 bg-slate-50 text-slate-400' : 'border-slate-200'}`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={Boolean(dviSelected[item.id])}
+                              disabled={item.alreadyAdded}
+                              onChange={(event) => setDviSelected((prev) => ({ ...prev, [item.id]: event.target.checked }))}
+                              className="mt-1"
+                            />
+                            <div className="flex-1 space-y-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="font-medium text-slate-900">{item.title}</div>
+                                <span className="text-xs px-2 py-1 rounded-full bg-rose-100 text-rose-700">Red</span>
+                              </div>
+                              {item.notes && <div className="text-xs text-slate-500">{item.notes}</div>}
+                              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                                {item.mediaCounts.photo > 0 && (
+                                  <span className="flex items-center gap-1"><Camera className="w-3 h-3" />{item.mediaCounts.photo}</span>
+                                )}
+                                {item.mediaCounts.video > 0 && (
+                                  <span className="flex items-center gap-1"><Video className="w-3 h-3" />{item.mediaCounts.video}</span>
+                                )}
+                                {item.mediaCounts.audio > 0 && (
+                                  <span className="flex items-center gap-1"><Mic className="w-3 h-3" />{item.mediaCounts.audio}</span>
+                                )}
+                                {item.alreadyAdded && <span className="text-emerald-600">Already added</span>}
+                              </div>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                        <ClipboardCheck className="w-4 h-4 text-amber-500" />
+                        Future Work
+                      </div>
+                      <p className="text-xs text-slate-500 mb-2">Yellow / Monitor / Recommended Soon</p>
+                      {filteredFuture.length === 0 && (
+                        <p className="text-xs text-slate-500">No future recommendations.</p>
+                      )}
+                      <div className="space-y-2">
+                        {filteredFuture.map((item) => (
+                          <label
+                            key={item.id}
+                            className={`flex items-start gap-3 p-3 border rounded-xl ${item.alreadyAdded ? 'border-slate-200 bg-slate-50 text-slate-400' : 'border-slate-200'}`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={Boolean(dviSelected[item.id])}
+                              disabled={item.alreadyAdded}
+                              onChange={(event) => setDviSelected((prev) => ({ ...prev, [item.id]: event.target.checked }))}
+                              className="mt-1"
+                            />
+                            <div className="flex-1 space-y-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="font-medium text-slate-900">{item.title}</div>
+                                <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700">Yellow</span>
+                              </div>
+                              {item.notes && <div className="text-xs text-slate-500">{item.notes}</div>}
+                              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                                {item.mediaCounts.photo > 0 && (
+                                  <span className="flex items-center gap-1"><Camera className="w-3 h-3" />{item.mediaCounts.photo}</span>
+                                )}
+                                {item.mediaCounts.video > 0 && (
+                                  <span className="flex items-center gap-1"><Video className="w-3 h-3" />{item.mediaCounts.video}</span>
+                                )}
+                                {item.mediaCounts.audio > 0 && (
+                                  <span className="flex items-center gap-1"><Mic className="w-3 h-3" />{item.mediaCounts.audio}</span>
+                                )}
+                                {item.alreadyAdded && <span className="text-emerald-600">Already added</span>}
+                              </div>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="border-t border-slate-200 px-5 py-4 flex items-center justify-between bg-white sticky bottom-0">
+              <button onClick={() => setDviModalOpen(false)} className="px-4 py-2 border border-slate-300 rounded-lg text-sm">
+                Cancel
+              </button>
+              <button
+                onClick={() => handleAddDviItems(selectedOrder)}
+                className="px-4 py-2 text-white rounded-lg text-sm"
+                style={{ backgroundColor: brandSettings.primary_color }}
+                disabled={selectedCount === 0}
+              >
+                Add Selected ({selectedCount})
+              </button>
+            </div>
           </div>
         </div>
       )}
