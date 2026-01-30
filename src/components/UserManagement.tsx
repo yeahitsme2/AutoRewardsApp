@@ -337,27 +337,18 @@ function CreateTechnicianModal({ isOpen, onClose, shopId, onCreated }: CreateTec
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Please sign in again');
 
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-admin`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email,
-            password,
-            full_name: fullName,
-            shop_id: shopId,
-            role: 'technician',
-          }),
-        }
-      );
+      const { data, error: functionError } = await supabase.functions.invoke('create-admin', {
+        body: {
+          email,
+          password,
+          full_name: fullName,
+          shop_id: shopId,
+          role: 'technician',
+        },
+      });
 
-      const result = await response.json();
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || result.message || 'Failed to create technician');
+      if (functionError || !data?.success) {
+        throw new Error(functionError?.message || data?.error || data?.message || 'Failed to create technician');
       }
 
       setSuccess(`Technician invite sent to ${email}`);
