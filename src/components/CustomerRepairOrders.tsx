@@ -194,6 +194,9 @@ export function CustomerRepairOrders() {
     try {
       const order = orders.find((o) => o.id === orderId);
       if (order) {
+        const laborParentIds = (order.items || [])
+          .filter((item) => item.item_type === 'labor' && !item.parent_item_id)
+          .map((item) => item.id);
         const { error: itemError } = await supabase
           .from('repair_order_items')
           .update({ status: 'approved' })
@@ -201,6 +204,14 @@ export function CustomerRepairOrders() {
           .eq('item_type', 'labor')
           .neq('status', 'declined');
         if (itemError) throw itemError;
+        if (laborParentIds.length > 0) {
+          const { error: childError } = await supabase
+            .from('repair_order_items')
+            .update({ status: 'approved' })
+            .in('parent_item_id', laborParentIds)
+            .neq('status', 'declined');
+          if (childError) throw childError;
+        }
       }
       const { error } = await supabase
         .from('repair_orders')
@@ -620,8 +631,14 @@ export function CustomerRepairOrders() {
         .eq('id', itemId);
       if (error) throw error;
 
-      const nextItems = (order.items || []).map((item) =>
-        item.id === itemId ? { ...item, status } : item
+      const { error: childError } = await supabase
+        .from('repair_order_items')
+        .update({ status })
+        .eq('parent_item_id', itemId);
+      if (childError) throw childError;
+
+      const nextItems = (order.items || []).map((entry) =>
+        entry.id === itemId || entry.parent_item_id === itemId ? { ...entry, status } : entry
       );
       const totals = computeTotals(nextItems);
       await supabase
