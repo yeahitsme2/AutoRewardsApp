@@ -1388,6 +1388,7 @@ export interface Database {
           created_by: string | null;
           created_at: string;
           published_at: string | null;
+          mileage_at_service?: number | null;
         };
         Insert: {
           id?: string;
@@ -1400,6 +1401,7 @@ export interface Database {
           created_by?: string | null;
           created_at?: string;
           published_at?: string | null;
+          mileage_at_service?: number | null;
         };
         Update: {
           id?: string;
@@ -1412,6 +1414,7 @@ export interface Database {
           created_by?: string | null;
           created_at?: string;
           published_at?: string | null;
+          mileage_at_service?: number | null;
         };
       };
         dvi_report_items: {

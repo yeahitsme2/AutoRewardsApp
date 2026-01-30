@@ -880,8 +880,21 @@ export function RepairOrdersManagement() {
 
       if (status === 'closed') {
         try {
-          const mileageInput = window.prompt('Enter vehicle mileage at close (optional):');
-          const mileageValue = mileageInput ? Number(mileageInput) : null;
+          let mileageValue: number | null = null;
+          const { data: mileageRow, error: mileageError } = await supabase
+            .from('dvi_reports')
+            .select('mileage_at_service, created_at')
+            .eq('repair_order_id', orderId)
+            .not('mileage_at_service', 'is', null)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (mileageError) {
+            console.warn('Failed to load DVI mileage:', mileageError);
+          } else if (mileageRow?.mileage_at_service !== null && mileageRow?.mileage_at_service !== undefined) {
+            const parsedMileage = Number(mileageRow.mileage_at_service);
+            mileageValue = Number.isFinite(parsedMileage) ? parsedMileage : null;
+          }
           const items = order?.items
             || (await supabase
               .from('repair_order_items')

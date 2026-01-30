@@ -51,6 +51,7 @@ export function TechnicianDashboard() {
   const [reportMedia, setReportMedia] = useState<DviItemMedia[]>([]);
   const [itemMedia, setItemMedia] = useState<MediaAttachment[]>([]);
   const [reportMediaAttachments, setReportMediaAttachments] = useState<MediaAttachment[]>([]);
+  const [reportMileage, setReportMileage] = useState('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -63,6 +64,7 @@ export function TechnicianDashboard() {
   const [reportItemCounts, setReportItemCounts] = useState<Record<string, { green: number; yellow: number; red: number }>>({});
   const pendingUpdatesRef = useRef<Record<string, Partial<DviReportItem>>>({});
   const updateTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const mileageSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const selectedReport = useMemo(
     () => reports.find((report) => report.id === selectedReportId) || null,
@@ -204,9 +206,47 @@ export function TechnicianDashboard() {
     setGlobalSection(defaultSection);
   }, [selectedReport, selectedTemplate, globalSection]);
 
+  useEffect(() => {
+    if (!selectedReport) {
+      setReportMileage('');
+      return;
+    }
+    setReportMileage(
+      selectedReport.mileage_at_service !== null && selectedReport.mileage_at_service !== undefined
+        ? String(selectedReport.mileage_at_service)
+        : ''
+    );
+  }, [selectedReport]);
+
   const showMessage = (type: 'success' | 'error', text: string) => {
     setMessage({ type, text });
     setTimeout(() => setMessage(null), 3000);
+  };
+
+  const queueMileageUpdate = (value: string) => {
+    setReportMileage(value);
+    if (mileageSaveTimerRef.current) {
+      clearTimeout(mileageSaveTimerRef.current);
+    }
+    mileageSaveTimerRef.current = setTimeout(() => {
+      saveReportMileage(value);
+    }, 600);
+  };
+
+  const saveReportMileage = async (value: string) => {
+    if (!selectedReportId) return;
+    const numericValue = Number(value);
+    const payload = Number.isFinite(numericValue) && numericValue > 0 ? numericValue : null;
+    try {
+      const { error } = await supabase
+        .from('dvi_reports')
+        .update({ mileage_at_service: payload })
+        .eq('id', selectedReportId);
+      if (error) throw error;
+    } catch (error) {
+      console.error('Failed to save mileage:', error);
+      showMessage('error', 'Failed to save mileage');
+    }
   };
   const loadTemplates = async () => {
     if (!admin?.shop_id) return;
@@ -511,8 +551,14 @@ export function TechnicianDashboard() {
 
   const handlePublish = async () => {
     if (!selectedReportId || !admin?.shop_id) return;
+    const mileageNumber = Number(reportMileage);
+    if (!Number.isFinite(mileageNumber) || mileageNumber <= 0) {
+      showMessage('error', 'Mileage is required before publishing.');
+      return;
+    }
     try {
       await flushAllUpdates();
+      await saveReportMileage(reportMileage);
       const { error } = await supabase
         .from('dvi_reports')
         .update({ status: 'published', published_at: new Date().toISOString() })
@@ -755,6 +801,9 @@ export function TechnicianDashboard() {
     [reportItems, selectedItemId]
   );
 
+  const mileageNumber = Number(reportMileage);
+  const mileageValid = Number.isFinite(mileageNumber) && mileageNumber > 0;
+
   if (!admin) return null;
 
   return (
@@ -885,6 +934,22 @@ export function TechnicianDashboard() {
                   <div className="text-sm">
                     <div className="font-semibold text-slate-900">RO #{selectedReport.repair_order_id.slice(0, 8)}</div>
                     <div className="text-xs text-slate-500">Template: {selectedTemplate?.name || 'Default'}</div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                      <span className="font-semibold text-slate-500">Mileage</span>
+                      <input
+                        type="number"
+                        min="0"
+                        inputMode="numeric"
+                        placeholder="Required"
+                        value={reportMileage}
+                        onChange={(event) => queueMileageUpdate(event.target.value)}
+                        onBlur={(event) => saveReportMileage(event.target.value)}
+                        className={`w-28 px-2 py-1 border rounded-md text-xs ${mileageValid ? 'border-slate-200' : 'border-rose-300'}`}
+                      />
+                      {!mileageValid && (
+                        <span className="text-rose-600">Required to publish</span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 text-xs">
                     <button
