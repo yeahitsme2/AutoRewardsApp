@@ -26,6 +26,8 @@ export function CustomerRepairOrders() {
   const [dviReports, setDviReports] = useState<Record<string, DviReport[]>>({});
   const [dviItems, setDviItems] = useState<Record<string, DviReportItem[]>>({});
   const [dviMedia, setDviMedia] = useState<Record<string, DviItemMedia[]>>({});
+  const [dviMediaUrls, setDviMediaUrls] = useState<Record<string, string>>({});
+  const [templateItemTitles, setTemplateItemTitles] = useState<Record<string, string>>({});
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
   const [expandedDviReports, setExpandedDviReports] = useState<Record<string, boolean>>({});
   const [expandedChat, setExpandedChat] = useState<Record<string, boolean>>({});
@@ -34,48 +36,12 @@ export function CustomerRepairOrders() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const prevOrderIdsRef = useRef<Set<string>>(new Set());
   const prevStatusRef = useRef<Record<string, RepairOrder['status']>>({});
-  const expandedOrdersKey = `drewards_customer_ro_expanded_${customer?.id || 'anon'}`;
-  const expandedDviKey = `drewards_customer_dvi_expanded_${customer?.id || 'anon'}`;
 
   useEffect(() => {
     loadOrders();
     const interval = setInterval(loadOrders, 5000);
     return () => clearInterval(interval);
   }, []);
-
-  useEffect(() => {
-    if (!customer) return;
-    const storedOrders = localStorage.getItem(expandedOrdersKey);
-    const storedDvi = localStorage.getItem(expandedDviKey);
-    if (storedOrders) {
-      try {
-        setExpandedOrders(JSON.parse(storedOrders));
-      } catch {
-        setExpandedOrders({});
-      }
-    } else {
-      setExpandedOrders({});
-    }
-    if (storedDvi) {
-      try {
-        setExpandedDviReports(JSON.parse(storedDvi));
-      } catch {
-        setExpandedDviReports({});
-      }
-    } else {
-      setExpandedDviReports({});
-    }
-  }, [customer, expandedOrdersKey, expandedDviKey]);
-
-  useEffect(() => {
-    if (!customer) return;
-    localStorage.setItem(expandedOrdersKey, JSON.stringify(expandedOrders));
-  }, [expandedOrders, customer, expandedOrdersKey]);
-
-  useEffect(() => {
-    if (!customer) return;
-    localStorage.setItem(expandedDviKey, JSON.stringify(expandedDviReports));
-  }, [expandedDviReports, customer, expandedDviKey]);
 
   useEffect(() => {
     if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
@@ -144,6 +110,23 @@ export function CustomerRepairOrders() {
       if (reportItemError) throw reportItemError;
 
       const reportItemList = (reportItemRows || []) as DviReportItem[];
+      const templateItemIds = reportItemList
+        .map((item) => item.template_item_id)
+        .filter(Boolean) as string[];
+      if (templateItemIds.length > 0) {
+        const { data: templateRows, error: templateError } = await supabase
+          .from('dvi_template_items')
+          .select('id, title')
+          .in('id', templateItemIds);
+        if (templateError) throw templateError;
+        const templateMap: Record<string, string> = {};
+        (templateRows || []).forEach((row) => {
+          templateMap[row.id] = row.title;
+        });
+        setTemplateItemTitles(templateMap);
+      } else {
+        setTemplateItemTitles({});
+      }
       const reportItemIds = reportItemList.map((item) => item.id);
       const { data: mediaRows, error: mediaError } = await supabase
         .from('dvi_item_media')
@@ -166,6 +149,17 @@ export function CustomerRepairOrders() {
         if (!mediaMap[media.report_item_id]) mediaMap[media.report_item_id] = [];
         mediaMap[media.report_item_id].push(media as DviItemMedia);
       });
+      const mediaUrlMap: Record<string, string> = {};
+      await Promise.all(
+        (mediaRows || []).map(async (media) => {
+          const { data: signed } = await supabase.storage
+            .from('dvi-attachments')
+            .createSignedUrl(media.storage_path, 3600);
+          if (signed?.signedUrl) {
+            mediaUrlMap[media.id] = signed.signedUrl;
+          }
+        })
+      );
 
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         const prevIds = prevOrderIdsRef.current;
@@ -195,6 +189,7 @@ export function CustomerRepairOrders() {
       setDviReports(reportMap);
       setDviItems(itemMap);
       setDviMedia(mediaMap);
+      setDviMediaUrls(mediaUrlMap);
     } catch (error) {
       console.error('Error loading repair orders:', error);
     } finally {
@@ -281,6 +276,11 @@ export function CustomerRepairOrders() {
   };
 
   const getMediaForItem = (itemId: string) => dviMedia[itemId] || [];
+  const getItemTitle = (item: DviReportItem) =>
+    item.custom_title
+    || (item.template_item_id ? templateItemTitles[item.template_item_id] : null)
+    || item.recommendation
+    || 'Inspection finding';
 
   if (loading) {
     return (
@@ -399,7 +399,7 @@ export function CustomerRepairOrders() {
                           {(dviItems[report.id] || []).map((item) => (
                             <div key={item.id} className="border border-slate-200 rounded-lg p-3 bg-slate-50">
                               <div className="flex items-center justify-between">
-                                <p className="font-medium text-slate-900">{item.recommendation || 'Inspection finding'}</p>
+                                <p className="font-medium text-slate-900">{getItemTitle(item)}</p>
                                 <span className={`text-xs px-2 py-1 rounded-full ${
                                   item.condition === 'green'
                                     ? 'bg-emerald-100 text-emerald-700'
@@ -413,9 +413,47 @@ export function CustomerRepairOrders() {
                               {item.notes && <p className="text-xs text-slate-600 mt-2">{item.notes}</p>}
                               {getMediaForItem(item.id).length > 0 && (
                                 <div className="mt-2 flex flex-wrap gap-2">
-                                  {getMediaForItem(item.id).map((media) => (
-                                    <span key={media.id} className="text-xs text-slate-500">{media.file_name}</span>
-                                  ))}
+                                  {getMediaForItem(item.id).map((media) => {
+                                    const mediaUrl = dviMediaUrls[media.id];
+                                    if (!mediaUrl) {
+                                      return (
+                                        <span key={media.id} className="text-xs text-slate-500">
+                                          {media.file_name}
+                                        </span>
+                                      );
+                                    }
+                                    if (media.mime_type?.startsWith('image/')) {
+                                      return (
+                                        <img
+                                          key={media.id}
+                                          src={mediaUrl}
+                                          alt={media.file_name}
+                                          className="w-20 h-20 rounded-lg object-cover border border-slate-200"
+                                        />
+                                      );
+                                    }
+                                    if (media.mime_type?.startsWith('video/')) {
+                                      return (
+                                        <video key={media.id} src={mediaUrl} controls className="w-32 h-20 rounded-lg border border-slate-200" />
+                                      );
+                                    }
+                                    if (media.mime_type?.startsWith('audio/')) {
+                                      return (
+                                        <audio key={media.id} src={mediaUrl} controls className="h-8" />
+                                      );
+                                    }
+                                    return (
+                                      <a
+                                        key={media.id}
+                                        href={mediaUrl}
+                                        className="text-xs text-blue-600 underline"
+                                        target="_blank"
+                                        rel="noreferrer"
+                                      >
+                                        {media.file_name}
+                                      </a>
+                                    );
+                                  })}
                                 </div>
                               )}
                             </div>
