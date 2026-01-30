@@ -52,7 +52,6 @@ export function TechnicianDashboard() {
   const [itemMedia, setItemMedia] = useState<MediaAttachment[]>([]);
   const [reportMediaAttachments, setReportMediaAttachments] = useState<MediaAttachment[]>([]);
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<'all' | 'open' | 'published'>('open');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -508,6 +507,14 @@ export function TechnicianDashboard() {
         .eq('id', selectedReportId);
       if (error) throw error;
 
+      if (selectedReport?.repair_order_id) {
+        const { error: roError } = await supabase
+          .from('repair_orders')
+          .update({ status: 'inspection_complete', updated_at: new Date().toISOString() })
+          .eq('id', selectedReport.repair_order_id);
+        if (roError) throw roError;
+      }
+
       await logAuditEvent({
         shopId: admin.shop_id,
         actorRole: 'technician',
@@ -695,9 +702,7 @@ export function TechnicianDashboard() {
           || ro.ro_number.toLowerCase().includes(search.toLowerCase())
           || ro.temp_customer_name?.toLowerCase().includes(search.toLowerCase());
         if (!matchesSearch) return false;
-        if (filter === 'all') return true;
-        if (filter === 'published') return report?.status === 'published';
-        return report?.status !== 'published';
+        return true;
       })
       .map((ro) => {
         const report = reportByRo.get(ro.id) || null;
@@ -717,7 +722,17 @@ export function TechnicianDashboard() {
           redCount: counts.red,
         };
       });
-  }, [repairOrders, reports, reportItemCounts, search, filter]);
+  }, [repairOrders, reports, reportItemCounts, search]);
+
+  const openQueueItems = useMemo(
+    () => queueItems.filter((item) => item.reportStatus !== 'published'),
+    [queueItems]
+  );
+
+  const pastQueueItems = useMemo(
+    () => queueItems.filter((item) => item.reportStatus === 'published'),
+    [queueItems]
+  );
 
   const selectedItem = useMemo(
     () => reportItems.find((item) => item.id === selectedItemId) || null,
@@ -756,26 +771,55 @@ export function TechnicianDashboard() {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6">
-          <TechnicianRoQueue
-            items={queueItems}
-            selectedId={selectedRoId}
-            search={search}
-            onSearchChange={setSearch}
-            filter={filter}
-            onFilterChange={setFilter}
-            onSelect={(id) => {
-              setSelectedRoId(id);
-              setSelectedItemId(null);
-              const existingReport = reports.find((report) => report.repair_order_id === id) || null;
-              if (existingReport) {
-                setSelectedReportId(existingReport.id);
-                setDrawerOpen(true);
-              } else {
-                createReportForOrder(id);
-              }
-            }}
-            loading={loading}
-          />
+          <div className="space-y-4">
+            <TechnicianRoQueue
+              items={openQueueItems}
+              selectedId={selectedRoId}
+              search={search}
+              onSearchChange={setSearch}
+              filter="open"
+              onFilterChange={() => {}}
+              onSelect={(id) => {
+                setSelectedRoId(id);
+                setSelectedItemId(null);
+                const existingReport = reports.find((report) => report.repair_order_id === id) || null;
+                if (existingReport) {
+                  setSelectedReportId(existingReport.id);
+                  setDrawerOpen(true);
+                } else {
+                  createReportForOrder(id);
+                }
+              }}
+              loading={loading}
+              title="Open inspections"
+              subtitle="Repair Order Queue"
+              showFilters={false}
+              emptyMessage="No open inspections right now."
+            />
+
+            <TechnicianRoQueue
+              items={pastQueueItems}
+              selectedId={selectedRoId}
+              search={search}
+              onSearchChange={setSearch}
+              filter="published"
+              onFilterChange={() => {}}
+              onSelect={(id) => {
+                setSelectedRoId(id);
+                setSelectedItemId(null);
+                const existingReport = reports.find((report) => report.repair_order_id === id) || null;
+                if (existingReport) {
+                  setSelectedReportId(existingReport.id);
+                  setDrawerOpen(true);
+                }
+              }}
+              loading={loading}
+              title="Past inspections"
+              subtitle="DVI Archive"
+              showFilters={false}
+              emptyMessage="No past inspections yet."
+            />
+          </div>
 
           <section className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">

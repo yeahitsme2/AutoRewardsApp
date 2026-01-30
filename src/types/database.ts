@@ -773,7 +773,7 @@ export interface Database {
           customer_id: string;
           vehicle_id: string | null;
           appointment_id: string | null;
-          status: 'draft' | 'awaiting_approval' | 'approved' | 'declined' | 'closed';
+          status: 'draft' | 'awaiting_approval' | 'approved' | 'declined' | 'inspection_complete' | 'closed';
           ro_number: string;
           customer_notes: string | null;
           internal_notes: string | null;
@@ -799,7 +799,7 @@ export interface Database {
           customer_id: string;
           vehicle_id?: string | null;
           appointment_id?: string | null;
-          status?: 'draft' | 'awaiting_approval' | 'approved' | 'declined' | 'closed';
+          status?: 'draft' | 'awaiting_approval' | 'approved' | 'declined' | 'inspection_complete' | 'closed';
           ro_number: string;
           customer_notes?: string | null;
           internal_notes?: string | null;
@@ -825,7 +825,7 @@ export interface Database {
           customer_id?: string;
           vehicle_id?: string | null;
           appointment_id?: string | null;
-          status?: 'draft' | 'awaiting_approval' | 'approved' | 'declined' | 'closed';
+          status?: 'draft' | 'awaiting_approval' | 'approved' | 'declined' | 'inspection_complete' | 'closed';
           ro_number?: string;
           customer_notes?: string | null;
           internal_notes?: string | null;

@@ -21,6 +21,10 @@ type TechnicianRoQueueProps = {
   onFilterChange: (value: 'all' | 'open' | 'published') => void;
   onSelect: (id: string) => void;
   loading?: boolean;
+  title?: string;
+  subtitle?: string;
+  showFilters?: boolean;
+  emptyMessage?: string;
 };
 
 export function TechnicianRoQueue({
@@ -32,12 +36,16 @@ export function TechnicianRoQueue({
   onFilterChange,
   onSelect,
   loading,
+  title = 'Open inspections',
+  subtitle = 'Repair Order Queue',
+  showFilters = true,
+  emptyMessage = 'No repair orders match this filter.',
 }: TechnicianRoQueueProps) {
   return (
     <section className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
       <div>
-        <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Repair Order Queue</p>
-        <h2 className="text-lg font-semibold text-slate-900">Open inspections</h2>
+        <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{subtitle}</p>
+        <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
       </div>
 
       <div className="relative">
@@ -50,20 +58,22 @@ export function TechnicianRoQueue({
         />
       </div>
 
-      <div className="flex gap-2 text-xs font-semibold">
-        {(['all', 'open', 'published'] as const).map((value) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => onFilterChange(value)}
-            className={`px-3 py-1 rounded-full border ${
-              filter === value ? 'border-slate-400 bg-slate-50 text-slate-700' : 'border-slate-200 text-slate-500'
-            }`}
-          >
-            {value === 'all' ? 'All' : value === 'open' ? 'Open' : 'Published'}
-          </button>
-        ))}
-      </div>
+      {showFilters && (
+        <div className="flex gap-2 text-xs font-semibold">
+          {(['all', 'open', 'published'] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => onFilterChange(value)}
+              className={`px-3 py-1 rounded-full border ${
+                filter === value ? 'border-slate-400 bg-slate-50 text-slate-700' : 'border-slate-200 text-slate-500'
+              }`}
+            >
+              {value === 'all' ? 'All' : value === 'open' ? 'Open' : 'Published'}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="space-y-3 max-h-[520px] overflow-y-auto">
         {loading && (
@@ -74,7 +84,7 @@ export function TechnicianRoQueue({
           </div>
         )}
         {!loading && items.length === 0 && (
-          <p className="text-sm text-slate-500">No repair orders match this filter.</p>
+          <p className="text-sm text-slate-500">{emptyMessage}</p>
         )}
         {items.map((item) => (
           <button

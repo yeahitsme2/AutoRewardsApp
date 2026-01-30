@@ -35,6 +35,8 @@ export function DviManagement() {
   const [repairOrders, setRepairOrders] = useState<RepairOrder[]>([]);
   const [newReportTemplateId, setNewReportTemplateId] = useState('');
   const [newReportRoId, setNewReportRoId] = useState('');
+  const [reportTab, setReportTab] = useState<'open' | 'past'>('open');
+  const [reportSearch, setReportSearch] = useState('');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -42,6 +44,19 @@ export function DviManagement() {
     () => templates.find((t) => t.id === selectedTemplateId) || null,
     [templates, selectedTemplateId]
   );
+
+  const filteredReports = useMemo(() => {
+    return reports
+      .filter((report) => {
+        if (reportTab === 'open') return report.status !== 'published';
+        return report.status === 'published';
+      })
+      .filter((report) => {
+        if (!reportSearch.trim()) return true;
+        const search = reportSearch.trim().toLowerCase();
+        return report.repair_order_id.toLowerCase().includes(search);
+      });
+  }, [reports, reportTab, reportSearch]);
 
   useEffect(() => {
     if (!admin?.shop_id) return;
@@ -300,6 +315,13 @@ export function DviManagement() {
         .update({ status: 'published', published_at: new Date().toISOString() })
         .eq('id', selectedReportId);
       if (error) throw error;
+      if (report?.repair_order_id) {
+        const { error: roError } = await supabase
+          .from('repair_orders')
+          .update({ status: 'inspection_complete', updated_at: new Date().toISOString() })
+          .eq('id', report.repair_order_id);
+        if (roError) throw roError;
+      }
       await logAuditEvent({
         shopId: admin.shop_id,
         actorRole: 'admin',
@@ -483,9 +505,29 @@ export function DviManagement() {
 
           <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
             <h3 className="font-semibold text-slate-900">Reports</h3>
+            <div className="flex items-center gap-2 text-xs font-semibold">
+              {(['open', 'past'] as const).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setReportTab(value)}
+                  className={`px-3 py-1 rounded-full border ${
+                    reportTab === value ? 'border-slate-400 bg-slate-50 text-slate-700' : 'border-slate-200 text-slate-500'
+                  }`}
+                >
+                  {value === 'open' ? 'Open' : 'Past'}
+                </button>
+              ))}
+            </div>
+            <input
+              value={reportSearch}
+              onChange={(event) => setReportSearch(event.target.value)}
+              placeholder="Search by RO id"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+            />
             <div className="space-y-2 max-h-64 overflow-y-auto">
-              {reports.length === 0 && <p className="text-sm text-slate-500">No reports yet.</p>}
-              {reports.map((report) => (
+              {filteredReports.length === 0 && <p className="text-sm text-slate-500">No reports yet.</p>}
+              {filteredReports.map((report) => (
                 <button
                   key={report.id}
                   onClick={() => setSelectedReportId(report.id)}

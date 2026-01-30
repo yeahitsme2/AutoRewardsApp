@@ -17,13 +17,14 @@ interface RepairOrderWithDetails extends RepairOrder {
 
 type RepairOrderStatus = RepairOrder['status'];
 
-const statusOptions: RepairOrderStatus[] = ['draft', 'awaiting_approval', 'approved', 'declined', 'closed'];
+const statusOptions: RepairOrderStatus[] = ['draft', 'awaiting_approval', 'approved', 'declined', 'inspection_complete', 'closed'];
 
 const statusLabels: Record<RepairOrderStatus, string> = {
   draft: 'Draft',
   awaiting_approval: 'Awaiting Approval',
   approved: 'Approved',
   declined: 'Declined',
+  inspection_complete: 'Inspection Complete',
   closed: 'Closed',
 };
 
@@ -32,6 +33,7 @@ const statusStyles: Record<RepairOrderStatus, { bg: string; text: string }> = {
   awaiting_approval: { bg: 'bg-yellow-100', text: 'text-yellow-800' },
   approved: { bg: 'bg-emerald-100', text: 'text-emerald-700' },
   declined: { bg: 'bg-red-100', text: 'text-red-700' },
+  inspection_complete: { bg: 'bg-indigo-100', text: 'text-indigo-700' },
   closed: { bg: 'bg-blue-100', text: 'text-blue-700' },
 };
 

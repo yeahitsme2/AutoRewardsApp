@@ -15,6 +15,7 @@ const statusLabels: Record<RepairOrder['status'], string> = {
   awaiting_approval: 'Awaiting Approval',
   approved: 'Approved',
   declined: 'Declined',
+  inspection_complete: 'Inspection Complete',
   closed: 'Closed',
 };
 
