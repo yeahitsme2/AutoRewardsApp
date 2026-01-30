@@ -243,10 +243,12 @@ export function CustomerRepairOrders() {
         return;
       }
 
+      const totals = computeTotals(order.items || []);
       const { error } = await supabase
         .from('repair_orders')
         .update({
           status: 'approved',
+          ...totals,
           approved_at: new Date().toISOString(),
           customer_approved_at: new Date().toISOString(),
           customer_response_by: customer?.id || null,
@@ -590,7 +592,9 @@ export function CustomerRepairOrders() {
 
               <div className="flex items-center justify-between text-sm text-slate-600">
                 <span>Estimated total</span>
-                <span className="text-lg font-semibold text-slate-900">${order.grand_total.toFixed(2)}</span>
+                <span className="text-lg font-semibold text-slate-900">
+                  ${computeTotals(order.items || []).grand_total.toFixed(2)}
+                </span>
               </div>
 
               {order.status === 'awaiting_approval' && (
