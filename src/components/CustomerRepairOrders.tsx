@@ -31,6 +31,8 @@ export function CustomerRepairOrders() {
   const [expandedDviReports, setExpandedDviReports] = useState<Record<string, boolean>>({});
   const [expandedChat, setExpandedChat] = useState<Record<string, boolean>>({});
   const [lightboxImage, setLightboxImage] = useState<{ url: string; label: string } | null>(null);
+  const [taxRate, setTaxRate] = useState(0);
+  const [taxableTypes, setTaxableTypes] = useState<string[]>(['part']);
   const [loading, setLoading] = useState(true);
   const [tableMissing, setTableMissing] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -43,6 +45,11 @@ export function CustomerRepairOrders() {
     const interval = setInterval(loadOrders, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (!customer?.shop_id) return;
+    loadTaxSettings(customer.shop_id);
+  }, [customer?.shop_id]);
 
   useEffect(() => {
     if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
@@ -370,19 +377,44 @@ export function CustomerRepairOrders() {
               {(order.items || []).length === 0 ? (
                 <p className="text-sm text-slate-600">No line items yet.</p>
               ) : (
-                <div className="space-y-2">
-                  {order.items.map((item) => (
-                    <div key={item.id} className="flex items-start justify-between p-3 border border-slate-200 rounded-lg">
-                      <div>
-                        <p className="font-medium text-slate-900">{item.description}</p>
-                        <p className="text-xs text-slate-500">
-                          {item.item_type.toUpperCase()} - Qty {item.quantity} - ${item.unit_price.toFixed(2)}
-                        </p>
+            <div className="space-y-2">
+              {order.items.map((item) => (
+                <div key={item.id} className="flex items-start justify-between p-3 border border-slate-200 rounded-lg">
+                  <div>
+                    <p className="font-medium text-slate-900">{item.description}</p>
+                    <p className="text-xs text-slate-500">
+                      {item.item_type.toUpperCase()} - {item.item_type === 'labor' ? `${item.labor_hours ?? 0} hrs` : `Qty ${item.quantity}`} - ${item.unit_price.toFixed(2)}
+                    </p>
+                    <span className={`inline-flex mt-1 text-xs px-2 py-0.5 rounded-full ${
+                      item.status === 'approved'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : item.status === 'declined'
+                          ? 'bg-rose-100 text-rose-700'
+                          : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {item.status || 'pending'}
+                    </span>
+                    {order.status === 'awaiting_approval' && item.status !== 'approved' && item.status !== 'declined' && (
+                      <div className="mt-2 flex gap-2">
+                        <button
+                          onClick={() => updateLineItemStatus(order, item.id, 'approved')}
+                          className="px-3 py-1 text-xs rounded-lg border border-emerald-200 text-emerald-700"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => updateLineItemStatus(order, item.id, 'declined')}
+                          className="px-3 py-1 text-xs rounded-lg border border-rose-200 text-rose-700"
+                        >
+                          Decline
+                        </button>
                       </div>
-                      <div className="font-semibold text-slate-900">${item.total.toFixed(2)}</div>
-                    </div>
-                  ))}
+                    )}
+                  </div>
+                  <div className="font-semibold text-slate-900">${item.total.toFixed(2)}</div>
                 </div>
+              ))}
+            </div>
               )}
 
               {(dviReports[order.id] || []).length > 0 && (
@@ -536,3 +568,55 @@ export function CustomerRepairOrders() {
     </div>
   );
 }
+  const loadTaxSettings = async (shopId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('shop_settings')
+        .select('tax_rate, taxable_item_types')
+        .eq('shop_id', shopId)
+        .maybeSingle();
+      if (error) throw error;
+      setTaxRate(Number((data as any)?.tax_rate || 0));
+      setTaxableTypes(((data as any)?.taxable_item_types as string[]) || ['part']);
+    } catch (error) {
+      console.error('Failed to load tax settings:', error);
+    }
+  };
+
+  const computeTotals = (items: RepairOrderItem[]) => {
+    const eligible = items.filter((item) => item.status !== 'declined');
+    const labor_total = eligible.filter((i) => i.item_type === 'labor').reduce((sum, i) => sum + i.total, 0);
+    const parts_total = eligible.filter((i) => i.item_type === 'part').reduce((sum, i) => sum + i.total, 0);
+    const fees_total = eligible.filter((i) => i.item_type === 'fee').reduce((sum, i) => sum + i.total, 0);
+    const taxableSubtotal = eligible.filter((i) => i.taxable).reduce((sum, i) => sum + i.total, 0);
+    const tax_total = Number((taxableSubtotal * (taxRate / 100)).toFixed(2));
+    const grand_total = Number((labor_total + parts_total + fees_total + tax_total).toFixed(2));
+    return { labor_total, parts_total, fees_total, tax_total, grand_total };
+  };
+
+  const updateLineItemStatus = async (order: RepairOrderWithItems, itemId: string, status: 'approved' | 'declined') => {
+    try {
+      const { error } = await supabase
+        .from('repair_order_items')
+        .update({ status })
+        .eq('id', itemId);
+      if (error) throw error;
+
+      const nextItems = (order.items || []).map((item) =>
+        item.id === itemId ? { ...item, status } : item
+      );
+      const totals = computeTotals(nextItems);
+      await supabase
+        .from('repair_orders')
+        .update({ ...totals, status: 'awaiting_approval', updated_at: new Date().toISOString() })
+        .eq('id', order.id);
+
+      setOrders((prev) =>
+        prev.map((o) => (o.id === order.id ? { ...o, items: nextItems, ...totals } : o))
+      );
+      showMessage('success', `Item ${status}`);
+    } catch (error) {
+      console.error('Failed to update line item:', error);
+      showMessage('error', 'Failed to update line item');
+    }
+  };

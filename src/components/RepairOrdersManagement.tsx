@@ -358,6 +358,7 @@ export function RepairOrdersManagement() {
           unit_price: unitPriceValue,
           total: 0,
           taxable: false,
+          status: 'pending',
           source_type: 'dvi',
           source_id: item.id,
           metadata: {
@@ -585,6 +586,7 @@ export function RepairOrdersManagement() {
           unit_price: unitPriceValue,
           total,
           taxable: Boolean(draft.taxable),
+          status: draft.status || 'pending',
           parent_item_id: draft.parent_item_id || null,
         })
         .eq('id', itemId)
@@ -609,6 +611,27 @@ export function RepairOrdersManagement() {
     } catch (error) {
       console.error('Failed to update line item:', error);
       showMessage('error', 'Failed to update line item');
+    }
+  };
+
+  const handleDeleteLineItem = async (orderId: string, itemId: string) => {
+    try {
+      const { error } = await supabase.from('repair_order_items').delete().eq('id', itemId);
+      if (error) throw error;
+      setOrders((prev) =>
+        prev.map((order) => {
+          if (order.id !== orderId) return order;
+          const nextItems = (order.items || []).filter((item) => item.id !== itemId);
+          return { ...order, items: nextItems };
+        })
+      );
+      const updatedOrder = orders.find((order) => order.id === orderId);
+      const nextItems = (updatedOrder?.items || []).filter((item) => item.id !== itemId);
+      await updateOrderTotals(orderId, nextItems);
+      showMessage('success', 'Line item deleted');
+    } catch (error) {
+      console.error('Failed to delete line item:', error);
+      showMessage('error', 'Failed to delete line item');
     }
   };
 
@@ -644,10 +667,11 @@ export function RepairOrdersManagement() {
   };
 
   const computeTotals = (items: RepairOrderItem[]) => {
-    const labor_total = items.filter((i) => i.item_type === 'labor').reduce((sum, i) => sum + i.total, 0);
-    const parts_total = items.filter((i) => i.item_type === 'part').reduce((sum, i) => sum + i.total, 0);
-    const fees_total = items.filter((i) => i.item_type === 'fee').reduce((sum, i) => sum + i.total, 0);
-    const taxableSubtotal = items.filter((i) => i.taxable).reduce((sum, i) => sum + i.total, 0);
+    const eligible = items.filter((i) => i.status !== 'declined');
+    const labor_total = eligible.filter((i) => i.item_type === 'labor').reduce((sum, i) => sum + i.total, 0);
+    const parts_total = eligible.filter((i) => i.item_type === 'part').reduce((sum, i) => sum + i.total, 0);
+    const fees_total = eligible.filter((i) => i.item_type === 'fee').reduce((sum, i) => sum + i.total, 0);
+    const taxableSubtotal = eligible.filter((i) => i.taxable).reduce((sum, i) => sum + i.total, 0);
     const tax_total = roundToCents(taxableSubtotal * (taxRate / 100));
     const grand_total = roundToCents(labor_total + parts_total + fees_total + tax_total);
     return { labor_total, parts_total, fees_total, tax_total, grand_total };
@@ -758,6 +782,24 @@ export function RepairOrdersManagement() {
     }
   };
 
+  const handleApproveOrder = async (orderId: string) => {
+    try {
+      const order = orders.find((o) => o.id === orderId);
+      if (!order) return;
+      const { error: itemError } = await supabase
+        .from('repair_order_items')
+        .update({ status: 'approved' })
+        .eq('repair_order_id', orderId)
+        .eq('status', 'pending');
+      if (itemError) throw itemError;
+      await handleStatusChange(orderId, 'approved');
+      showMessage('success', 'Repair order approved');
+    } catch (error) {
+      console.error('Error approving repair order:', error);
+      showMessage('error', 'Failed to approve repair order');
+    }
+  };
+
   const handleDeleteOrder = async (orderId: string) => {
     const confirmed = window.confirm('Delete this repair order? This cannot be undone.');
     if (!confirmed) return;
@@ -850,6 +892,7 @@ export function RepairOrdersManagement() {
             total,
             taxable: Boolean(draft.taxable),
             parent_item_id: draft.parent_item_id || null,
+            status: 'pending',
           })
         .select('*')
         .single();
@@ -1267,26 +1310,40 @@ export function RepairOrdersManagement() {
                                         </>
                                       )}
                                     </div>
-                                    <label className="flex items-center gap-2 text-xs text-slate-600">
-                                      <input
-                                        type="checkbox"
-                                        checked={Boolean(draft.taxable)}
-                                        onChange={(e) => updateEditDraft(item.id, { taxable: e.target.checked })}
-                                      />
-                                      Taxable
-                                    </label>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                      <label className="flex items-center gap-2 text-xs text-slate-600">
+                                        <input
+                                          type="checkbox"
+                                          checked={Boolean(draft.taxable)}
+                                          onChange={(e) => updateEditDraft(item.id, { taxable: e.target.checked })}
+                                        />
+                                        Taxable
+                                      </label>
+                                      <select
+                                        value={draft.status || 'pending'}
+                                        onChange={(e) => updateEditDraft(item.id, { status: e.target.value as RepairOrderItem['status'] })}
+                                        className="border border-slate-300 rounded-lg px-3 py-1 text-xs"
+                                      >
+                                        <option value="pending">Pending</option>
+                                        <option value="approved">Approved</option>
+                                        <option value="declined">Declined</option>
+                                      </select>
+                                    </div>
                                   </>
                                 ) : (
                                   <>
                                     <p className="font-medium text-slate-900">{item.description}</p>
                                     <p className="text-xs text-slate-500">
-                                      {item.item_type.toUpperCase()} - {item.item_type === 'labor' ? `${item.labor_hours ?? 0} hrs` : `Qty ${item.quantity}`} - $${item.unit_price.toFixed(2)}
+                                      {item.item_type.toUpperCase()} - {item.item_type === 'labor' ? `${item.labor_hours ?? 0} hrs` : `Qty ${item.quantity}`} - ${item.unit_price.toFixed(2)}
                                     </p>
+                                    <span className={`inline-flex text-xs px-2 py-0.5 rounded-full ${item.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : item.status === 'declined' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
+                                      {item.status || 'pending'}
+                                    </span>
                                   </>
                                 )}
                               </div>
                               <div className="flex flex-col items-end gap-2">
-                                <div className="font-semibold text-slate-900">$${item.total.toFixed(2)}</div>
+                                        <div className="font-semibold text-slate-900">${item.total.toFixed(2)}</div>
                                 {isEditing ? (
                                   <div className="flex gap-2">
                                     <button
@@ -1303,12 +1360,20 @@ export function RepairOrdersManagement() {
                                     </button>
                                   </div>
                                 ) : (
-                                  <button
-                                    onClick={() => startEditItem(item)}
-                                    className="px-3 py-1 text-xs rounded-lg border border-slate-300"
-                                  >
-                                    Edit
-                                  </button>
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => startEditItem(item)}
+                                      className="px-3 py-1 text-xs rounded-lg border border-slate-300"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteLineItem(selectedOrder.id, item.id)}
+                                      className="px-3 py-1 text-xs rounded-lg border border-rose-200 text-rose-600"
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
                                 )}
                               </div>
                             </div>
@@ -1327,7 +1392,7 @@ export function RepairOrdersManagement() {
                                               onChange={(e) => updateEditDraft(child.id, { description: e.target.value })}
                                               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
                                             />
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
                                               <input
                                                 type="number"
                                                 min={0.01}
@@ -1356,17 +1421,29 @@ export function RepairOrdersManagement() {
                                                   <option key={labor.id} value={labor.id}>{labor.description}</option>
                                                 ))}
                                               </select>
+                                              <select
+                                                value={childDraft.status || 'pending'}
+                                                onChange={(e) => updateEditDraft(child.id, { status: e.target.value as RepairOrderItem['status'] })}
+                                                className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                                              >
+                                                <option value="pending">Pending</option>
+                                                <option value="approved">Approved</option>
+                                                <option value="declined">Declined</option>
+                                              </select>
                                             </div>
                                           </>
                                         ) : (
                                           <>
                                             <p className="font-medium text-slate-900">{child.description}</p>
-                                            <p className="text-xs text-slate-500">{child.item_type.toUpperCase()} - Qty {child.quantity} - $${child.unit_price.toFixed(2)}</p>
+                                            <p className="text-xs text-slate-500">{child.item_type.toUpperCase()} - Qty {child.quantity} - ${child.unit_price.toFixed(2)}</p>
+                                            <span className={`inline-flex text-xs px-2 py-0.5 rounded-full ${child.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : child.status === 'declined' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
+                                              {child.status || 'pending'}
+                                            </span>
                                           </>
                                         )}
                                       </div>
                                       <div className="flex flex-col items-end gap-2">
-                                        <div className="font-semibold text-slate-900">$${child.total.toFixed(2)}</div>
+                                        <div className="font-semibold text-slate-900">${child.total.toFixed(2)}</div>
                                         {isChildEditing ? (
                                           <div className="flex gap-2">
                                             <button
@@ -1383,12 +1460,20 @@ export function RepairOrdersManagement() {
                                             </button>
                                           </div>
                                         ) : (
-                                          <button
-                                            onClick={() => startEditItem(child)}
-                                            className="px-3 py-1 text-xs rounded-lg border border-slate-300"
-                                          >
-                                            Edit
-                                          </button>
+                                          <div className="flex gap-2">
+                                            <button
+                                              onClick={() => startEditItem(child)}
+                                              className="px-3 py-1 text-xs rounded-lg border border-slate-300"
+                                            >
+                                              Edit
+                                            </button>
+                                            <button
+                                              onClick={() => handleDeleteLineItem(selectedOrder.id, child.id)}
+                                              className="px-3 py-1 text-xs rounded-lg border border-rose-200 text-rose-600"
+                                            >
+                                              Delete
+                                            </button>
+                                          </div>
                                         )}
                                       </div>
                                     </div>
@@ -1671,7 +1756,7 @@ export function RepairOrdersManagement() {
                       Send for Approval
                     </button>
                     <button
-                      onClick={() => handleStatusChange(selectedOrder.id, 'approved')}
+                      onClick={() => handleApproveOrder(selectedOrder.id)}
                       className="flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm"
                     >
                       <CheckCircle className="w-4 h-4" />

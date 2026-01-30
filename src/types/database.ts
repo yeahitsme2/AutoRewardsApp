@@ -860,6 +860,7 @@ export interface Database {
           unit_price: number;
           total: number;
           taxable: boolean;
+          status: 'pending' | 'approved' | 'declined';
           parent_item_id: string | null;
           source_type: string | null;
           source_id: string | null;
@@ -876,6 +877,7 @@ export interface Database {
           unit_price: number;
           total?: number;
           taxable?: boolean;
+          status?: 'pending' | 'approved' | 'declined';
           parent_item_id?: string | null;
           source_type?: string | null;
           source_id?: string | null;
@@ -892,6 +894,7 @@ export interface Database {
           unit_price?: number;
           total?: number;
           taxable?: boolean;
+          status?: 'pending' | 'approved' | 'declined';
           parent_item_id?: string | null;
           source_type?: string | null;
           source_id?: string | null;
