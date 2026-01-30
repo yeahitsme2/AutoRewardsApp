@@ -30,6 +30,7 @@ export function CustomerRepairOrders() {
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
   const [expandedDviReports, setExpandedDviReports] = useState<Record<string, boolean>>({});
   const [expandedChat, setExpandedChat] = useState<Record<string, boolean>>({});
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; label: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [tableMissing, setTableMissing] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -297,6 +298,28 @@ export function CustomerRepairOrders() {
 
   return (
     <div className="space-y-6">
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setLightboxImage(null)}
+        >
+          <div className="relative max-w-3xl w-full" onClick={(event) => event.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setLightboxImage(null)}
+              className="absolute top-3 right-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow"
+              aria-label="Close image preview"
+            >
+              ✕
+            </button>
+            <img
+              src={lightboxImage.url}
+              alt={lightboxImage.label}
+              className="w-full max-h-[80vh] object-contain rounded-xl bg-black"
+            />
+          </div>
+        </div>
+      )}
       {message && (
         <div
           className="p-4 rounded-lg"
@@ -412,7 +435,7 @@ export function CustomerRepairOrders() {
                                         <button
                                           key={media.id}
                                           type="button"
-                                          onClick={() => window.open(mediaUrl, '_blank')}
+                                          onClick={() => setLightboxImage({ url: mediaUrl, label: media.file_name })}
                                           className="block"
                                         >
                                           <img
