@@ -867,6 +867,18 @@ export function RepairOrdersManagement() {
           },
         });
         if (admin?.shop_id) {
+          await supabase.from('notifications').insert({
+            shop_id: admin.shop_id,
+            recipient_role: 'customer',
+            recipient_id: order.customer_id,
+            title: 'Repair Order Ready',
+            body: `${order.ro_number} is ready for your approval`,
+            entity_type: 'repair_order',
+            entity_id: orderId,
+            action_url: '/?tab=repair_orders',
+          });
+        }
+        if (admin?.shop_id) {
           await logOutboundMessage({
             shopId: admin.shop_id,
             customerId: order.customer_id,

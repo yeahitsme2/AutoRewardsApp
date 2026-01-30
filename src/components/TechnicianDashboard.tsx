@@ -590,6 +590,16 @@ export function TechnicianDashboard() {
           body: 'Your digital vehicle inspection report is now available in the app.',
           status: 'queued',
         });
+        await supabase.from('notifications').insert({
+          shop_id: admin.shop_id,
+          recipient_role: 'customer',
+          recipient_id: selectedReport.customer_id,
+          title: 'Inspection Ready',
+          body: 'Your digital vehicle inspection is now available.',
+          entity_type: 'dvi_report',
+          entity_id: selectedReportId,
+          action_url: '/?tab=repair_orders',
+        });
       }
 
       showMessage('success', 'Inspection published');

@@ -266,6 +266,16 @@ export function CustomerRepairOrders() {
             url: '/',
           },
         });
+        await supabase.from('notifications').insert({
+          shop_id: customer.shop_id,
+          recipient_role: 'admin',
+          recipient_id: null,
+          title: 'Repair Order Approved',
+          body: `${order.ro_number} was approved by the customer`,
+          entity_type: 'repair_order',
+          entity_id: orderId,
+          action_url: '/?tab=my_shop&sub=repair_orders',
+        });
       }
       showMessage('success', 'Sent to the shop');
       loadOrders();
@@ -302,6 +312,16 @@ export function CustomerRepairOrders() {
             message: `${order.ro_number} was declined by the customer`,
             url: '/',
           },
+        });
+        await supabase.from('notifications').insert({
+          shop_id: customer.shop_id,
+          recipient_role: 'admin',
+          recipient_id: null,
+          title: 'Repair Order Declined',
+          body: `${order.ro_number} was declined by the customer`,
+          entity_type: 'repair_order',
+          entity_id: orderId,
+          action_url: '/?tab=my_shop&sub=repair_orders',
         });
       }
       showMessage('success', 'Repair order declined');

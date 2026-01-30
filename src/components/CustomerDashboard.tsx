@@ -3,7 +3,7 @@ import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
 import { useShop } from '../lib/ShopContext';
 import { supabase } from '../lib/supabase';
-import { Car, Calendar, Award, LogOut, Wrench, Gift, Tag, Plus, ClipboardList, MessageSquare } from 'lucide-react';
+import { Bell, Car, Calendar, Award, LogOut, Wrench, Gift, Tag, Plus, ClipboardList, MessageSquare } from 'lucide-react';
 import { CustomerRewards } from './CustomerRewards';
 import { CustomerServices } from './CustomerServices';
 import { CustomerPromotions } from './CustomerPromotions';
@@ -15,13 +15,14 @@ import { RewardProgress } from './RewardProgress';
 import { ServiceReminders } from './ServiceReminders';
 import { AddVehicleModal } from './AddVehicleModal';
 import { ensurePushSubscription } from '../lib/pushNotifications';
-import type { Vehicle, Service } from '../types/database';
+import type { Vehicle, Service, Database } from '../types/database';
 
 interface VehicleWithServices extends Vehicle {
   services: Service[];
 }
 
 type TabType = 'vehicles' | 'services' | 'appointments' | 'repair_orders' | 'rewards' | 'offers' | 'messages';
+type NotificationItem = Database['public']['Tables']['notifications']['Row'];
 
 export function CustomerDashboard() {
   const { customer, signOut, refreshCustomer } = useAuth();
@@ -32,6 +33,9 @@ export function CustomerDashboard() {
   const [loading, setLoading] = useState(true);
   const [unreadPromoCount, setUnreadPromoCount] = useState(0);
   const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -98,6 +102,84 @@ export function CustomerDashboard() {
     }
   };
 
+  const loadNotifications = async () => {
+    if (!customer) return;
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('recipient_role', 'customer')
+        .eq('recipient_id', customer.id)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      const rows = (data || []) as NotificationItem[];
+      setNotifications(rows);
+      setUnreadNotifications(rows.filter((note) => !note.is_read).length);
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (!customer?.id) return;
+    loadNotifications();
+    const channel = supabase
+      .channel(`customer-notifications-${customer.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'notifications',
+        filter: `recipient_id=eq.${customer.id}`,
+      }, () => {
+        loadNotifications();
+      });
+    channel.subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [customer?.id]);
+
+  const markNotificationRead = async (notificationId: string) => {
+    try {
+      await supabase
+        .from('notifications')
+        .update({ is_read: true, read_at: new Date().toISOString() })
+        .eq('id', notificationId);
+      setNotifications((prev) =>
+        prev.map((note) => (note.id === notificationId ? { ...note, is_read: true, read_at: new Date().toISOString() } : note))
+      );
+      setUnreadNotifications((prev) => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error('Failed to mark notification read:', error);
+    }
+  };
+
+  const markAllNotificationsRead = async () => {
+    const unreadIds = notifications.filter((note) => !note.is_read).map((note) => note.id);
+    if (unreadIds.length === 0) return;
+    try {
+      await supabase
+        .from('notifications')
+        .update({ is_read: true, read_at: new Date().toISOString() })
+        .in('id', unreadIds);
+      setNotifications((prev) => prev.map((note) => ({ ...note, is_read: true, read_at: new Date().toISOString() })));
+      setUnreadNotifications(0);
+    } catch (error) {
+      console.error('Failed to mark all notifications read:', error);
+    }
+  };
+
+  const handleNotificationOpen = async (note: NotificationItem) => {
+    if (!note.is_read) {
+      await markNotificationRead(note.id);
+    }
+    if (note.entity_type === 'repair_order' || note.entity_type === 'dvi_report') {
+      setActiveTab('repair_orders');
+    }
+    setShowNotifications(false);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -142,13 +224,60 @@ export function CustomerDashboard() {
                 <p className="text-xs sm:text-sm text-slate-100 truncate">{brandSettings.welcome_message}, {customer?.full_name}</p>
               </div>
             </div>
-            <button
-              onClick={signOut}
-              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 text-slate-100 hover:text-white transition-colors flex-shrink-0"
-            >
-              <LogOut className="w-5 h-5" />
-              <span className="hidden sm:inline">Sign Out</span>
-            </button>
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+              <div className="relative">
+                <button
+                  onClick={() => setShowNotifications((prev) => !prev)}
+                  className="relative flex items-center justify-center w-10 h-10 rounded-full bg-white/10 text-white hover:bg-white/20"
+                  title="Notifications"
+                >
+                  <Bell className="w-5 h-5" />
+                  {unreadNotifications > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                      {unreadNotifications}
+                    </span>
+                  )}
+                </button>
+                {showNotifications && (
+                  <div className="absolute right-0 mt-3 w-80 max-h-96 overflow-auto rounded-xl border border-slate-200 bg-white text-slate-900 shadow-lg z-50">
+                    <div className="p-3 border-b border-slate-100 flex items-center justify-between">
+                      <div className="text-sm font-semibold">Notifications</div>
+                      <button
+                        onClick={markAllNotificationsRead}
+                        className="text-xs text-slate-500 hover:text-slate-700"
+                      >
+                        Mark all read
+                      </button>
+                    </div>
+                    {notifications.length === 0 && (
+                      <div className="p-4 text-sm text-slate-500">No notifications yet.</div>
+                    )}
+                    {notifications.map((note) => (
+                      <button
+                        key={note.id}
+                        onClick={() => handleNotificationOpen(note)}
+                        className={`w-full text-left px-4 py-3 border-b border-slate-100 hover:bg-slate-50 ${
+                          note.is_read ? 'bg-white' : 'bg-slate-50'
+                        }`}
+                      >
+                        <div className="text-sm font-semibold text-slate-900">{note.title}</div>
+                        {note.body && <div className="text-xs text-slate-500 mt-1">{note.body}</div>}
+                        <div className="text-[11px] text-slate-400 mt-1">
+                          {new Date(note.created_at).toLocaleString()}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={signOut}
+                className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 text-slate-100 hover:text-white transition-colors"
+              >
+                <LogOut className="w-5 h-5" />
+                <span className="hidden sm:inline">Sign Out</span>
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -237,6 +366,11 @@ export function CustomerDashboard() {
             >
               <ClipboardList className="w-5 h-5" />
               <span className="text-sm sm:text-base">Repair Orders</span>
+              {unreadNotifications > 0 && (
+                <span className="ml-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                  {unreadNotifications}
+                </span>
+              )}
             </button>
             <button
               onClick={() => setActiveTab('rewards')}

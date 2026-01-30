@@ -1295,6 +1295,50 @@ export interface Database {
           created_at?: string;
         };
       };
+      notifications: {
+        Row: {
+          id: string;
+          shop_id: string;
+          recipient_role: string;
+          recipient_id: string | null;
+          title: string;
+          body: string | null;
+          entity_type: string | null;
+          entity_id: string | null;
+          action_url: string | null;
+          is_read: boolean;
+          read_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          shop_id: string;
+          recipient_role: string;
+          recipient_id?: string | null;
+          title: string;
+          body?: string | null;
+          entity_type?: string | null;
+          entity_id?: string | null;
+          action_url?: string | null;
+          is_read?: boolean;
+          read_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          shop_id?: string;
+          recipient_role?: string;
+          recipient_id?: string | null;
+          title?: string;
+          body?: string | null;
+          entity_type?: string | null;
+          entity_id?: string | null;
+          action_url?: string | null;
+          is_read?: boolean;
+          read_at?: string | null;
+          created_at?: string;
+        };
+      };
       dvi_templates: {
         Row: {
           id: string;
