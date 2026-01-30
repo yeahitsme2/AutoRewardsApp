@@ -833,6 +833,10 @@ export function RepairOrdersManagement() {
   const handleStatusChange = async (orderId: string, status: RepairOrderStatus) => {
     try {
       const order = orders.find((o) => o.id === orderId);
+      const isMissingColumn = (err: { code?: string; message?: string }) =>
+        err?.code === '42703'
+        || err?.code === 'PGRST204'
+        || (typeof err?.message === 'string' && err.message.includes('does not exist'));
       const updates: Partial<RepairOrder> = {
         status,
         updated_at: new Date().toISOString(),
@@ -929,7 +933,7 @@ export function RepairOrdersManagement() {
                 .maybeSingle();
 
               if (!existingService) {
-                await supabase.from('services').insert({
+                const servicePayload = {
                   shop_id: order.shop_id,
                   customer_id: order.customer_id,
                   vehicle_id: order.vehicle_id,
@@ -941,10 +945,28 @@ export function RepairOrdersManagement() {
                   mileage_at_service: Number.isFinite(mileageValue as number) ? mileageValue : null,
                   source_type: 'repair_order',
                   source_id: orderId,
-                });
+                };
+
+                const primaryInsert = await supabase.from('services').insert(servicePayload);
+                if (primaryInsert.error && isMissingColumn(primaryInsert.error)) {
+                  const fallbackPayload = {
+                    shop_id: order.shop_id,
+                    customer_id: order.customer_id,
+                    vehicle_id: order.vehicle_id,
+                    service_type: 'Repair Order',
+                    description: `Repair Order ${order.ro_number}`,
+                    amount: preTaxTotal,
+                    points_earned: pointsEarned,
+                    service_date: new Date().toISOString(),
+                  };
+                  const fallbackInsert = await supabase.from('services').insert(fallbackPayload);
+                  if (fallbackInsert.error) throw fallbackInsert.error;
+                } else if (primaryInsert.error) {
+                  throw primaryInsert.error;
+                }
               }
 
-              await supabase
+              const customerUpdate = await supabase
                 .from('customers')
                 .update({
                   reward_points: nextPoints,
@@ -953,6 +975,19 @@ export function RepairOrdersManagement() {
                   updated_at: new Date().toISOString(),
                 })
                 .eq('id', order.customer_id);
+              if (customerUpdate.error && isMissingColumn(customerUpdate.error)) {
+                const fallbackUpdate = await supabase
+                  .from('customers')
+                  .update({
+                    reward_points: nextPoints,
+                    tier: nextTier.name,
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq('id', order.customer_id);
+                if (fallbackUpdate.error) throw fallbackUpdate.error;
+              } else if (customerUpdate.error) {
+                throw customerUpdate.error;
+              }
             }
           }
 
