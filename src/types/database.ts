@@ -1309,67 +1309,138 @@ export interface Database {
           published_at?: string | null;
         };
       };
-      dvi_report_items: {
-        Row: {
-          id: string;
-          report_id: string;
-          template_item_id: string | null;
-          condition: 'green' | 'yellow' | 'red';
-          notes: string | null;
-          recommendation: string | null;
-          repair_order_item_id: string | null;
-          created_at: string;
+        dvi_report_items: {
+          Row: {
+            id: string;
+            report_id: string;
+            template_item_id: string | null;
+            condition: 'green' | 'yellow' | 'red';
+            notes: string | null;
+            recommendation: string | null;
+            recommendation_status: string | null;
+            suggested_for_template: boolean | null;
+            repair_order_item_id: string | null;
+            is_custom: boolean;
+            custom_title: string | null;
+            custom_description: string | null;
+            custom_section: string | null;
+            sort_order: number | null;
+            created_at: string;
+            updated_at: string | null;
+          };
+          Insert: {
+            id?: string;
+            report_id: string;
+            template_item_id?: string | null;
+            condition?: 'green' | 'yellow' | 'red';
+            notes?: string | null;
+            recommendation?: string | null;
+            recommendation_status?: string | null;
+            suggested_for_template?: boolean | null;
+            repair_order_item_id?: string | null;
+            is_custom?: boolean;
+            custom_title?: string | null;
+            custom_description?: string | null;
+            custom_section?: string | null;
+            sort_order?: number | null;
+            created_at?: string;
+            updated_at?: string | null;
+          };
+          Update: {
+            id?: string;
+            report_id?: string;
+            template_item_id?: string | null;
+            condition?: 'green' | 'yellow' | 'red';
+            notes?: string | null;
+            recommendation?: string | null;
+            recommendation_status?: string | null;
+            suggested_for_template?: boolean | null;
+            repair_order_item_id?: string | null;
+            is_custom?: boolean;
+            custom_title?: string | null;
+            custom_description?: string | null;
+            custom_section?: string | null;
+            sort_order?: number | null;
+            created_at?: string;
+            updated_at?: string | null;
+          };
         };
-        Insert: {
-          id?: string;
-          report_id: string;
-          template_item_id?: string | null;
-          condition?: 'green' | 'yellow' | 'red';
-          notes?: string | null;
-          recommendation?: string | null;
-          repair_order_item_id?: string | null;
-          created_at?: string;
+        dvi_item_media: {
+          Row: {
+            id: string;
+            report_item_id: string;
+            storage_path: string;
+            file_name: string;
+            mime_type: string | null;
+            file_size: number | null;
+            media_type: string | null;
+            duration_seconds: number | null;
+            created_by: string | null;
+            created_at: string;
+          };
+          Insert: {
+            id?: string;
+            report_item_id: string;
+            storage_path: string;
+            file_name: string;
+            mime_type?: string | null;
+            file_size?: number | null;
+            media_type?: string | null;
+            duration_seconds?: number | null;
+            created_by?: string | null;
+            created_at?: string;
+          };
+          Update: {
+            id?: string;
+            report_item_id?: string;
+            storage_path?: string;
+            file_name?: string;
+            mime_type?: string | null;
+            file_size?: number | null;
+            media_type?: string | null;
+            duration_seconds?: number | null;
+            created_by?: string | null;
+            created_at?: string;
+          };
         };
-        Update: {
-          id?: string;
-          report_id?: string;
-          template_item_id?: string | null;
-          condition?: 'green' | 'yellow' | 'red';
-          notes?: string | null;
-          recommendation?: string | null;
-          repair_order_item_id?: string | null;
-          created_at?: string;
+        dvi_report_media: {
+          Row: {
+            id: string;
+            report_id: string;
+            storage_path: string;
+            file_name: string;
+            mime_type: string | null;
+            file_size: number | null;
+            media_type: string | null;
+            duration_seconds: number | null;
+            created_by: string | null;
+            created_at: string;
+          };
+          Insert: {
+            id?: string;
+            report_id: string;
+            storage_path: string;
+            file_name: string;
+            mime_type?: string | null;
+            file_size?: number | null;
+            media_type?: string | null;
+            duration_seconds?: number | null;
+            created_by?: string | null;
+            created_at?: string;
+          };
+          Update: {
+            id?: string;
+            report_id?: string;
+            storage_path?: string;
+            file_name?: string;
+            mime_type?: string | null;
+            file_size?: number | null;
+            media_type?: string | null;
+            duration_seconds?: number | null;
+            created_by?: string | null;
+            created_at?: string;
+          };
         };
-      };
-      dvi_item_media: {
-        Row: {
-          id: string;
-          report_item_id: string;
-          storage_path: string;
-          file_name: string;
-          mime_type: string | null;
-          file_size: number | null;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          report_item_id: string;
-          storage_path: string;
-          file_name: string;
-          mime_type?: string | null;
-          file_size?: number | null;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          report_item_id?: string;
-          storage_path?: string;
-          file_name?: string;
-          mime_type?: string | null;
-          file_size?: number | null;
-          created_at?: string;
-        };
-      };
       chat_threads: {
         Row: {
           id: string;
@@ -1661,6 +1732,7 @@ export type DviTemplateItem = Database['public']['Tables']['dvi_template_items']
 export type DviReport = Database['public']['Tables']['dvi_reports']['Row'];
 export type DviReportItem = Database['public']['Tables']['dvi_report_items']['Row'];
 export type DviItemMedia = Database['public']['Tables']['dvi_item_media']['Row'];
+export type DviReportMedia = Database['public']['Tables']['dvi_report_media']['Row'];
 export type ChatThread = Database['public']['Tables']['chat_threads']['Row'];
 export type ChatParticipant = Database['public']['Tables']['chat_participants']['Row'];
 export type ChatMessage = Database['public']['Tables']['chat_messages']['Row'];

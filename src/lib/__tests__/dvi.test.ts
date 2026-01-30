@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildReportItems } from '../dvi';
+import { buildCustomReportItem, buildReportItems, summarizeReportItems } from '../dvi';
 
 describe('buildReportItems', () => {
   it('maps template sections into report item inserts', () => {
@@ -22,5 +22,34 @@ describe('buildReportItems', () => {
       recommendation: 'Check brakes',
     });
     expect(items[1].recommendation).toBeNull();
+  });
+
+  it('builds a custom report item insert payload', () => {
+    const payload = buildCustomReportItem({
+      reportId: 'report-2',
+      title: 'Custom battery check',
+      sectionTitle: 'Electrical',
+      sortOrder: 4,
+    });
+
+    expect(payload).toEqual({
+      report_id: 'report-2',
+      condition: 'green',
+      is_custom: true,
+      custom_title: 'Custom battery check',
+      custom_section: 'Electrical',
+      sort_order: 4,
+    });
+  });
+
+  it('summarizes report item conditions', () => {
+    const summary = summarizeReportItems([
+      { condition: 'green' },
+      { condition: 'yellow' },
+      { condition: 'red' },
+      { condition: 'yellow' },
+    ]);
+
+    expect(summary).toEqual({ green: 1, yellow: 2, red: 1 });
   });
 });
