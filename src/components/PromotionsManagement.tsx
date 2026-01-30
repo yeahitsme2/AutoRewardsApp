@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
 import { useShop } from '../lib/ShopContext';
 import { Percent, DollarSign, Sparkles, Gift, Plus, Users, X, Check, Crown, Calendar, Tag, Trash2 } from 'lucide-react';
@@ -12,7 +11,6 @@ interface PromotionWithRecipients extends Promotion {
 }
 
 export function PromotionsManagement() {
-  const { customer } = useAuth();
   const { brandSettings } = useBrand();
   const { shop } = useShop();
   const [promotions, setPromotions] = useState<PromotionWithRecipients[]>([]);
@@ -256,7 +254,7 @@ export function PromotionsManagement() {
     }
   };
 
-  const getDiscountIcon = (type: string) => {
+  const getDiscountIcon = (type: string | null) => {
     switch (type) {
       case 'percentage':
         return <Percent className="w-5 h-5" />;
@@ -347,7 +345,9 @@ export function PromotionsManagement() {
                     <div className="flex items-center gap-4 text-sm text-slate-600">
                       <div className="flex items-center gap-1">
                         <Calendar className="w-4 h-4" />
-                        Valid until {new Date(promo.valid_until).toLocaleDateString()}
+                        {promo.valid_until
+                          ? `Valid until ${new Date(promo.valid_until).toLocaleDateString()}`
+                          : 'No expiration'}
                       </div>
                       <div className="flex items-center gap-1">
                         <Users className="w-4 h-4" />

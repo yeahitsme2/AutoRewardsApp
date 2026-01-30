@@ -249,6 +249,7 @@ export interface Database {
           phone: string | null;
           is_admin: boolean;
           tier: string;
+          tier_multiplier?: number | null;
           reward_points: number;
           lifetime_spending?: number | null;
           total_lifetime_spending?: number | null;
@@ -267,6 +268,7 @@ export interface Database {
           phone?: string | null;
           is_admin?: boolean;
           tier?: string;
+          tier_multiplier?: number | null;
           reward_points?: number;
           lifetime_spending?: number | null;
           total_lifetime_spending?: number | null;
@@ -285,6 +287,7 @@ export interface Database {
           phone?: string | null;
           is_admin?: boolean;
           tier?: string;
+          tier_multiplier?: number | null;
           reward_points?: number;
           lifetime_spending?: number | null;
           total_lifetime_spending?: number | null;
@@ -362,9 +365,11 @@ export interface Database {
           shop_id: string;
           service_type: string;
           description: string | null;
+          notes?: string | null;
           amount: number;
           points_earned: number;
           service_date: string;
+          mileage_at_service?: number | null;
           created_at: string;
         };
         Insert: {
@@ -374,9 +379,11 @@ export interface Database {
           shop_id: string;
           service_type: string;
           description?: string | null;
+          notes?: string | null;
           amount: number;
           points_earned?: number;
           service_date?: string;
+          mileage_at_service?: number | null;
           created_at?: string;
         };
         Update: {
@@ -386,9 +393,11 @@ export interface Database {
           shop_id?: string;
           service_type?: string;
           description?: string | null;
+          notes?: string | null;
           amount?: number;
           points_earned?: number;
           service_date?: string;
+          mileage_at_service?: number | null;
           created_at?: string;
         };
       };
@@ -776,6 +785,7 @@ export interface Database {
           customer_id: string;
           vehicle_id: string | null;
           appointment_id: string | null;
+          temp_customer_name?: string | null;
           status: 'draft' | 'awaiting_approval' | 'approved' | 'declined' | 'inspection_complete' | 'closed';
           ro_number: string;
           customer_notes: string | null;
@@ -802,6 +812,7 @@ export interface Database {
           customer_id: string;
           vehicle_id?: string | null;
           appointment_id?: string | null;
+          temp_customer_name?: string | null;
           status?: 'draft' | 'awaiting_approval' | 'approved' | 'declined' | 'inspection_complete' | 'closed';
           ro_number: string;
           customer_notes?: string | null;
@@ -828,6 +839,7 @@ export interface Database {
           customer_id?: string;
           vehicle_id?: string | null;
           appointment_id?: string | null;
+          temp_customer_name?: string | null;
           status?: 'draft' | 'awaiting_approval' | 'approved' | 'declined' | 'inspection_complete' | 'closed';
           ro_number?: string;
           customer_notes?: string | null;
@@ -1776,6 +1788,12 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+      };
+      [key: string]: {
+        Row: Record<string, any>;
+        Insert: Record<string, any>;
+        Update: Record<string, any>;
+        Relationships?: any[];
       };
     };
   };

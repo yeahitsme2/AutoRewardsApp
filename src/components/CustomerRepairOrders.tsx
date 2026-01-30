@@ -32,7 +32,6 @@ export function CustomerRepairOrders() {
   const [expandedChat, setExpandedChat] = useState<Record<string, boolean>>({});
   const [lightboxImage, setLightboxImage] = useState<{ url: string; label: string } | null>(null);
   const [taxRate, setTaxRate] = useState(0);
-  const [taxableTypes, setTaxableTypes] = useState<string[]>(['part']);
   const [loading, setLoading] = useState(true);
   const [tableMissing, setTableMissing] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -69,7 +68,6 @@ export function CustomerRepairOrders() {
       if (error) {
         const notFound = error.code === '42P01'
           || error.code === '404'
-          || error.status === 404
           || error.message?.includes('repair_orders')
           || error.message?.includes('Not Found');
         if (notFound) {
@@ -211,7 +209,7 @@ export function CustomerRepairOrders() {
             .neq('status', 'declined');
           if (childError) throw childError;
         }
-        const nextItems = (order.items || []).map((item) => {
+        const nextItems = (order.items || []).map<RepairOrderItem>((item) => {
           if (item.status === 'declined') return item;
           if (item.item_type === 'labor' || item.item_type === 'part' || item.item_type === 'fee') {
             return { ...item, status: 'approved' };
@@ -328,7 +326,6 @@ export function CustomerRepairOrders() {
         .maybeSingle();
       if (error) throw error;
       setTaxRate(Number((data as any)?.tax_rate || 0));
-      setTaxableTypes(((data as any)?.taxable_item_types as string[]) || ['part']);
     } catch (error) {
       console.error('Failed to load tax settings:', error);
     }

@@ -11,7 +11,7 @@ export type DviRecommendation = {
   id: string;
   title: string;
   notes: string | null;
-  condition: 'red' | 'yellow';
+  condition: 'red' | 'yellow' | 'green';
   recommendationStatus: string | null;
   mediaCounts: RecommendationMediaCounts;
   alreadyAdded: boolean;

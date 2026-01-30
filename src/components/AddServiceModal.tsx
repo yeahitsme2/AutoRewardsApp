@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
 import type { Customer, Vehicle } from '../types/database';
 
@@ -11,12 +10,12 @@ interface AddServiceModalProps {
 }
 
 export function AddServiceModal({ customer, onClose }: AddServiceModalProps) {
-  const { customer: admin } = useAuth();
   const { brandSettings } = useBrand();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [pointsPerDollar, setPointsPerDollar] = useState<number>(10);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const tierMultiplier = Number(customer.tier_multiplier || 1);
 
   const [formData, setFormData] = useState({
     vehicleId: '',
@@ -77,7 +76,6 @@ export function AddServiceModal({ customer, onClose }: AddServiceModalProps) {
         throw new Error('Please enter a valid amount');
       }
 
-      const tierMultiplier = customer.tier_multiplier || 1.0;
       const pointsEarned = Math.floor(amount * pointsPerDollar * tierMultiplier);
 
       const servicePayload: any = {
@@ -219,9 +217,9 @@ export function AddServiceModal({ customer, onClose }: AddServiceModalProps) {
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
             />
             <p className="text-sm text-slate-600 mt-1">
-              Reward points: {formData.amount ? Math.floor((parseFloat(formData.amount) || 0) * pointsPerDollar * (customer.tier_multiplier || 1.0)) : 0} points
-              {customer.tier_multiplier > 1
-                ? ` (${pointsPerDollar} pts/$1 × ${customer.tier_multiplier}x tier multiplier)`
+              Reward points: {formData.amount ? Math.floor((parseFloat(formData.amount) || 0) * pointsPerDollar * tierMultiplier) : 0} points
+              {tierMultiplier > 1
+                ? ` (${pointsPerDollar} pts/$1 × ${tierMultiplier}x tier multiplier)`
                 : ` (${pointsPerDollar} pts/$1)`
               }
             </p>
@@ -288,3 +286,4 @@ export function AddServiceModal({ customer, onClose }: AddServiceModalProps) {
     </div>
   );
 }
+

@@ -384,7 +384,10 @@ export function TechnicianDashboard() {
         {}
       );
       (data || []).forEach((row) => {
-        counts[row.report_id][row.condition] += 1;
+        const condition = row.condition as 'green' | 'yellow' | 'red';
+        if (condition && counts[row.report_id]) {
+          counts[row.report_id][condition] += 1;
+        }
       });
       setReportItemCounts(counts);
     } catch (error) {
@@ -706,7 +709,6 @@ export function TechnicianDashboard() {
 
     return repairOrders
       .filter((ro) => {
-        const report = reportByRo.get(ro.id);
         const matchesSearch = !search
           || ro.ro_number.toLowerCase().includes(search.toLowerCase())
           || ro.temp_customer_name?.toLowerCase().includes(search.toLowerCase());

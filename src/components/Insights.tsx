@@ -10,8 +10,7 @@ import {
   Award,
   UserPlus,
   Activity,
-  ArrowUpRight,
-  ArrowDownRight
+  ArrowUpRight
 } from 'lucide-react';
 
 interface InsightsData {
@@ -273,7 +272,7 @@ export function Insights() {
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
           <h3 className="text-lg font-semibold text-slate-900 mb-4">Customer Signups (Last 30 Days)</h3>
           <div className="h-40 flex items-end gap-1">
-            {insights.dailySignups.map((day, index) => (
+            {insights.dailySignups.map((day) => (
               <div key={day.date} className="flex-1 flex flex-col items-center">
                 <div
                   className="w-full rounded-t transition-all"

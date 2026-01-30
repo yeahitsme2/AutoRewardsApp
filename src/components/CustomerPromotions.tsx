@@ -67,8 +67,7 @@ export function CustomerPromotions() {
       }
 
       const promosWithStatus: PromotionWithStatus[] = (customerPromos as CustomerPromotionWithPromotion[])
-        .map((cp) => (cp.promotion ? { ...cp.promotion, customer_promotion: cp } : null))
-        .filter((p): p is PromotionWithStatus => p !== null)
+        .flatMap((cp) => (cp.promotion ? [{ ...cp.promotion, customer_promotion: cp }] : []))
         .sort((a, b) =>
           new Date(b.customer_promotion.assigned_at).getTime() -
           new Date(a.customer_promotion.assigned_at).getTime()
@@ -99,7 +98,7 @@ export function CustomerPromotions() {
     }
   };
 
-  const getDiscountIcon = (type: string) => {
+  const getDiscountIcon = (type: string | null) => {
     switch (type) {
       case 'percentage':
         return <Percent className="w-5 h-5" />;

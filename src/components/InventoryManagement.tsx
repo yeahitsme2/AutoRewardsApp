@@ -766,55 +766,6 @@ export function InventoryManagement() {
     }
   };
 
-  const handleReceivePurchaseOrder = async (po: PurchaseOrder) => {
-    if (!admin?.shop_id || !po.location_id) return;
-    try {
-      const lines = purchaseLines.filter((line) => line.purchase_order_id === po.id);
-      const transactions = lines.map((line) => ({
-        shop_id: admin.shop_id,
-        location_id: po.location_id,
-        part_id: line.part_id,
-        transaction_type: 'receive',
-        quantity: line.quantity,
-        reference_type: 'po',
-        reference_id: po.id,
-      }));
-      if (transactions.length > 0) {
-        const { error } = await supabase.from('inventory_transactions').insert(transactions);
-        if (error) throw error;
-      }
-      await supabase
-        .from('purchase_order_lines')
-        .update({ received_qty: 0 })
-        .eq('purchase_order_id', po.id);
-      const lineUpdates = lines.map((line) =>
-        supabase
-          .from('purchase_order_lines')
-          .update({ received_qty: line.quantity })
-          .eq('id', line.id)
-      );
-      await Promise.all(lineUpdates);
-      await supabase
-        .from('purchase_orders')
-        .update({ status: 'received', updated_at: new Date().toISOString() })
-        .eq('id', po.id);
-      await logAuditEvent({
-        shopId: admin.shop_id,
-        actorRole: 'admin',
-        eventType: 'purchase_order_received',
-        entityType: 'purchase_order',
-        entityId: po.id,
-      });
-      showMessage('success', 'Purchase order received');
-      loadPartLocations();
-      loadPurchaseOrders();
-      loadTransactions();
-    } catch (error) {
-      console.error('Failed to receive PO:', error);
-      showMessage('error', 'Failed to receive PO');
-    }
-  };
-
   const lowStockParts = useMemo(() => {
     return partLocations.filter((loc) => {
       const min = Number(loc.reorder_min || loc.reorder_threshold || 0);
@@ -1679,24 +1630,6 @@ export function InventoryManagement() {
         </div>
       )}
 
-      {activeTab === 'transactions' && (
-        <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-3">
-          <h3 className="font-semibold text-slate-900">Recent Transactions</h3>
-          {transactions.map((tx) => (
-            <div key={tx.id} className="border border-slate-200 rounded-lg p-3 text-sm flex items-center justify-between">
-              <div>
-                <p className="font-medium text-slate-900">{tx.transaction_type.toUpperCase()}</p>
-                <p className="text-xs text-slate-500">{new Date(tx.created_at).toLocaleString()}</p>
-              </div>
-              <div className="text-right text-xs text-slate-600">
-                <div>Qty {tx.quantity}</div>
-                <div>{tx.reference_type || 'manual'}</div>
-              </div>
-            </div>
-          ))}
-          {transactions.length === 0 && <p className="text-sm text-slate-500">No transactions yet.</p>}
-        </div>
-      )}
     </div>
   );
 }

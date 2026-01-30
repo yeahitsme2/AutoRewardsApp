@@ -32,7 +32,7 @@ function getShopSlugFromUrl(): string {
 
 function App() {
   const { user, customer, admin, superAdmin, loading, signOut } = useAuth();
-  const { shop, loading: shopLoading, setShopById, setShopBySlug } = useShop();
+  const { loading: shopLoading, setShopById, setShopBySlug } = useShop();
 
   useEffect(() => {
     if (loading) return;

@@ -5,7 +5,6 @@ import {
   Building2,
   Plus,
   Users,
-  Settings,
   LogOut,
   Store,
   UserPlus,

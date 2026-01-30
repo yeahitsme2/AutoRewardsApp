@@ -319,7 +319,6 @@ export function RepairOrdersManagement() {
       if (error) {
         const notFound = error.code === '42P01'
           || error.code === '404'
-          || error.status === 404
           || error.message?.includes('repair_orders')
           || error.message?.includes('Not Found');
         if (notFound) {

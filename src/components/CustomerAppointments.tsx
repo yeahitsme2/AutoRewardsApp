@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
-import { useBrand } from '../lib/BrandContext';
 import { Calendar, Clock, Car, Plus, X, CheckCircle, XCircle, AlertCircle, MapPin, Layers } from 'lucide-react';
 import { logAuditEvent } from '../lib/audit';
 import { scheduleAppointmentReminders } from '../lib/appointments';
@@ -66,7 +65,6 @@ const makeZonedDate = (dateStr: string, timeStr: string, timeZone: string) => {
 
 export function CustomerAppointments() {
   const { customer } = useAuth();
-  const { brandSettings } = useBrand();
   const [appointments, setAppointments] = useState<AppointmentWithVehicle[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [locations, setLocations] = useState<ShopLocation[]>([]);

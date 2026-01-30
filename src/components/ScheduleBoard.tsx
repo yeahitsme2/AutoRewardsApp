@@ -24,6 +24,9 @@ const serviceCatalog = [
   'Other',
 ];
 
+const isMissingColumn = (error: { code?: string; message?: string }) =>
+  error?.code === '42703' || (typeof error?.message === 'string' && error.message.includes('does not exist'));
+
 export function ScheduleBoard() {
   const { admin } = useAuth();
   const { brandSettings } = useBrand();

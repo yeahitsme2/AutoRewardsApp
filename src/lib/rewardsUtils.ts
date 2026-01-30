@@ -184,8 +184,8 @@ export interface ServiceReminder {
 }
 
 export function calculateServiceReminders(
-  lastServiceDate: string | null,
-  lastServiceMileage: number | null,
+  _lastServiceDate: string | null,
+  _lastServiceMileage: number | null,
   currentMileage: number,
   nextServiceDueDate: string | null,
   nextServiceDueMileage: number | null

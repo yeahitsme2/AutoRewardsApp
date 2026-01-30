@@ -12,11 +12,6 @@ type TemplateWithSections = DviTemplate & {
   sections: Array<DviTemplateSection & { items: DviTemplateItem[] }>;
 };
 
-type ReportWithItems = DviReport & {
-  items: DviReportItem[];
-  media: DviItemMedia[];
-};
-
 export function DviManagement() {
   const { admin } = useAuth();
   const { brandSettings } = useBrand();

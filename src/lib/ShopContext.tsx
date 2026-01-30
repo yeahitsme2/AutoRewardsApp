@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, ReactNode } from 'react';
 import { supabase } from './supabase';
 
 interface Shop {
@@ -26,29 +26,6 @@ const ShopContext = createContext<ShopContextType>({
 
 export function useShop() {
   return useContext(ShopContext);
-}
-
-function getShopSlugFromUrl(): string {
-  const hostname = window.location.hostname;
-  const pathname = window.location.pathname;
-
-  const pathMatch = pathname.match(/^\/shop\/([^/]+)/);
-  if (pathMatch) {
-    return pathMatch[1];
-  }
-
-  const parts = hostname.split('.');
-  if (parts.length >= 3 && parts[0] !== 'www') {
-    return parts[0];
-  }
-
-  const params = new URLSearchParams(window.location.search);
-  const shopParam = params.get('shop');
-  if (shopParam) {
-    return shopParam;
-  }
-
-  return 'default';
 }
 
 export function ShopProvider({ children }: { children: ReactNode }) {

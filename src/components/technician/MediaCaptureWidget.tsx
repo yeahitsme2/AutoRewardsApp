@@ -74,7 +74,7 @@ export function MediaCaptureWidget({ onFileSelected, disabled }: MediaCaptureWid
         ref={audioInputRef}
         type="file"
         accept="audio/*"
-        capture="microphone"
+        capture="user"
         className="hidden"
         onChange={(event) => {
           const file = event.target.files?.[0];

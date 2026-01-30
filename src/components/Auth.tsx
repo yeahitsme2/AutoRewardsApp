@@ -3,7 +3,6 @@ import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
 import { LogIn, UserPlus, Eye, EyeOff, Shield } from 'lucide-react';
 
-const DEMO_SHOP_ID = '00000000-0000-0000-0000-000000000001';
 
 export function Auth() {
   const [email, setEmail] = useState('');
