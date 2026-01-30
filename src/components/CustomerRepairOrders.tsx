@@ -212,6 +212,18 @@ export function CustomerRepairOrders() {
             .neq('status', 'declined');
           if (childError) throw childError;
         }
+        const nextItems = (order.items || []).map((item) => {
+          if (item.status === 'declined') return item;
+          if (item.item_type === 'labor') return { ...item, status: 'approved' };
+          if (item.parent_item_id && laborParentIds.includes(item.parent_item_id)) {
+            return { ...item, status: 'approved' };
+          }
+          return item;
+        });
+        const totals = computeTotals(nextItems);
+        setOrders((prev) =>
+          prev.map((o) => (o.id === orderId ? { ...o, items: nextItems, ...totals, status: 'approved' } : o))
+        );
       }
       const { error } = await supabase
         .from('repair_orders')
