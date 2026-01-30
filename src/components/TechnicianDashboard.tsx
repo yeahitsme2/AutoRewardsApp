@@ -490,6 +490,22 @@ export function TechnicianDashboard() {
     }
   };
 
+  const handleMarkInspectionComplete = async () => {
+    if (!selectedReport?.repair_order_id || !admin?.shop_id) return;
+    try {
+      const { error } = await supabase
+        .from('repair_orders')
+        .update({ status: 'inspection_complete', updated_at: new Date().toISOString() })
+        .eq('id', selectedReport.repair_order_id);
+      if (error) throw error;
+      showMessage('success', 'Inspection marked complete');
+      loadRepairOrders();
+    } catch (error) {
+      console.error('Failed to mark inspection complete:', error);
+      showMessage('error', 'Failed to mark inspection complete');
+    }
+  };
+
   const handlePublish = async () => {
     if (!selectedReportId || !admin?.shop_id) return;
     try {
@@ -878,6 +894,14 @@ export function TechnicianDashboard() {
                     >
                       <ListChecks className="w-4 h-4" />
                       Summary
+                    </button>
+                    <button
+                      onClick={handleMarkInspectionComplete}
+                      className="flex items-center gap-2 px-3 py-2 border border-slate-300 rounded-lg"
+                      disabled={!selectedReport}
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      Mark Complete
                     </button>
                     <button
                       onClick={flushAllUpdates}
