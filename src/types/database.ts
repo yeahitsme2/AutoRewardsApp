@@ -250,6 +250,7 @@ export interface Database {
           is_admin: boolean;
           tier: string;
           tier_multiplier?: number | null;
+          tier_thresholds?: Record<string, unknown> | null;
           reward_points: number;
           lifetime_spending?: number | null;
           total_lifetime_spending?: number | null;
@@ -269,6 +270,7 @@ export interface Database {
           is_admin?: boolean;
           tier?: string;
           tier_multiplier?: number | null;
+          tier_thresholds?: Record<string, unknown> | null;
           reward_points?: number;
           lifetime_spending?: number | null;
           total_lifetime_spending?: number | null;
@@ -288,6 +290,7 @@ export interface Database {
           is_admin?: boolean;
           tier?: string;
           tier_multiplier?: number | null;
+          tier_thresholds?: Record<string, unknown> | null;
           reward_points?: number;
           lifetime_spending?: number | null;
           total_lifetime_spending?: number | null;
