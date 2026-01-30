@@ -666,12 +666,25 @@ export function RepairOrdersManagement() {
     );
   };
 
+  const computeLineTotal = (item: RepairOrderItem) => {
+    const lineTotal = item.item_type === 'labor'
+      ? Number(item.labor_hours || 0) * Number(item.unit_price || 0)
+      : Number(item.quantity || 0) * Number(item.unit_price || 0);
+    return roundToCents(lineTotal);
+  };
+
   const computeTotals = (items: RepairOrderItem[]) => {
     const eligible = items.filter((i) => i.status !== 'declined');
-    const labor_total = eligible.filter((i) => i.item_type === 'labor').reduce((sum, i) => sum + i.total, 0);
-    const parts_total = eligible.filter((i) => i.item_type === 'part').reduce((sum, i) => sum + i.total, 0);
-    const fees_total = eligible.filter((i) => i.item_type === 'fee').reduce((sum, i) => sum + i.total, 0);
-    const taxableSubtotal = eligible.filter((i) => i.taxable).reduce((sum, i) => sum + i.total, 0);
+    const labor_total = eligible
+      .filter((i) => i.item_type === 'labor')
+      .reduce((sum, i) => sum + computeLineTotal(i), 0);
+    const parts_total = eligible
+      .filter((i) => i.item_type === 'part')
+      .reduce((sum, i) => sum + computeLineTotal(i), 0);
+    const fees_total = eligible
+      .filter((i) => i.item_type === 'fee')
+      .reduce((sum, i) => sum + computeLineTotal(i), 0);
+    const taxableSubtotal = eligible.filter((i) => i.taxable).reduce((sum, i) => sum + computeLineTotal(i), 0);
     const tax_total = roundToCents(taxableSubtotal * (taxRate / 100));
     const grand_total = roundToCents(labor_total + parts_total + fees_total + tax_total);
     return { labor_total, parts_total, fees_total, tax_total, grand_total };
@@ -1343,7 +1356,7 @@ export function RepairOrdersManagement() {
                                 )}
                               </div>
                               <div className="flex flex-col items-end gap-2">
-                                        <div className="font-semibold text-slate-900">${item.total.toFixed(2)}</div>
+                                        <div className="font-semibold text-slate-900">${computeLineTotal(item).toFixed(2)}</div>
                                 {isEditing ? (
                                   <div className="flex gap-2">
                                     <button
@@ -1443,7 +1456,7 @@ export function RepairOrdersManagement() {
                                         )}
                                       </div>
                                       <div className="flex flex-col items-end gap-2">
-                                        <div className="font-semibold text-slate-900">${child.total.toFixed(2)}</div>
+                                        <div className="font-semibold text-slate-900">${computeLineTotal(child).toFixed(2)}</div>
                                         {isChildEditing ? (
                                           <div className="flex gap-2">
                                             <button

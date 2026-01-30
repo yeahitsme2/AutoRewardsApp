@@ -383,7 +383,7 @@ export function CustomerRepairOrders() {
                   <div>
                     <p className="font-medium text-slate-900">{item.description}</p>
                     <p className="text-xs text-slate-500">
-                      {item.item_type.toUpperCase()} - {item.item_type === 'labor' ? `${item.labor_hours ?? 0} hrs` : `Qty ${item.quantity}`} - ${item.unit_price.toFixed(2)}
+                      {item.item_type.toUpperCase()} - {item.item_type === 'labor' ? `${item.labor_hours ?? 0} hrs` : `Qty ${item.quantity}`}
                     </p>
                     <span className={`inline-flex mt-1 text-xs px-2 py-0.5 rounded-full ${
                       item.status === 'approved'
@@ -411,7 +411,7 @@ export function CustomerRepairOrders() {
                       </div>
                     )}
                   </div>
-                  <div className="font-semibold text-slate-900">${item.total.toFixed(2)}</div>
+                  <div className="font-semibold text-slate-900">${computeLineTotal(item).toFixed(2)}</div>
                 </div>
               ))}
             </div>
@@ -583,12 +583,19 @@ export function CustomerRepairOrders() {
     }
   };
 
+  const computeLineTotal = (item: RepairOrderItem) => {
+    const lineTotal = item.item_type === 'labor'
+      ? Number(item.labor_hours || 0) * Number(item.unit_price || 0)
+      : Number(item.quantity || 0) * Number(item.unit_price || 0);
+    return Number(lineTotal.toFixed(2));
+  };
+
   const computeTotals = (items: RepairOrderItem[]) => {
     const eligible = items.filter((item) => item.status !== 'declined');
-    const labor_total = eligible.filter((i) => i.item_type === 'labor').reduce((sum, i) => sum + i.total, 0);
-    const parts_total = eligible.filter((i) => i.item_type === 'part').reduce((sum, i) => sum + i.total, 0);
-    const fees_total = eligible.filter((i) => i.item_type === 'fee').reduce((sum, i) => sum + i.total, 0);
-    const taxableSubtotal = eligible.filter((i) => i.taxable).reduce((sum, i) => sum + i.total, 0);
+    const labor_total = eligible.filter((i) => i.item_type === 'labor').reduce((sum, i) => sum + computeLineTotal(i), 0);
+    const parts_total = eligible.filter((i) => i.item_type === 'part').reduce((sum, i) => sum + computeLineTotal(i), 0);
+    const fees_total = eligible.filter((i) => i.item_type === 'fee').reduce((sum, i) => sum + computeLineTotal(i), 0);
+    const taxableSubtotal = eligible.filter((i) => i.taxable).reduce((sum, i) => sum + computeLineTotal(i), 0);
     const tax_total = Number((taxableSubtotal * (taxRate / 100)).toFixed(2));
     const grand_total = Number((labor_total + parts_total + fees_total + tax_total).toFixed(2));
     return { labor_total, parts_total, fees_total, tax_total, grand_total };
