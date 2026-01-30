@@ -345,6 +345,9 @@ function CreateTechnicianModal({ isOpen, onClose, shopId, onCreated }: CreateTec
           shop_id: shopId,
           role: 'technician',
         },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
       });
 
       if (functionError || !data?.success) {
