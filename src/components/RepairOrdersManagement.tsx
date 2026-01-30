@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
-import { AlertCircle, CheckCircle, ClipboardList, DollarSign, Plus, Save, User, Car, X, MessageSquare, Boxes, AlertTriangle, Camera, Mic, Video } from 'lucide-react';
+import { AlertCircle, CheckCircle, ClipboardList, ClipboardCheck, DollarSign, Plus, Save, User, Car, X, MessageSquare, Boxes, AlertTriangle, Camera, Mic, Video } from 'lucide-react';
 import { ChatThread } from './ChatThread';
 import { logAuditEvent } from '../lib/audit';
 import { logOutboundMessage } from '../lib/messaging';
