@@ -26,6 +26,29 @@ Deno.serve(async (req: Request) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+    const authHeader = req.headers.get('Authorization');
+    const token = authHeader?.replace('Bearer ', '');
+    const hasServiceKey = Boolean(supabaseServiceKey);
+    console.log('create-admin env check', {
+      hasSupabaseUrl: Boolean(supabaseUrl),
+      hasServiceKey,
+      supabaseUrlHost: supabaseUrl ? new URL(supabaseUrl).host : null,
+      hasAuthHeader: Boolean(authHeader),
+    });
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        console.log('create-admin token payload', {
+          iss: payload?.iss,
+          aud: payload?.aud,
+          exp: payload?.exp,
+          sub: payload?.sub,
+        });
+      } catch (error) {
+        console.log('create-admin token decode failed', { error: (error as Error).message });
+      }
+    }
     
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
       auth: {
@@ -34,12 +57,10 @@ Deno.serve(async (req: Request) => {
       },
     });
 
-    const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       throw new Error('Missing authorization header');
     }
 
-    const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
     
     if (userError || !user) {
