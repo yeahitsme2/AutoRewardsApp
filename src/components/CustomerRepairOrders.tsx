@@ -52,6 +52,8 @@ export function CustomerRepairOrders() {
       } catch {
         setExpandedOrders({});
       }
+    } else {
+      setExpandedOrders({});
     }
     if (storedDvi) {
       try {
@@ -59,6 +61,8 @@ export function CustomerRepairOrders() {
       } catch {
         setExpandedDviReports({});
       }
+    } else {
+      setExpandedDviReports({});
     }
   }, [customer, expandedOrdersKey, expandedDviKey]);
 
@@ -337,7 +341,7 @@ export function CustomerRepairOrders() {
                 onClick={() => setExpandedOrders((prev) => ({ ...prev, [order.id]: !(prev[order.id] ?? true) }))}
                 className="text-xs text-slate-500 flex items-center gap-1"
               >
-                {expandedOrders[order.id] ?? true ? (
+                {expandedOrders[order.id] ?? false ? (
                   <>
                     <ChevronDown className="w-4 h-4" />
                     Collapse
@@ -352,7 +356,7 @@ export function CustomerRepairOrders() {
             </div>
           </div>
 
-          {(expandedOrders[order.id] ?? true) && (
+          {(expandedOrders[order.id] ?? false) && (
             <>
               {(order.items || []).length === 0 ? (
                 <p className="text-sm text-slate-600">No line items yet.</p>
@@ -379,7 +383,7 @@ export function CustomerRepairOrders() {
                     onClick={() => setExpandedDviReports((prev) => ({ ...prev, [order.id]: !(prev[order.id] ?? true) }))}
                     className="flex items-center gap-2 text-slate-700"
                   >
-                    {(expandedDviReports[order.id] ?? true) ? (
+                    {(expandedDviReports[order.id] ?? false) ? (
                       <ChevronDown className="w-4 h-4" />
                     ) : (
                       <ChevronRight className="w-4 h-4" />
@@ -387,7 +391,7 @@ export function CustomerRepairOrders() {
                     <ClipboardCheck className="w-4 h-4" />
                     <h4 className="font-semibold text-slate-900">Inspection Report</h4>
                   </button>
-                  {(expandedDviReports[order.id] ?? true) && (
+                  {(expandedDviReports[order.id] ?? false) && (
                     <>
                       {(dviReports[order.id] || []).map((report) => (
                         <div key={report.id} className="border border-slate-200 rounded-lg p-3 space-y-2">
