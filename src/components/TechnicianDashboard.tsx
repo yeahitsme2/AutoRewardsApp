@@ -536,26 +536,26 @@ export function TechnicianDashboard() {
     }
   };
 
-  const handleAddCustomItem = async (sectionTitle: string) => {
+  const handleAddCustomItem = async (sectionId: string) => {
     if (!selectedReportId) return;
-    const title = quickAdd[sectionTitle]?.trim();
+    const title = quickAdd[sectionId]?.trim();
     if (!title) return;
-    const section = selectedTemplate?.sections.find((entry) => entry.title === sectionTitle);
-    const sectionId = section?.id || sectionTitle;
+    const section = selectedTemplate?.sections.find((entry) => entry.id === sectionId);
+    const resolvedSectionId = section?.id || sectionId;
     try {
       const { data, error } = await supabase
         .from('dvi_report_items')
         .insert(buildCustomReportItem({
           reportId: selectedReportId,
           title,
-          sectionTitle: sectionId,
+          sectionTitle: resolvedSectionId,
           sortOrder: reportItems.length + 1,
         }))
         .select('*')
         .single();
       if (error) throw error;
       setReportItems((prev) => [...prev, data as DviReportItem]);
-      setQuickAdd((prev) => ({ ...prev, [sectionTitle]: '' }));
+      setQuickAdd((prev) => ({ ...prev, [sectionId]: '' }));
       showMessage('success', 'Item added');
     } catch (error) {
       console.error('Failed to add custom item:', error);
@@ -978,13 +978,14 @@ export function TechnicianDashboard() {
 
                       <div className="flex flex-wrap gap-2">
                         <input
-                          value={quickAdd[section.title] || ''}
-                          onChange={(event) => setQuickAdd((prev) => ({ ...prev, [section.title]: event.target.value }))}
+                          value={quickAdd[section.id] || ''}
+                          onChange={(event) => setQuickAdd((prev) => ({ ...prev, [section.id]: event.target.value }))}
                           placeholder="Quick add item"
                           className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                          autoComplete="off"
                         />
                         <button
-                          onClick={() => handleAddCustomItem(section.title)}
+                          onClick={() => handleAddCustomItem(section.id)}
                           className="flex items-center gap-2 px-3 py-2 border border-slate-300 rounded-lg text-sm"
                         >
                           <Plus className="w-4 h-4" />
