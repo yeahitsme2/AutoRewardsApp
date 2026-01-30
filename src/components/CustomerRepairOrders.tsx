@@ -319,6 +319,74 @@ export function CustomerRepairOrders() {
     setTimeout(() => setMessage(null), 3000);
   };
 
+  const loadTaxSettings = async (shopId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('shop_settings')
+        .select('tax_rate, taxable_item_types')
+        .eq('shop_id', shopId)
+        .maybeSingle();
+      if (error) throw error;
+      setTaxRate(Number((data as any)?.tax_rate || 0));
+      setTaxableTypes(((data as any)?.taxable_item_types as string[]) || ['part']);
+    } catch (error) {
+      console.error('Failed to load tax settings:', error);
+    }
+  };
+
+  const computeLineTotal = (item: RepairOrderItem) => {
+    const lineTotal = item.item_type === 'labor'
+      ? Number(item.labor_hours || 0) * Number(item.unit_price || 0)
+      : Number(item.quantity || 0) * Number(item.unit_price || 0);
+    return Number(lineTotal.toFixed(2));
+  };
+
+  const computeTotals = (items: RepairOrderItem[]) => {
+    const eligible = items.filter((item) => item.status !== 'declined');
+    const labor_total = eligible.filter((i) => i.item_type === 'labor').reduce((sum, i) => sum + computeLineTotal(i), 0);
+    const parts_total = eligible.filter((i) => i.item_type === 'part').reduce((sum, i) => sum + computeLineTotal(i), 0);
+    const fees_total = eligible.filter((i) => i.item_type === 'fee').reduce((sum, i) => sum + computeLineTotal(i), 0);
+    const taxableSubtotal = eligible.filter((i) => i.taxable).reduce((sum, i) => sum + computeLineTotal(i), 0);
+    const tax_total = Number((taxableSubtotal * (taxRate / 100)).toFixed(2));
+    const grand_total = Number((labor_total + parts_total + fees_total + tax_total).toFixed(2));
+    return { labor_total, parts_total, fees_total, tax_total, grand_total };
+  };
+
+  const updateLineItemStatus = async (order: RepairOrderWithItems, itemId: string, status: 'approved' | 'declined') => {
+    try {
+      const item = (order.items || []).find((entry) => entry.id === itemId);
+      if (item?.parent_item_id) return;
+      const { error } = await supabase
+        .from('repair_order_items')
+        .update({ status })
+        .eq('id', itemId);
+      if (error) throw error;
+
+      const { error: childError } = await supabase
+        .from('repair_order_items')
+        .update({ status })
+        .eq('parent_item_id', itemId);
+      if (childError) throw childError;
+
+      const nextItems = (order.items || []).map((entry) =>
+        entry.id === itemId || entry.parent_item_id === itemId ? { ...entry, status } : entry
+      );
+      const totals = computeTotals(nextItems);
+      await supabase
+        .from('repair_orders')
+        .update({ ...totals, status: 'awaiting_approval', updated_at: new Date().toISOString() })
+        .eq('id', order.id);
+
+      setOrders((prev) =>
+        prev.map((o) => (o.id === order.id ? { ...o, items: nextItems, ...totals } : o))
+      );
+      showMessage('success', `Item ${status}`);
+    } catch (error) {
+      console.error('Failed to update line item:', error);
+      showMessage('error', 'Failed to update line item');
+    }
+  };
+
   const getMediaForItem = (itemId: string) => dviMedia[itemId] || [];
   const getItemTitle = (item: DviReportItem) =>
     item.custom_title
@@ -633,70 +701,3 @@ export function CustomerRepairOrders() {
     </div>
   );
 }
-  const loadTaxSettings = async (shopId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('shop_settings')
-        .select('tax_rate, taxable_item_types')
-        .eq('shop_id', shopId)
-        .maybeSingle();
-      if (error) throw error;
-      setTaxRate(Number((data as any)?.tax_rate || 0));
-      setTaxableTypes(((data as any)?.taxable_item_types as string[]) || ['part']);
-    } catch (error) {
-      console.error('Failed to load tax settings:', error);
-    }
-  };
-
-  const computeLineTotal = (item: RepairOrderItem) => {
-    const lineTotal = item.item_type === 'labor'
-      ? Number(item.labor_hours || 0) * Number(item.unit_price || 0)
-      : Number(item.quantity || 0) * Number(item.unit_price || 0);
-    return Number(lineTotal.toFixed(2));
-  };
-
-  const computeTotals = (items: RepairOrderItem[]) => {
-    const eligible = items.filter((item) => item.status !== 'declined');
-    const labor_total = eligible.filter((i) => i.item_type === 'labor').reduce((sum, i) => sum + computeLineTotal(i), 0);
-    const parts_total = eligible.filter((i) => i.item_type === 'part').reduce((sum, i) => sum + computeLineTotal(i), 0);
-    const fees_total = eligible.filter((i) => i.item_type === 'fee').reduce((sum, i) => sum + computeLineTotal(i), 0);
-    const taxableSubtotal = eligible.filter((i) => i.taxable).reduce((sum, i) => sum + computeLineTotal(i), 0);
-    const tax_total = Number((taxableSubtotal * (taxRate / 100)).toFixed(2));
-    const grand_total = Number((labor_total + parts_total + fees_total + tax_total).toFixed(2));
-    return { labor_total, parts_total, fees_total, tax_total, grand_total };
-  };
-
-  const updateLineItemStatus = async (order: RepairOrderWithItems, itemId: string, status: 'approved' | 'declined') => {
-    try {
-      const item = (order.items || []).find((entry) => entry.id === itemId);
-      if (item?.parent_item_id) return;
-      const { error } = await supabase
-        .from('repair_order_items')
-        .update({ status })
-        .eq('id', itemId);
-      if (error) throw error;
-
-      const { error: childError } = await supabase
-        .from('repair_order_items')
-        .update({ status })
-        .eq('parent_item_id', itemId);
-      if (childError) throw childError;
-
-      const nextItems = (order.items || []).map((entry) =>
-        entry.id === itemId || entry.parent_item_id === itemId ? { ...entry, status } : entry
-      );
-      const totals = computeTotals(nextItems);
-      await supabase
-        .from('repair_orders')
-        .update({ ...totals, status: 'awaiting_approval', updated_at: new Date().toISOString() })
-        .eq('id', order.id);
-
-      setOrders((prev) =>
-        prev.map((o) => (o.id === order.id ? { ...o, items: nextItems, ...totals } : o))
-      );
-      showMessage('success', `Item ${status}`);
-    } catch (error) {
-      console.error('Failed to update line item:', error);
-      showMessage('error', 'Failed to update line item');
-    }
-  };
