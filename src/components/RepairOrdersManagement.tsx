@@ -157,11 +157,34 @@ export function RepairOrdersManagement() {
   });
   const [showChat, setShowChat] = useState(false);
   const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reloadItemsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reloadDviTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const selectedOrderIdRef = useRef<string | null>(null);
+  const selectedOrderRef = useRef<RepairOrderWithDetails | null>(null);
   const scheduleReload = () => {
     if (reloadTimerRef.current) return;
     reloadTimerRef.current = setTimeout(() => {
       reloadTimerRef.current = null;
       loadOrders();
+    }, 400);
+  };
+  const scheduleItemsReload = (orderId: string | null) => {
+    if (!orderId || reloadItemsTimerRef.current) return;
+    reloadItemsTimerRef.current = setTimeout(() => {
+      reloadItemsTimerRef.current = null;
+      loadItems(orderId).catch((error) => console.error('Failed to reload line items:', error));
+    }, 300);
+  };
+  const scheduleDviReload = () => {
+    if (reloadDviTimerRef.current) return;
+    reloadDviTimerRef.current = setTimeout(() => {
+      reloadDviTimerRef.current = null;
+      const order = selectedOrderRef.current;
+      if (!order) return;
+      checkDviAvailability(order.id);
+      if (dviModalOpen) {
+        loadDviRecommendations(order).catch((error) => console.error('Failed to reload DVI:', error));
+      }
     }, 400);
   };
 
@@ -178,12 +201,56 @@ export function RepairOrdersManagement() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'repair_orders' },
-        scheduleReload
+        (payload) => {
+          scheduleReload();
+          const orderId = (payload.new as RepairOrder | null)?.id || (payload.old as RepairOrder | null)?.id || null;
+          if (orderId && orderId === selectedOrderIdRef.current) {
+            scheduleItemsReload(orderId);
+          }
+        }
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'repair_order_items' },
-        scheduleReload
+        (payload) => {
+          scheduleReload();
+          const orderId = (payload.new as RepairOrderItem | null)?.repair_order_id
+            || (payload.old as RepairOrderItem | null)?.repair_order_id
+            || null;
+          if (orderId && orderId === selectedOrderIdRef.current) {
+            scheduleItemsReload(orderId);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'dvi_reports' },
+        (payload) => {
+          const orderId = (payload.new as DviReport | null)?.repair_order_id
+            || (payload.old as DviReport | null)?.repair_order_id
+            || null;
+          if (orderId && orderId === selectedOrderIdRef.current) {
+            scheduleDviReload();
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'dvi_report_items' },
+        () => {
+          if (selectedOrderIdRef.current) {
+            scheduleDviReload();
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'dvi_item_media' },
+        () => {
+          if (selectedOrderIdRef.current) {
+            scheduleDviReload();
+          }
+        }
       )
       .subscribe();
     return () => {
@@ -192,8 +259,21 @@ export function RepairOrdersManagement() {
         clearTimeout(reloadTimerRef.current);
         reloadTimerRef.current = null;
       }
+      if (reloadItemsTimerRef.current) {
+        clearTimeout(reloadItemsTimerRef.current);
+        reloadItemsTimerRef.current = null;
+      }
+      if (reloadDviTimerRef.current) {
+        clearTimeout(reloadDviTimerRef.current);
+        reloadDviTimerRef.current = null;
+      }
     };
   }, []);
+
+  useEffect(() => {
+    selectedOrderIdRef.current = selectedOrderId;
+    selectedOrderRef.current = selectedOrder;
+  }, [selectedOrderId, selectedOrder]);
 
   useEffect(() => {
     if (!selectedOrderId) {
