@@ -725,12 +725,17 @@ export function TechnicianDashboard() {
   }, [repairOrders, reports, reportItemCounts, search]);
 
   const openQueueItems = useMemo(
-    () => queueItems.filter((item) => item.reportStatus !== 'published'),
+    () => queueItems.filter((item) => item.status !== 'inspection_complete' && item.status !== 'closed'),
+    [queueItems]
+  );
+
+  const inspectionCompleteItems = useMemo(
+    () => queueItems.filter((item) => item.status === 'inspection_complete'),
     [queueItems]
   );
 
   const pastQueueItems = useMemo(
-    () => queueItems.filter((item) => item.reportStatus === 'published'),
+    () => queueItems.filter((item) => item.status === 'closed'),
     [queueItems]
   );
 
@@ -798,6 +803,29 @@ export function TechnicianDashboard() {
             />
 
             <TechnicianRoQueue
+              items={inspectionCompleteItems}
+              selectedId={selectedRoId}
+              search={search}
+              onSearchChange={setSearch}
+              filter="published"
+              onFilterChange={() => {}}
+              onSelect={(id) => {
+                setSelectedRoId(id);
+                setSelectedItemId(null);
+                const existingReport = reports.find((report) => report.repair_order_id === id) || null;
+                if (existingReport) {
+                  setSelectedReportId(existingReport.id);
+                  setDrawerOpen(true);
+                }
+              }}
+              loading={loading}
+              title="Inspection complete"
+              subtitle="Ready for review"
+              showFilters={false}
+              emptyMessage="No inspections completed yet."
+            />
+
+            <TechnicianRoQueue
               items={pastQueueItems}
               selectedId={selectedRoId}
               search={search}
@@ -815,7 +843,7 @@ export function TechnicianDashboard() {
               }}
               loading={loading}
               title="Past inspections"
-              subtitle="DVI Archive"
+              subtitle="Closed repair orders"
               showFilters={false}
               emptyMessage="No past inspections yet."
             />
