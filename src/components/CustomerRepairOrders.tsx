@@ -190,7 +190,7 @@ export function CustomerRepairOrders() {
     }
   };
 
-  const handleApprove = async (orderId: string) => {
+  const handleApproveAll = async (orderId: string) => {
     try {
       const order = orders.find((o) => o.id === orderId);
       if (order) {
@@ -201,7 +201,6 @@ export function CustomerRepairOrders() {
           .from('repair_order_items')
           .update({ status: 'approved' })
           .eq('repair_order_id', orderId)
-          .eq('item_type', 'labor')
           .neq('status', 'declined');
         if (itemError) throw itemError;
         if (laborParentIds.length > 0) {
@@ -214,7 +213,9 @@ export function CustomerRepairOrders() {
         }
         const nextItems = (order.items || []).map((item) => {
           if (item.status === 'declined') return item;
-          if (item.item_type === 'labor') return { ...item, status: 'approved' };
+          if (item.item_type === 'labor' || item.item_type === 'part' || item.item_type === 'fee') {
+            return { ...item, status: 'approved' };
+          }
           if (item.parent_item_id && laborParentIds.includes(item.parent_item_id)) {
             return { ...item, status: 'approved' };
           }
@@ -222,9 +223,26 @@ export function CustomerRepairOrders() {
         });
         const totals = computeTotals(nextItems);
         setOrders((prev) =>
-          prev.map((o) => (o.id === orderId ? { ...o, items: nextItems, ...totals, status: 'approved' } : o))
+          prev.map((o) => (o.id === orderId ? { ...o, items: nextItems, ...totals } : o))
         );
       }
+      showMessage('success', 'Line items approved');
+    } catch (error) {
+      console.error('Error approving line items:', error);
+      showMessage('error', 'Failed to approve line items');
+    }
+  };
+
+  const handleSendToShop = async (orderId: string) => {
+    try {
+      const order = orders.find((o) => o.id === orderId);
+      if (!order) return;
+      const pending = (order.items || []).some((item) => !item.status || item.status === 'pending');
+      if (pending) {
+        showMessage('error', 'Please approve or decline all items before sending to the shop.');
+        return;
+      }
+
       const { error } = await supabase
         .from('repair_orders')
         .update({
@@ -236,10 +254,9 @@ export function CustomerRepairOrders() {
           updated_at: new Date().toISOString(),
         })
         .eq('id', orderId);
-
       if (error) throw error;
 
-      if (customer?.shop_id && order?.ro_number) {
+      if (customer?.shop_id && order.ro_number) {
         await supabase.functions.invoke('send-push', {
           body: {
             target: 'admin',
@@ -250,11 +267,11 @@ export function CustomerRepairOrders() {
           },
         });
       }
-      showMessage('success', 'Repair order approved');
+      showMessage('success', 'Sent to the shop');
       loadOrders();
     } catch (error) {
-      console.error('Error approving repair order:', error);
-      showMessage('error', 'Failed to approve repair order');
+      console.error('Error sending to shop:', error);
+      showMessage('error', 'Failed to send to shop');
     }
   };
 
@@ -371,7 +388,9 @@ export function CustomerRepairOrders() {
         </div>
       )}
 
-      {orders.map((order) => (
+      {orders.map((order) => {
+        const hasPendingItems = (order.items || []).some((item) => !item.status || item.status === 'pending');
+        return (
         <div key={order.id} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -576,14 +595,23 @@ export function CustomerRepairOrders() {
 
               {order.status === 'awaiting_approval' && (
                 <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => handleApprove(order.id)}
-                className="flex items-center gap-2 px-4 py-2 text-white rounded-lg"
-                style={{ backgroundColor: brandSettings.primary_color }}
-              >
-                <CheckCircle className="w-4 h-4" />
-                Approve
-              </button>
+                  <button
+                    onClick={() => handleApproveAll(order.id)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 text-slate-700"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    Approve all
+                  </button>
+                  <button
+                    onClick={() => handleSendToShop(order.id)}
+                    className={`flex items-center gap-2 px-4 py-2 text-white rounded-lg ${hasPendingItems ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    style={{ backgroundColor: brandSettings.primary_color }}
+                    disabled={hasPendingItems}
+                    title={hasPendingItems ? 'Approve or decline all items first' : undefined}
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    Send to shop
+                  </button>
                   <button
                     onClick={() => handleDecline(order.id)}
                     className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg"
@@ -596,7 +624,8 @@ export function CustomerRepairOrders() {
             </>
           )}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
