@@ -69,6 +69,19 @@ describe('inventory helpers', () => {
     expect(auditMock).toHaveBeenCalled();
   });
 
+  it('skips inventory logs for special order reservations', async () => {
+    await reservePart({
+      shopId: 'shop-1',
+      orderId: 'ro-1',
+      partId: 'part-2',
+      locationId: '',
+      quantity: 1,
+      isSpecialOrder: true,
+    });
+    const mocks = getInventorySupabaseMocks();
+    expect(mocks.inventoryInsertMock).not.toHaveBeenCalled();
+  });
+
   it('consumes reserved parts and logs inventory', async () => {
     await consumeReservedParts({
       shopId: 'shop-1',

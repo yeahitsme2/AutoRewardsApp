@@ -154,6 +154,7 @@ export function RepairOrdersManagement() {
     part_id: '',
     location_id: '',
     quantity: 1,
+    is_special_order: false,
   });
   const [showChat, setShowChat] = useState(false);
   const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -563,8 +564,12 @@ export function RepairOrdersManagement() {
 
   const reservePart = async (orderId: string) => {
     if (!admin?.shop_id) return;
-    if (!reservationDraft.part_id || !reservationDraft.location_id || reservationDraft.quantity <= 0) {
-      showMessage('error', 'Select part, location, and quantity');
+    if (!reservationDraft.part_id || reservationDraft.quantity <= 0) {
+      showMessage('error', 'Select part and quantity');
+      return;
+    }
+    if (!reservationDraft.is_special_order && !reservationDraft.location_id) {
+      showMessage('error', 'Select a location for stock parts');
       return;
     }
     try {
@@ -574,8 +579,9 @@ export function RepairOrdersManagement() {
         partId: reservationDraft.part_id,
         locationId: reservationDraft.location_id,
         quantity: Number(reservationDraft.quantity),
+        isSpecialOrder: reservationDraft.is_special_order,
       });
-      setReservationDraft({ part_id: '', location_id: '', quantity: 1 });
+      setReservationDraft({ part_id: '', location_id: '', quantity: 1, is_special_order: false });
       setReservations((prev) => [...prev, reservation]);
       showMessage('success', 'Part reserved');
     } catch (error) {
@@ -594,7 +600,7 @@ export function RepairOrdersManagement() {
       });
       setReservations((prev) =>
         prev.map((res) => (res.repair_order_id === orderId && res.status === 'reserved'
-          ? { ...res, status: 'consumed' }
+          ? { ...res, status: 'consumed', job_status: 'installed' }
           : res))
       );
     } catch (error) {
@@ -1629,6 +1635,7 @@ export function RepairOrdersManagement() {
                       value={reservationDraft.location_id}
                       onChange={(e) => setReservationDraft({ ...reservationDraft, location_id: e.target.value })}
                       className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                      disabled={reservationDraft.is_special_order}
                     >
                       <option value="">Select location</option>
                       {locations.map((loc) => (
@@ -1644,6 +1651,14 @@ export function RepairOrdersManagement() {
                       className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
                       placeholder="Qty"
                     />
+                    <label className="flex items-center gap-2 text-xs text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={reservationDraft.is_special_order}
+                        onChange={(e) => setReservationDraft({ ...reservationDraft, is_special_order: e.target.checked })}
+                      />
+                      Special order (not in stock)
+                    </label>
                     <button
                       onClick={() => reservePart(selectedOrder.id)}
                       className="flex items-center justify-center gap-2 px-3 py-2 text-white rounded-lg text-sm"
@@ -1658,10 +1673,12 @@ export function RepairOrdersManagement() {
                         <div key={res.id} className="border border-slate-200 rounded-lg p-3 text-sm flex items-center justify-between">
                           <div>
                             <p className="font-medium text-slate-900">{parts.find((p) => p.id === res.part_id)?.name || 'Part'}</p>
-                            <p className="text-xs text-slate-500">{locations.find((l) => l.id === res.location_id)?.name || 'Location'}</p>
+                            <p className="text-xs text-slate-500">
+                              {res.is_special_order ? 'Special order' : (locations.find((l) => l.id === res.location_id)?.name || 'Location')}
+                            </p>
                           </div>
                           <div className="text-xs text-slate-600">
-                            Qty {res.quantity} - {res.status}
+                            Qty {res.quantity} - {res.job_status || res.status}
                           </div>
                         </div>
                       ))}

@@ -943,6 +943,14 @@ export interface Database {
           location_id: string | null;
           quantity: number;
           status: 'reserved' | 'consumed' | 'released';
+          job_status: string | null;
+          is_special_order: boolean;
+          po_line_id: string | null;
+          expected_at: string | null;
+          notes: string | null;
+          core_due: boolean;
+          core_returned_at: string | null;
+          vendor_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -954,6 +962,14 @@ export interface Database {
           location_id?: string | null;
           quantity: number;
           status?: 'reserved' | 'consumed' | 'released';
+          job_status?: string | null;
+          is_special_order?: boolean;
+          po_line_id?: string | null;
+          expected_at?: string | null;
+          notes?: string | null;
+          core_due?: boolean;
+          core_returned_at?: string | null;
+          vendor_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -965,6 +981,14 @@ export interface Database {
           location_id?: string | null;
           quantity?: number;
           status?: 'reserved' | 'consumed' | 'released';
+          job_status?: string | null;
+          is_special_order?: boolean;
+          po_line_id?: string | null;
+          expected_at?: string | null;
+          notes?: string | null;
+          core_due?: boolean;
+          core_returned_at?: string | null;
+          vendor_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -974,6 +998,13 @@ export interface Database {
           id: string;
           shop_id: string;
           sku: string | null;
+          vendor_id: string | null;
+          vendor_sku: string | null;
+          internal_sku: string | null;
+          category: string | null;
+          aliases: string[] | null;
+          is_core: boolean;
+          core_charge: number;
           name: string;
           description: string | null;
           unit_cost: number;
@@ -988,6 +1019,13 @@ export interface Database {
           id?: string;
           shop_id: string;
           sku?: string | null;
+          vendor_id?: string | null;
+          vendor_sku?: string | null;
+          internal_sku?: string | null;
+          category?: string | null;
+          aliases?: string[] | null;
+          is_core?: boolean;
+          core_charge?: number;
           name: string;
           description?: string | null;
           unit_cost?: number;
@@ -1002,6 +1040,13 @@ export interface Database {
           id?: string;
           shop_id?: string;
           sku?: string | null;
+          vendor_id?: string | null;
+          vendor_sku?: string | null;
+          internal_sku?: string | null;
+          category?: string | null;
+          aliases?: string[] | null;
+          is_core?: boolean;
+          core_charge?: number;
           name?: string;
           description?: string | null;
           unit_cost?: number;
@@ -1021,6 +1066,10 @@ export interface Database {
           on_hand: number;
           reserved: number;
           reorder_threshold: number;
+          reorder_min: number;
+          reorder_max: number;
+          bin: string | null;
+          avg_cost: number;
           updated_at: string;
         };
         Insert: {
@@ -1030,6 +1079,10 @@ export interface Database {
           on_hand?: number;
           reserved?: number;
           reorder_threshold?: number;
+          reorder_min?: number;
+          reorder_max?: number;
+          bin?: string | null;
+          avg_cost?: number;
           updated_at?: string;
         };
         Update: {
@@ -1039,6 +1092,10 @@ export interface Database {
           on_hand?: number;
           reserved?: number;
           reorder_threshold?: number;
+          reorder_min?: number;
+          reorder_max?: number;
+          bin?: string | null;
+          avg_cost?: number;
           updated_at?: string;
         };
       };
@@ -1117,6 +1174,7 @@ export interface Database {
           quantity: number;
           unit_cost: number;
           received_qty: number;
+          reservation_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -1126,6 +1184,7 @@ export interface Database {
           quantity?: number;
           unit_cost?: number;
           received_qty?: number;
+          reservation_id?: string | null;
           created_at?: string;
         };
         Update: {
@@ -1135,6 +1194,7 @@ export interface Database {
           quantity?: number;
           unit_cost?: number;
           received_qty?: number;
+          reservation_id?: string | null;
           created_at?: string;
         };
       };

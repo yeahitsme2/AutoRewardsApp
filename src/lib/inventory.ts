@@ -8,6 +8,8 @@ type ReservePartPayload = {
   partId: string;
   locationId: string;
   quantity: number;
+  isSpecialOrder?: boolean;
+  repairOrderItemId?: string | null;
 };
 
 export async function reservePart(payload: ReservePartPayload) {
@@ -16,23 +18,28 @@ export async function reservePart(payload: ReservePartPayload) {
     .insert({
       repair_order_id: payload.orderId,
       part_id: payload.partId,
-      location_id: payload.locationId,
+      location_id: payload.locationId || null,
       quantity: payload.quantity,
       status: 'reserved',
+      job_status: payload.isSpecialOrder ? 'needed' : 'assigned',
+      is_special_order: Boolean(payload.isSpecialOrder),
+      repair_order_item_id: payload.repairOrderItemId || null,
     })
     .select('*')
     .single();
   if (error) throw error;
 
-  await supabase.from('inventory_transactions').insert({
-    shop_id: payload.shopId,
-    location_id: payload.locationId,
-    part_id: payload.partId,
-    transaction_type: 'reserve',
-    quantity: payload.quantity,
-    reference_type: 'ro',
-    reference_id: payload.orderId,
-  });
+  if (!payload.isSpecialOrder) {
+    await supabase.from('inventory_transactions').insert({
+      shop_id: payload.shopId,
+      location_id: payload.locationId,
+      part_id: payload.partId,
+      transaction_type: 'reserve',
+      quantity: payload.quantity,
+      reference_type: 'ro',
+      reference_id: payload.orderId,
+    });
+  }
 
   await logAuditEvent({
     shopId: payload.shopId,
@@ -40,7 +47,7 @@ export async function reservePart(payload: ReservePartPayload) {
     eventType: 'inventory_reserved',
     entityType: 'repair_order',
     entityId: payload.orderId,
-    metadata: { part_id: payload.partId, quantity: payload.quantity },
+    metadata: { part_id: payload.partId, quantity: payload.quantity, special_order: Boolean(payload.isSpecialOrder) },
   });
 
   return data as RepairOrderPartReservation;
@@ -73,7 +80,7 @@ export async function consumeReservedParts(payload: ConsumeReservedPayload) {
 
   await supabase
     .from('repair_order_part_reservations')
-    .update({ status: 'consumed', updated_at: new Date().toISOString() })
+    .update({ status: 'consumed', job_status: 'installed', updated_at: new Date().toISOString() })
     .eq('repair_order_id', payload.orderId)
     .eq('status', 'reserved');
 
