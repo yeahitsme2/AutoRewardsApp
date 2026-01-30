@@ -853,9 +853,11 @@ export interface Database {
           item_type: 'labor' | 'part' | 'fee';
           description: string;
           quantity: number;
+          labor_hours: number | null;
           unit_price: number;
           total: number;
           taxable: boolean;
+          parent_item_id: string | null;
           source_type: string | null;
           source_id: string | null;
           metadata: Record<string, unknown> | null;
@@ -867,9 +869,11 @@ export interface Database {
           item_type: 'labor' | 'part' | 'fee';
           description: string;
           quantity: number;
+          labor_hours?: number | null;
           unit_price: number;
           total?: number;
           taxable?: boolean;
+          parent_item_id?: string | null;
           source_type?: string | null;
           source_id?: string | null;
           metadata?: Record<string, unknown> | null;
@@ -881,9 +885,11 @@ export interface Database {
           item_type?: 'labor' | 'part' | 'fee';
           description?: string;
           quantity?: number;
+          labor_hours?: number | null;
           unit_price?: number;
           total?: number;
           taxable?: boolean;
+          parent_item_id?: string | null;
           source_type?: string | null;
           source_id?: string | null;
           metadata?: Record<string, unknown> | null;

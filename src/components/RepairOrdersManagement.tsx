@@ -42,9 +42,11 @@ const emptyItem = {
   item_type: 'labor' as RepairOrderItem['item_type'],
   description: '',
   quantity: 1,
+  labor_hours: null as number | null,
   cost: 0,
   unit_price: 0,
   taxable: false,
+  parent_item_id: null as string | null,
 };
 
 const generateRoNumber = () => {
@@ -108,6 +110,27 @@ export function RepairOrdersManagement() {
       item.title.toLowerCase().includes(term) || (item.notes || '').toLowerCase().includes(term)
     );
   }, [dviRecommendations, dviSearch]);
+
+  const laborLineItems = useMemo(() => {
+    if (!selectedOrder?.items) return [];
+    return selectedOrder.items.filter((item) => item.item_type === 'labor' && !item.parent_item_id);
+  }, [selectedOrder]);
+
+  const nestedLineItems = useMemo(() => {
+    if (!selectedOrder?.items) return [];
+    const parents = selectedOrder.items.filter((item) => !item.parent_item_id);
+    const childrenMap = new Map<string, RepairOrderItem[]>();
+    selectedOrder.items.forEach((item) => {
+      if (!item.parent_item_id) return;
+      const list = childrenMap.get(item.parent_item_id) || [];
+      list.push(item);
+      childrenMap.set(item.parent_item_id, list);
+    });
+    return parents.map((parent) => ({
+      item: parent,
+      children: (childrenMap.get(parent.id) || []).sort((a, b) => a.created_at.localeCompare(b.created_at)),
+    }));
+  }, [selectedOrder]);
 
   const selectedCount = useMemo(() => {
     if (!dviRecommendations) return 0;
@@ -720,15 +743,17 @@ export function RepairOrdersManagement() {
         const total = roundToCents(quantityValue * unitPriceValue);
         const { data, error } = await supabase
           .from('repair_order_items')
-          .insert({
-            repair_order_id: orderId,
-            item_type: draft.item_type,
-            description: draft.description.trim(),
-            quantity: quantityValue,
-            unit_price: unitPriceValue,
-            total,
-            taxable: Boolean(draft.taxable),
-          })
+        .insert({
+          repair_order_id: orderId,
+          item_type: draft.item_type,
+          description: draft.description.trim(),
+          quantity: quantityValue,
+          labor_hours: draft.item_type === 'labor' ? draft.labor_hours : null,
+          unit_price: unitPriceValue,
+          total,
+          taxable: Boolean(draft.taxable),
+          parent_item_id: draft.parent_item_id || null,
+        })
         .select('*')
         .single();
 
@@ -741,7 +766,7 @@ export function RepairOrdersManagement() {
           return { ...order, items: nextItems };
         })
       );
-        setItemDrafts((prev) => ({ ...prev, [orderId]: { ...emptyItem, taxable: taxableTypes.includes('part') } }));
+      setItemDrafts((prev) => ({ ...prev, [orderId]: { ...emptyItem, taxable: taxableTypes.includes('part') } }));
       const updatedOrder = orders.find((order) => order.id === orderId);
       const nextItems = [...(updatedOrder?.items || []), data as RepairOrderItem];
       await updateOrderTotals(orderId, nextItems);
@@ -1072,16 +1097,36 @@ export function RepairOrdersManagement() {
                   {(selectedOrder.items || []).length === 0 ? (
                     <div className="text-sm text-slate-600">No line items yet.</div>
                   ) : (
-                    <div className="space-y-2">
-                      {selectedOrder.items?.map((item) => (
-                        <div key={item.id} className="flex items-start justify-between p-3 border border-slate-200 rounded-lg">
-                          <div>
-                            <p className="font-medium text-slate-900">{item.description}</p>
-                            <p className="text-xs text-slate-500">
-                              {item.item_type.toUpperCase()} • Qty {item.quantity} • ${item.unit_price.toFixed(2)}
-                            </p>
+                    <div className="space-y-3">
+                      {nestedLineItems.map(({ item, children }) => (
+                        <div key={item.id} className="space-y-2">
+                          <div className="flex items-start justify-between p-3 border border-slate-200 rounded-lg">
+                            <div>
+                              <p className="font-medium text-slate-900">{item.description}</p>
+                              <p className="text-xs text-slate-500">
+                                {item.item_type.toUpperCase()} ? Qty {item.quantity} ? ${item.unit_price.toFixed(2)}
+                                {item.item_type === 'labor' && item.labor_hours !== null && (
+                                  <> ? {item.labor_hours} hrs</>
+                                )}
+                              </p>
+                            </div>
+                            <div className="font-semibold text-slate-900">${item.total.toFixed(2)}</div>
                           </div>
-                          <div className="font-semibold text-slate-900">${item.total.toFixed(2)}</div>
+                          {children.length > 0 && (
+                            <div className="space-y-2 pl-4 border-l border-slate-200">
+                              {children.map((child) => (
+                                <div key={child.id} className="flex items-start justify-between p-3 border border-slate-200 rounded-lg bg-slate-50">
+                                  <div>
+                                    <p className="font-medium text-slate-900">{child.description}</p>
+                                    <p className="text-xs text-slate-500">
+                                      {child.item_type.toUpperCase()} ? Qty {child.quantity} ? ${child.unit_price.toFixed(2)}
+                                    </p>
+                                  </div>
+                                  <div className="font-semibold text-slate-900">${child.total.toFixed(2)}</div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -1201,6 +1246,9 @@ export function RepairOrdersManagement() {
                               })()
                               : (prev[selectedOrder.id] || emptyItem).unit_price,
                             taxable: taxableTypes.includes(e.target.value),
+                            parent_item_id: e.target.value === 'labor'
+                              ? null
+                              : (prev[selectedOrder.id] || emptyItem).parent_item_id,
                           },
                         }))}
                         className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
@@ -1232,6 +1280,23 @@ export function RepairOrdersManagement() {
                         }))}
                         className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
                       />
+                      {(itemDrafts[selectedOrder.id] || emptyItem).item_type === 'labor' && (
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.1"
+                          value={(itemDrafts[selectedOrder.id] || emptyItem).labor_hours ?? ''}
+                          onChange={(e) => setItemDrafts((prev) => ({
+                            ...prev,
+                            [selectedOrder.id]: {
+                              ...(prev[selectedOrder.id] || emptyItem),
+                              labor_hours: e.target.value === '' ? null : Number.parseFloat(e.target.value),
+                            },
+                          }))}
+                          placeholder="Labor hrs"
+                          className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                        />
+                      )}
                       {(itemDrafts[selectedOrder.id] || emptyItem).item_type === 'part' && (
                         <input
                           type="number"
@@ -1260,12 +1325,30 @@ export function RepairOrdersManagement() {
                         min={0}
                         step="0.01"
                         value={(itemDrafts[selectedOrder.id] || emptyItem).unit_price}
-                      onChange={(e) => setItemDrafts((prev) => ({
-                        ...prev,
-                        [selectedOrder.id]: { ...(prev[selectedOrder.id] || emptyItem), unit_price: Number(e.target.value) },
-                      }))}
-                      className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                    />
+                        onChange={(e) => setItemDrafts((prev) => ({
+                          ...prev,
+                          [selectedOrder.id]: { ...(prev[selectedOrder.id] || emptyItem), unit_price: Number(e.target.value) },
+                        }))}
+                        className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                      />
+                      {(itemDrafts[selectedOrder.id] || emptyItem).item_type !== 'labor' && (
+                        <select
+                          value={(itemDrafts[selectedOrder.id] || emptyItem).parent_item_id || ''}
+                          onChange={(e) => setItemDrafts((prev) => ({
+                            ...prev,
+                            [selectedOrder.id]: {
+                              ...(prev[selectedOrder.id] || emptyItem),
+                              parent_item_id: e.target.value || null,
+                            },
+                          }))}
+                          className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                        >
+                          <option value="">Attach to labor line (optional)</option>
+                          {laborLineItems.map((labor) => (
+                            <option key={labor.id} value={labor.id}>{labor.description}</option>
+                          ))}
+                        </select>
+                      )}
                   </div>
                   <div className="flex items-center justify-between">
                     <label className="flex items-center gap-2 text-sm text-slate-600">
