@@ -159,12 +159,14 @@ export function RepairOrdersManagement() {
 
   useEffect(() => {
     loadOrders();
+    const interval = setInterval(loadOrders, 5000);
     loadCustomers();
     loadVehicles();
     loadMarkupRules();
     loadTaxSettings();
     loadParts();
     loadLocations();
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
