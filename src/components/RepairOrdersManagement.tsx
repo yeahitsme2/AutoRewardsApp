@@ -81,6 +81,10 @@ export function RepairOrdersManagement() {
   const [dviSelected, setDviSelected] = useState<Record<string, boolean>>({});
   const [dviSearch, setDviSearch] = useState('');
   const [dviAvailable, setDviAvailable] = useState(false);
+  const selectedOrder = useMemo(
+    () => orders.find((order) => order.id === selectedOrderId) || null,
+    [orders, selectedOrderId]
+  );
   const openOrders = useMemo(
     () => orders.filter((order) => order.status !== 'closed' && order.status !== 'inspection_complete'),
     [orders]
@@ -187,10 +191,6 @@ export function RepairOrdersManagement() {
     });
   }, [selectedOrderId, taxableTypes]);
 
-  const selectedOrder = useMemo(
-    () => orders.find((order) => order.id === selectedOrderId) || null,
-    [orders, selectedOrderId]
-  );
 
   const loadOrders = async () => {
     try {
