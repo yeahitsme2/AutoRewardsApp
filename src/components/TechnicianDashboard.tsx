@@ -4,7 +4,7 @@ import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
 import { logAuditEvent } from '../lib/audit';
 import { logOutboundMessage } from '../lib/messaging';
-import { CheckCircle, ClipboardList, RefreshCcw, Square, Camera, AlertTriangle } from 'lucide-react';
+import { CheckCircle, ClipboardList, RefreshCcw, Square, Camera, AlertTriangle, LogOut } from 'lucide-react';
 import type { RepairOrder, DviReport, DviReportItem } from '../types/database';
 
 type ReportWithItems = DviReport & {
@@ -12,7 +12,7 @@ type ReportWithItems = DviReport & {
 };
 
 export function TechnicianDashboard() {
-  const { admin } = useAuth();
+  const { admin, signOut } = useAuth();
   const { brandSettings } = useBrand();
   const [repairOrders, setRepairOrders] = useState<RepairOrder[]>([]);
   const [reports, setReports] = useState<DviReport[]>([]);
@@ -197,19 +197,28 @@ export function TechnicianDashboard() {
               <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Technician workspace</p>
               <h1 className="text-3xl font-bold text-slate-900">Vehicle inspections & repairs</h1>
             </div>
-            <button
-              onClick={() => {
-                loadRepairOrders();
-                loadReports();
-                if (selectedReportId) {
-                  loadReportItems(selectedReportId);
-                }
-              }}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-slate-300 hover:border-slate-400"
-            >
-              <RefreshCcw className="w-4 h-4 text-slate-600" />
-              Refresh
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  loadRepairOrders();
+                  loadReports();
+                  if (selectedReportId) {
+                    loadReportItems(selectedReportId);
+                  }
+                }}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-slate-300 hover:border-slate-400"
+              >
+                <RefreshCcw className="w-4 h-4 text-slate-600" />
+                Refresh
+              </button>
+              <button
+                onClick={signOut}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-slate-300 text-slate-600 hover:border-slate-400 hover:text-slate-900"
+              >
+                <LogOut className="w-4 h-4" />
+                Sign Out
+              </button>
+            </div>
           </div>
           <p className="text-sm text-slate-500 max-w-2xl">
             Track open repair orders, update the inspection checklist, and publish DVIs for customers.
