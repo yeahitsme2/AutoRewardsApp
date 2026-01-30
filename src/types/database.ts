@@ -365,6 +365,8 @@ export interface Database {
           shop_id: string;
           service_type: string;
           description: string | null;
+          source_type?: string | null;
+          source_id?: string | null;
           notes?: string | null;
           amount: number;
           points_earned: number;
@@ -379,6 +381,8 @@ export interface Database {
           shop_id: string;
           service_type: string;
           description?: string | null;
+          source_type?: string | null;
+          source_id?: string | null;
           notes?: string | null;
           amount: number;
           points_earned?: number;
@@ -393,6 +397,8 @@ export interface Database {
           shop_id?: string;
           service_type?: string;
           description?: string | null;
+          source_type?: string | null;
+          source_id?: string | null;
           notes?: string | null;
           amount?: number;
           points_earned?: number;

@@ -8,6 +8,7 @@ import { logAuditEvent } from '../lib/audit';
 import { logOutboundMessage } from '../lib/messaging';
 import { consumeReservedParts as consumeReservedPartsAction, reservePart as reservePartAction } from '../lib/inventory';
 import { buildMediaCounts, buildRecommendations, selectLatestReport, type DviRecommendation } from '../lib/dviRecommendations';
+import { getTierLevels } from '../lib/rewardsUtils';
 import type { Customer, DviItemMedia, DviReport, DviReportItem, Part, RepairOrder, RepairOrderItem, RepairOrderMarkupRule, RepairOrderPartReservation, ShopLocation, ShopSettings, Vehicle } from '../types/database';
 
 interface RepairOrderWithDetails extends RepairOrder {
@@ -874,6 +875,100 @@ export function RepairOrdersManagement() {
       }
 
       if (status === 'closed') {
+        try {
+          const mileageInput = window.prompt('Enter vehicle mileage at close (optional):');
+          const mileageValue = mileageInput ? Number(mileageInput) : null;
+          const items = order?.items
+            || (await supabase
+              .from('repair_order_items')
+              .select('*')
+              .eq('repair_order_id', orderId)
+              .order('created_at', { ascending: true }))
+              .data
+            || [];
+          const totals = computeTotals(items as RepairOrderItem[]);
+          const preTaxTotal = roundToCents(totals.labor_total + totals.parts_total + totals.fees_total);
+
+          const { data: settingsData } = await supabase
+            .from('shop_settings')
+            .select('points_per_dollar, bronze_multiplier, silver_multiplier, gold_multiplier, platinum_multiplier, silver_points_min, gold_points_min, platinum_points_min')
+            .eq('shop_id', order?.shop_id || admin?.shop_id || '')
+            .maybeSingle();
+
+          if (order?.customer_id) {
+            const { data: customerData } = await supabase
+              .from('customers')
+              .select('*')
+              .eq('id', order.customer_id)
+              .maybeSingle();
+
+            if (customerData && settingsData) {
+              const tierLevels = getTierLevels({
+                points_per_dollar: Number(settingsData.points_per_dollar || 0),
+                bronze_multiplier: Number(settingsData.bronze_multiplier || 1),
+                silver_multiplier: Number(settingsData.silver_multiplier || 1),
+                gold_multiplier: Number(settingsData.gold_multiplier || 1),
+                platinum_multiplier: Number(settingsData.platinum_multiplier || 1),
+                silver_points_min: Number(settingsData.silver_points_min || 0),
+                gold_points_min: Number(settingsData.gold_points_min || 0),
+                platinum_points_min: Number(settingsData.platinum_points_min || 0),
+              });
+
+              const currentTier = tierLevels[customerData.tier] || tierLevels.bronze;
+              const pointsEarned = Math.floor(preTaxTotal * Number(settingsData.points_per_dollar || 0) * currentTier.multiplier);
+              const nextPoints = Number(customerData.reward_points || 0) + pointsEarned;
+
+              const sortedTiers = Object.values(tierLevels).sort((a, b) => b.minPoints - a.minPoints);
+              const nextTier = sortedTiers.find((tier) => nextPoints >= tier.minPoints) || tierLevels.bronze;
+
+              const { data: existingService } = await supabase
+                .from('services')
+                .select('id')
+                .eq('source_type', 'repair_order')
+                .eq('source_id', orderId)
+                .maybeSingle();
+
+              if (!existingService) {
+                await supabase.from('services').insert({
+                  shop_id: order.shop_id,
+                  customer_id: order.customer_id,
+                  vehicle_id: order.vehicle_id,
+                  service_type: 'Repair Order',
+                  description: `Repair Order ${order.ro_number}`,
+                  amount: preTaxTotal,
+                  points_earned: pointsEarned,
+                  service_date: new Date().toISOString(),
+                  mileage_at_service: Number.isFinite(mileageValue as number) ? mileageValue : null,
+                  source_type: 'repair_order',
+                  source_id: orderId,
+                });
+              }
+
+              await supabase
+                .from('customers')
+                .update({
+                  reward_points: nextPoints,
+                  tier: nextTier.name,
+                  tier_multiplier: nextTier.multiplier,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', order.customer_id);
+            }
+          }
+
+          if (order?.vehicle_id && Number.isFinite(mileageValue as number)) {
+            await supabase
+              .from('vehicles')
+              .update({
+                current_mileage: mileageValue,
+                last_service_mileage: mileageValue,
+                last_service_date: new Date().toISOString(),
+              })
+              .eq('id', order.vehicle_id);
+          }
+        } catch (innerError) {
+          console.error('Failed to sync repair order to service history:', innerError);
+        }
         await consumeReservedParts(orderId);
         if (admin?.shop_id && order?.customer_id) {
           await logOutboundMessage({
