@@ -87,6 +87,16 @@ export function TechnicianDashboard() {
     return map;
   }, [templates]);
 
+  const templateSectionLookup = useMemo(() => {
+    const map = new Map<string, { id: string; title: string }>();
+    templates.forEach((template) => {
+      template.sections.forEach((section) => {
+        map.set(section.id, { id: section.id, title: section.title });
+      });
+    });
+    return map;
+  }, [templates]);
+
   const checklistSections = useMemo<ChecklistSection[]>(() => {
     const groups = new Map<string, ChecklistSection>();
 
@@ -104,8 +114,9 @@ export function TechnicianDashboard() {
 
     reportItems.forEach((item) => {
       const templateMeta = item.template_item_id ? templateItemLookup.get(item.template_item_id) : null;
-      const sectionTitle = item.custom_section || templateMeta?.sectionTitle || 'Custom Items';
-      const sectionId = templateMeta?.item.section_id || sectionTitle;
+      const resolvedSection = item.custom_section ? templateSectionLookup.get(item.custom_section) : null;
+      const sectionTitle = resolvedSection?.title || item.custom_section || templateMeta?.sectionTitle || 'Custom Items';
+      const sectionId = resolvedSection?.id || templateMeta?.item.section_id || sectionTitle;
       if (!groups.has(sectionId)) {
         groups.set(sectionId, {
           id: sectionId,
@@ -529,13 +540,15 @@ export function TechnicianDashboard() {
     if (!selectedReportId) return;
     const title = quickAdd[sectionTitle]?.trim();
     if (!title) return;
+    const section = selectedTemplate?.sections.find((entry) => entry.title === sectionTitle);
+    const sectionId = section?.id || sectionTitle;
     try {
       const { data, error } = await supabase
         .from('dvi_report_items')
         .insert(buildCustomReportItem({
           reportId: selectedReportId,
           title,
-          sectionTitle,
+          sectionTitle: sectionId,
           sortOrder: reportItems.length + 1,
         }))
         .select('*')
@@ -555,13 +568,15 @@ export function TechnicianDashboard() {
     const sectionTitle = globalSection.trim();
     const title = globalItemTitle.trim();
     if (!sectionTitle || !title) return;
+    const section = selectedTemplate?.sections.find((entry) => entry.title.toLowerCase() === sectionTitle.toLowerCase());
+    const sectionId = section?.id || sectionTitle;
     try {
       const { data, error } = await supabase
         .from('dvi_report_items')
         .insert(buildCustomReportItem({
           reportId: selectedReportId,
           title,
-          sectionTitle,
+          sectionTitle: sectionId,
           sortOrder: reportItems.length + 1,
         }))
         .select('*')
