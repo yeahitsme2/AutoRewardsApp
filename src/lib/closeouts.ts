@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase, supabaseAnonKey, supabaseUrl } from './supabase';
 
 export type CloseoutPeriodType = 'day' | 'week' | 'month' | 'custom';
 
@@ -136,20 +136,31 @@ export const fetchCloseoutPreview = async (range: CloseoutRange, shopId?: string
     throw new Error('No active session');
   }
 
-  const { data, error } = await supabase.functions.invoke('closeouts-preview-public', {
-    body: {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Missing Supabase configuration');
+  }
+
+  const response = await fetch(`${supabaseUrl}/functions/v1/closeouts-preview-public`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: supabaseAnonKey,
+      Authorization: `Bearer ${sessionData.session.access_token}`,
+    },
+    body: JSON.stringify({
       start: range.start.toISOString(),
       end: range.end.toISOString(),
       label: range.label,
       period_type: range.periodType,
       shop_id: shopId ?? null,
       access_token: sessionData.session.access_token,
-    },
-    headers: {
-      Authorization: `Bearer ${sessionData.session.access_token}`,
-    },
+    }),
   });
 
-  if (error) throw error;
-  return data as CloseoutPreview;
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || 'Failed to load closeout preview');
+  }
+
+  return (await response.json()) as CloseoutPreview;
 };

@@ -29,6 +29,8 @@ serve(async (req) => {
     const periodType = body?.period_type ?? 'custom';
     const requestedShopId = body?.shop_id ?? null;
     const accessToken = body?.access_token ?? null;
+    const authHeader = req.headers.get('authorization') ?? req.headers.get('Authorization');
+    const headerToken = authHeader ? authHeader.replace('Bearer ', '') : null;
 
     if (!start || !end || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
       return new Response(JSON.stringify({ error: 'Invalid date range' }), {
@@ -37,7 +39,8 @@ serve(async (req) => {
       });
     }
 
-    if (!accessToken) {
+    const tokenForUser = accessToken || headerToken;
+    if (!tokenForUser) {
       return new Response(JSON.stringify({ error: 'Missing access token' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -49,7 +52,7 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
     const authClient = createClient(supabaseUrl, anonKey);
-    const { data: userData, error: userError } = await authClient.auth.getUser(accessToken);
+    const { data: userData, error: userError } = await authClient.auth.getUser(tokenForUser);
     if (userError || !userData?.user) {
       return new Response(JSON.stringify({ error: 'Invalid JWT' }), {
         status: 401,
