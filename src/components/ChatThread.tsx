@@ -127,6 +127,32 @@ export function ChatThread({ shopId, customerId, repairOrderId, threadType, titl
         .single();
       if (error) throw error;
 
+      const notificationBody = messageText.trim() || (fileQueue ? `Attachment: ${fileQueue.name}` : 'New message');
+      if (admin && customerId) {
+        await supabase.from('notifications').insert({
+          shop_id: shopId,
+          recipient_role: 'customer',
+          recipient_id: customerId,
+          title: 'New message from the shop',
+          body: notificationBody,
+          entity_type: threadType === 'ro' ? 'repair_order' : 'chat',
+          entity_id: repairOrderId || thread.id,
+          action_url: '/?tab=messages',
+        });
+      }
+      if (customer) {
+        await supabase.from('notifications').insert({
+          shop_id: shopId,
+          recipient_role: 'admin',
+          recipient_id: null,
+          title: 'New message from customer',
+          body: notificationBody,
+          entity_type: threadType === 'ro' ? 'repair_order' : 'chat',
+          entity_id: repairOrderId || thread.id,
+          action_url: '/?tab=my_shop&sub=messages',
+        });
+      }
+
       if (fileQueue) {
         const path = `chat/${thread.id}/${messageRow.id}/${Date.now()}-${fileQueue.name}`;
         const upload = await supabase.storage.from('chat-attachments').upload(path, fileQueue, {
