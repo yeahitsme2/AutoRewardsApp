@@ -48,20 +48,36 @@ serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-    const authClient = createClient(supabaseUrl, anonKey);
-    const { data: userData, error: userError } = await authClient.auth.getUser(tokenForUser);
-    if (userError || !userData?.user) {
+    const decodeJwtPayload = (token: string) => {
+      const base64 = token.split('.')[1]?.replace(/-/g, '+').replace(/_/g, '/');
+      if (!base64) return null;
+      const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+      try {
+        return JSON.parse(atob(padded));
+      } catch {
+        return null;
+      }
+    };
+
+    const payload = decodeJwtPayload(tokenForUser);
+    if (!payload?.sub || !payload?.iss) {
       return new Response(JSON.stringify({ error: 'Invalid JWT' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
+    if (typeof payload.iss === 'string' && !payload.iss.startsWith(supabaseUrl)) {
+      return new Response(JSON.stringify({ error: 'Invalid JWT issuer' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const supabase = createClient(supabaseUrl, serviceRoleKey);
-    const userId = userData.user.id;
+    const userId = payload.sub as string;
 
     const { data: superAdmin, error: superAdminError } = await supabase
       .from('super_admins')
