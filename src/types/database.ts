@@ -1363,6 +1363,50 @@ export interface Database {
           created_at?: string;
         };
       };
+      closeout_snapshots: {
+        Row: {
+          id: string;
+          shop_id: string;
+          location_id: string | null;
+          period_type: string;
+          start_date: string;
+          end_date: string;
+          status: string;
+          totals_json: Record<string, unknown>;
+          created_by: string;
+          created_at: string;
+          finalized_by: string | null;
+          finalized_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          shop_id: string;
+          location_id?: string | null;
+          period_type: string;
+          start_date: string;
+          end_date: string;
+          status?: string;
+          totals_json: Record<string, unknown>;
+          created_by: string;
+          created_at?: string;
+          finalized_by?: string | null;
+          finalized_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          shop_id?: string;
+          location_id?: string | null;
+          period_type?: string;
+          start_date?: string;
+          end_date?: string;
+          status?: string;
+          totals_json?: Record<string, unknown>;
+          created_by?: string;
+          created_at?: string;
+          finalized_by?: string | null;
+          finalized_at?: string | null;
+        };
+      };
       dvi_templates: {
         Row: {
           id: string;
@@ -1926,4 +1970,5 @@ export type OutboundMessageLog = Database['public']['Tables']['outbound_message_
 export type SmsUsageMonthly = Database['public']['Tables']['sms_usage_monthly']['Row'];
 export type SmsOptOut = Database['public']['Tables']['sms_opt_out']['Row'];
 export type SmsOverageEvent = Database['public']['Tables']['sms_overage_events']['Row'];
+export type CloseoutSnapshot = Database['public']['Tables']['closeout_snapshots']['Row'];
 export type PushSubscription = Database['public']['Tables']['push_subscriptions']['Row'];
