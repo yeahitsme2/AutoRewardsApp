@@ -143,6 +143,7 @@ export const fetchCloseoutPreview = async (range: CloseoutRange, shopId?: string
       label: range.label,
       period_type: range.periodType,
       shop_id: shopId ?? null,
+      access_token: sessionData.session.access_token,
     },
     headers: {
       Authorization: `Bearer ${sessionData.session.access_token}`,

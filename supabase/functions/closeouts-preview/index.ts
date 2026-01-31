@@ -22,20 +22,14 @@ serve(async (req) => {
   }
 
   try {
-    const authHeader = req.headers.get('authorization') ?? req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Missing authorization header' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
     const body = await req.json();
     const start = body?.start ? new Date(body.start) : null;
     const end = body?.end ? new Date(body.end) : null;
     const label = body?.label ?? 'Custom';
     const periodType = body?.period_type ?? 'custom';
     const requestedShopId = body?.shop_id ?? null;
+    const accessToken = body?.access_token ?? null;
+    const authHeader = req.headers.get('authorization') ?? req.headers.get('Authorization');
 
     if (!start || !end || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
       return new Response(JSON.stringify({ error: 'Invalid date range' }), {
@@ -48,10 +42,15 @@ serve(async (req) => {
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-    const authClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: userData, error: userError } = await authClient.auth.getUser();
+    const authClient = createClient(supabaseUrl, anonKey);
+    const tokenForUser = accessToken || authHeader?.replace('Bearer ', '') || null;
+    if (!tokenForUser) {
+      return new Response(JSON.stringify({ error: 'Missing access token' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    const { data: userData, error: userError } = await authClient.auth.getUser(tokenForUser);
     if (userError || !userData?.user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
