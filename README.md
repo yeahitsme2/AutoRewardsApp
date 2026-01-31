@@ -41,6 +41,11 @@ DriveRewards v2.0 is an end-to-end shop management and customer engagement platf
 - Refined repair order experience
 - Push notifications fully enabled end-to-end
 
+## V2.5 (Coming Soon)
+
+- Integrated parts and tires ordering
+- Direct repair order push to vendors
+
 ## Tech Stack
 
 - React + Vite + TypeScript
