@@ -52,7 +52,17 @@ serve(async (req) => {
     }
     const { data: userData, error: userError } = await authClient.auth.getUser(tokenForUser);
     if (userError || !userData?.user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      let tokenIss: string | null = null;
+      let tokenAud: string | null = null;
+      try {
+        const payload = JSON.parse(atob(tokenForUser.split('.')[1]));
+        tokenIss = payload?.iss ?? null;
+        tokenAud = payload?.aud ?? null;
+      } catch (_err) {
+        tokenIss = null;
+        tokenAud = null;
+      }
+      return new Response(JSON.stringify({ error: 'Invalid JWT', token_iss: tokenIss, token_aud: tokenAud }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
