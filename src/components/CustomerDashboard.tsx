@@ -36,7 +36,17 @@ export function CustomerDashboard() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [profileDraft, setProfileDraft] = useState({ full_name: '', email: '', phone: '' });
+  const [profileDraft, setProfileDraft] = useState({
+    full_name: '',
+    email: '',
+    phone: '',
+    address_line1: '',
+    address_line2: '',
+    city: '',
+    state: '',
+    postal_code: '',
+    country: '',
+  });
   const [savingProfile, setSavingProfile] = useState(false);
 
   useEffect(() => {
@@ -57,6 +67,12 @@ export function CustomerDashboard() {
       full_name: customer.full_name || '',
       email: customer.email || '',
       phone: customer.phone || '',
+      address_line1: customer.address_line1 || '',
+      address_line2: customer.address_line2 || '',
+      city: customer.city || '',
+      state: customer.state || '',
+      postal_code: customer.postal_code || '',
+      country: customer.country || '',
     });
   }, [customer?.id]);
 
@@ -145,6 +161,12 @@ export function CustomerDashboard() {
           full_name: profileDraft.full_name.trim(),
           email: profileDraft.email.trim() || null,
           phone: profileDraft.phone.trim() || null,
+          address_line1: profileDraft.address_line1.trim() || null,
+          address_line2: profileDraft.address_line2.trim() || null,
+          city: profileDraft.city.trim() || null,
+          state: profileDraft.state.trim() || null,
+          postal_code: profileDraft.postal_code.trim() || null,
+          country: profileDraft.country.trim() || null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', customer.id);
@@ -678,6 +700,60 @@ export function CustomerDashboard() {
                   <p className="text-xs text-slate-500 mt-2">
                     Updating email here updates your customer profile record.
                   </p>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Address Line 1</label>
+                  <input
+                    value={profileDraft.address_line1}
+                    onChange={(e) => setProfileDraft({ ...profileDraft, address_line1: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    placeholder="Street address"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Address Line 2</label>
+                  <input
+                    value={profileDraft.address_line2}
+                    onChange={(e) => setProfileDraft({ ...profileDraft, address_line2: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    placeholder="Apt, suite, unit"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">City</label>
+                  <input
+                    value={profileDraft.city}
+                    onChange={(e) => setProfileDraft({ ...profileDraft, city: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    placeholder="City"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">State</label>
+                  <input
+                    value={profileDraft.state}
+                    onChange={(e) => setProfileDraft({ ...profileDraft, state: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    placeholder="State"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">ZIP / Postal Code</label>
+                  <input
+                    value={profileDraft.postal_code}
+                    onChange={(e) => setProfileDraft({ ...profileDraft, postal_code: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    placeholder="ZIP"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Country</label>
+                  <input
+                    value={profileDraft.country}
+                    onChange={(e) => setProfileDraft({ ...profileDraft, country: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    placeholder="Country"
+                  />
                 </div>
               </div>
 

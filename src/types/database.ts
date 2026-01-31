@@ -250,6 +250,12 @@ export interface Database {
           email: string;
           full_name: string;
           phone: string | null;
+          address_line1?: string | null;
+          address_line2?: string | null;
+          city?: string | null;
+          state?: string | null;
+          postal_code?: string | null;
+          country?: string | null;
           is_admin: boolean;
           tier: string;
           tier_multiplier?: number | null;
@@ -270,6 +276,12 @@ export interface Database {
           email: string;
           full_name: string;
           phone?: string | null;
+          address_line1?: string | null;
+          address_line2?: string | null;
+          city?: string | null;
+          state?: string | null;
+          postal_code?: string | null;
+          country?: string | null;
           is_admin?: boolean;
           tier?: string;
           tier_multiplier?: number | null;
@@ -290,6 +302,12 @@ export interface Database {
           email?: string;
           full_name?: string;
           phone?: string | null;
+          address_line1?: string | null;
+          address_line2?: string | null;
+          city?: string | null;
+          state?: string | null;
+          postal_code?: string | null;
+          country?: string | null;
           is_admin?: boolean;
           tier?: string;
           tier_multiplier?: number | null;
