@@ -15,6 +15,16 @@
   - Fixes admin access to their shop's data
 */
 
+DO $do$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'customers'
+      AND column_name = 'auth_user_id'
+  ) THEN
+
 -- Helper function to get current user's shop_id (fixes auth_user_id reference)
 CREATE OR REPLACE FUNCTION get_user_shop_id()
 RETURNS uuid
@@ -377,3 +387,6 @@ CREATE POLICY "Admins can update their shop name"
       AND c.is_admin = true
     )
   );
+
+  END IF;
+END $do$;

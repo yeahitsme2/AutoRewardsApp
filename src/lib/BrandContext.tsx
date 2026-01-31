@@ -63,7 +63,7 @@ export function BrandProvider({ children }: { children: ReactNode }) {
     try {
       const { data, error } = await supabase
         .from('shop_settings')
-        .select('logo_url, primary_color, secondary_color, welcome_message, silver_points_min, gold_points_min, platinum_points_min, bronze_multiplier, silver_multiplier, gold_multiplier, platinum_multiplier, points_per_dollar')
+        .select('shop_logo_url, primary_color, secondary_color, welcome_message, silver_points_min, gold_points_min, platinum_points_min, bronze_multiplier, silver_multiplier, gold_multiplier, platinum_multiplier, points_per_dollar')
         .eq('shop_id', shop.id)
         .maybeSingle();
 
@@ -75,7 +75,7 @@ export function BrandProvider({ children }: { children: ReactNode }) {
 
       if (data) {
         const settings = {
-          logo_url: data.logo_url,
+          logo_url: data.shop_logo_url,
           primary_color: data.primary_color || defaultBrand.primary_color,
           secondary_color: data.secondary_color || defaultBrand.secondary_color,
           welcome_message: data.welcome_message || defaultBrand.welcome_message,

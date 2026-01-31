@@ -1,8 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Database } from '../types/database';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
+export const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
+export const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
 
 if (!supabaseUrl) {
   throw new Error('Missing VITE_SUPABASE_URL environment variable');
@@ -32,7 +31,7 @@ if (!storageAvailable) {
   console.warn('localStorage is not available. Auth sessions may not persist across page refreshes.');
 }
 
-export const supabase = createClient<Database>(apiUrl, supabaseAnonKey, {
+export const supabase = createClient<any>(apiUrl, supabaseAnonKey, {
   auth: {
     persistSession: storageAvailable,
     autoRefreshToken: true,

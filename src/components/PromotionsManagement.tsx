@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
 import { useShop } from '../lib/ShopContext';
 import { Percent, DollarSign, Sparkles, Gift, Plus, Users, X, Check, Crown, Calendar, Tag, Trash2 } from 'lucide-react';
@@ -12,7 +11,6 @@ interface PromotionWithRecipients extends Promotion {
 }
 
 export function PromotionsManagement() {
-  const { customer } = useAuth();
   const { brandSettings } = useBrand();
   const { shop } = useShop();
   const [promotions, setPromotions] = useState<PromotionWithRecipients[]>([]);
@@ -243,6 +241,33 @@ export function PromotionsManagement() {
 
       if (error) throw error;
 
+      await supabase.from('notifications').insert(
+        newCustomerIds.map((customerId) => ({
+          shop_id: shop.id,
+          recipient_role: 'customer',
+          recipient_id: customerId,
+          title: 'New Offer Available',
+          body: selectedPromotion.title,
+          entity_type: 'promotion',
+          entity_id: selectedPromotion.id,
+          action_url: '/?tab=offers',
+        }))
+      );
+
+      await Promise.allSettled(
+        newCustomerIds.map((customerId) =>
+          supabase.functions.invoke('send-push', {
+            body: {
+              target: 'customer',
+              customer_id: customerId,
+              title: 'New Offer Available',
+              message: selectedPromotion.title,
+              url: '/?tab=offers',
+            },
+          })
+        )
+      );
+
       alert(`Promotion sent to ${newCustomerIds.length} customer(s)!`);
       setShowSendModal(false);
       setSelectedPromotion(null);
@@ -256,7 +281,7 @@ export function PromotionsManagement() {
     }
   };
 
-  const getDiscountIcon = (type: string) => {
+  const getDiscountIcon = (type: string | null) => {
     switch (type) {
       case 'percentage':
         return <Percent className="w-5 h-5" />;
@@ -347,7 +372,9 @@ export function PromotionsManagement() {
                     <div className="flex items-center gap-4 text-sm text-slate-600">
                       <div className="flex items-center gap-1">
                         <Calendar className="w-4 h-4" />
-                        Valid until {new Date(promo.valid_until).toLocaleDateString()}
+                        {promo.valid_until
+                          ? `Valid until ${new Date(promo.valid_until).toLocaleDateString()}`
+                          : 'No expiration'}
                       </div>
                       <div className="flex items-center gap-1">
                         <Users className="w-4 h-4" />

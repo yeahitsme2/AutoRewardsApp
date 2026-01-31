@@ -2,59 +2,147 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
-import { Calendar, Clock, Car, User, CheckCircle, XCircle, AlertCircle, Edit2, Save, X } from 'lucide-react';
-import type { Appointment, Customer, Vehicle } from '../types/database';
+import { Calendar, Clock, Car, User, CheckCircle, XCircle, AlertCircle, Edit2, Save, X, ClipboardList, MapPin } from 'lucide-react';
+import { logAuditEvent } from '../lib/audit';
+import { logOutboundMessage } from '../lib/messaging';
+import type { Appointment, AppointmentType, Customer, ShopLocation, Vehicle } from '../types/database';
 
 interface AppointmentWithDetails extends Appointment {
   customer?: Customer;
   vehicle?: Vehicle;
+  repair_order_id?: string | null;
 }
+
+const generateRoNumber = () => {
+  const datePart = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const rand = Math.floor(1000 + Math.random() * 9000);
+  return `RO-${datePart}-${rand}`;
+};
 
 export function AppointmentsManagement() {
   const { admin } = useAuth();
   const { brandSettings } = useBrand();
   const [appointments, setAppointments] = useState<AppointmentWithDetails[]>([]);
+  const [locations, setLocations] = useState<ShopLocation[]>([]);
+  const [appointmentTypes, setAppointmentTypes] = useState<AppointmentType[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'confirmed' | 'cancelled' | 'completed'>('all');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [adminNotes, setAdminNotes] = useState('');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  const normalizeAppointment = (apt: Appointment) => ({
+    ...apt,
+    scheduled_date: (apt as any).scheduled_date ?? (apt as any).requested_date,
+    scheduled_time: (apt as any).scheduled_time ?? (apt as any).requested_time,
+  });
+
   useEffect(() => {
     loadAppointments();
+    loadLocations();
+    loadAppointmentTypes();
+    if (!admin?.shop_id) return;
+    const channel = supabase
+      .channel(`admin-appointments-${admin.shop_id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'appointments',
+        filter: `shop_id=eq.${admin.shop_id}`,
+      }, () => {
+        loadAppointments();
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [admin?.shop_id]);
 
-    const interval = setInterval(loadAppointments, 5000);
-    return () => clearInterval(interval);
-  }, []);
+  const loadLocations = async () => {
+    if (!admin?.shop_id) return;
+    const { data, error } = await supabase
+      .from('shop_locations')
+      .select('*')
+      .eq('shop_id', admin.shop_id)
+      .order('created_at', { ascending: true });
+    if (!error) setLocations((data || []) as ShopLocation[]);
+  };
+
+  const loadAppointmentTypes = async () => {
+    if (!admin?.shop_id) return;
+    const { data, error } = await supabase
+      .from('appointment_types')
+      .select('*')
+      .eq('shop_id', admin.shop_id)
+      .order('created_at', { ascending: true });
+    if (!error) setAppointmentTypes((data || []) as AppointmentType[]);
+  };
 
   const loadAppointments = async () => {
     try {
-      const { data: appointmentsData, error: appointmentsError } = await supabase
-        .from('appointments')
-        .select('*')
-        .order('scheduled_date', { ascending: true })
-        .order('scheduled_time', { ascending: true });
+      let appointmentsData: Appointment[] = [];
+      if (admin?.shop_id) {
+        const { data: customerRows, error: customerError } = await supabase
+          .from('customers')
+          .select('id')
+          .eq('shop_id', admin.shop_id);
+        if (customerError) throw customerError;
+        const customerIds = (customerRows || []).map((c) => c.id);
+        if (customerIds.length === 0) {
+          setAppointments([]);
+          return;
+        }
+        const { data, error } = await supabase
+          .from('appointments')
+          .select('*')
+          .in('customer_id', customerIds);
+        if (error) throw error;
+        appointmentsData = (data || []) as Appointment[];
+      } else {
+        const { data, error } = await supabase
+          .from('appointments')
+          .select('*');
+        if (error) throw error;
+        appointmentsData = (data || []) as Appointment[];
+      }
 
-      if (appointmentsError) throw appointmentsError;
+      const customerIds = [...new Set(appointmentsData.map((a) => a.customer_id) || [])];
+      const vehicleIds = [...new Set(appointmentsData.map((a) => a.vehicle_id).filter(Boolean) || [])];
+      const appointmentIds = [...new Set(appointmentsData.map((a) => a.id) || [])];
 
-      const customerIds = [...new Set(appointmentsData?.map((a) => a.customer_id) || [])];
-      const vehicleIds = [...new Set(appointmentsData?.map((a) => a.vehicle_id).filter(Boolean) || [])];
-
-      const [customersRes, vehiclesRes] = await Promise.all([
+      const [customersRes, vehiclesRes, repairOrdersRes] = await Promise.all([
         supabase.from('customers').select('*').in('id', customerIds),
         vehicleIds.length > 0 ? supabase.from('vehicles').select('*').in('id', vehicleIds) : Promise.resolve({ data: [], error: null }),
+        appointmentIds.length > 0 ? supabase.from('repair_orders').select('id, appointment_id').in('appointment_id', appointmentIds) : Promise.resolve({ data: [], error: null }),
       ]);
 
       if (customersRes.error) throw customersRes.error;
       if (vehiclesRes.error) throw vehiclesRes.error;
+      if (repairOrdersRes.error) {
+        const notFound = repairOrdersRes.error.code === '42P01'
+          || repairOrdersRes.error.code === '404'
+          || repairOrdersRes.error.message?.includes('repair_orders')
+          || repairOrdersRes.error.message?.includes('Not Found');
+        if (!notFound) throw repairOrdersRes.error;
+      }
 
-      const appointmentsWithDetails = (appointmentsData || []).map((apt) => ({
-        ...apt,
+      const appointmentsWithDetails = appointmentsData.map((apt) => ({
+        ...normalizeAppointment(apt),
         customer: customersRes.data?.find((c) => c.id === apt.customer_id),
         vehicle: vehiclesRes.data?.find((v) => v.id === apt.vehicle_id),
+        repair_order_id: repairOrdersRes.data?.find((ro) => ro.appointment_id === apt.id)?.id || null,
       }));
 
-      setAppointments(appointmentsWithDetails);
+      const sorted = appointmentsWithDetails.sort((a, b) => {
+        const dateA = a.scheduled_date || '';
+        const dateB = b.scheduled_date || '';
+        if (dateA !== dateB) return dateA.localeCompare(dateB);
+        const timeA = a.scheduled_time || '';
+        const timeB = b.scheduled_time || '';
+        return timeA.localeCompare(timeB);
+      });
+
+      setAppointments(sorted);
     } catch (error) {
       console.error('Error loading appointments:', error);
     } finally {
@@ -85,6 +173,31 @@ export function AppointmentsManagement() {
 
       if (error) throw error;
 
+      if (admin?.shop_id) {
+        await logAuditEvent({
+          shopId: admin.shop_id,
+          actorRole: 'admin',
+          eventType: `appointment_${newStatus}`,
+          entityType: 'appointment',
+          entityId: appointmentId,
+          metadata: { status: newStatus },
+        });
+      }
+
+      if (admin?.shop_id && newStatus === 'confirmed') {
+        const appointment = appointments.find((apt) => apt.id === appointmentId);
+        if (appointment?.customer_id) {
+          await logOutboundMessage({
+            shopId: admin.shop_id,
+            customerId: appointment.customer_id,
+            channel: 'email',
+            subject: 'Appointment confirmed',
+            body: 'Your appointment has been confirmed by the shop.',
+            status: 'queued',
+          });
+        }
+      }
+
       showMessage('success', `Appointment ${newStatus}`);
       setEditingId(null);
       setAdminNotes('');
@@ -99,6 +212,38 @@ export function AppointmentsManagement() {
     } catch (error) {
       console.error('Error updating appointment:', error);
       showMessage('error', 'Failed to update appointment');
+    }
+  };
+
+  const handleCreateRepairOrder = async (appointment: AppointmentWithDetails) => {
+    try {
+      if (!admin?.shop_id) return;
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from('repair_orders')
+        .insert({
+          shop_id: admin.shop_id,
+          customer_id: appointment.customer_id,
+          vehicle_id: appointment.vehicle_id,
+          appointment_id: appointment.id,
+          status: 'draft',
+          ro_number: generateRoNumber(),
+          customer_notes: appointment.description || null,
+          labor_total: 0,
+          parts_total: 0,
+          fees_total: 0,
+          tax_total: 0,
+          grand_total: 0,
+          created_at: now,
+          updated_at: now,
+        });
+
+      if (error) throw error;
+      showMessage('success', 'Repair order created');
+      loadAppointments();
+    } catch (error) {
+      console.error('Error creating repair order:', error);
+      showMessage('error', 'Failed to create repair order');
     }
   };
 
@@ -294,6 +439,19 @@ export function AppointmentsManagement() {
                         <Clock className="w-4 h-4 text-slate-500" />
                         <span className="text-slate-900">{formatTime(appointment.scheduled_time)}</span>
                       </div>
+                      {appointment.location_id && (
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-4 h-4 text-slate-500" />
+                          <span className="text-slate-900">
+                            {locations.find((loc) => loc.id === appointment.location_id)?.name || 'Location'}
+                          </span>
+                        </div>
+                      )}
+                      {appointment.appointment_type_id && (
+                        <div className="text-slate-600 ml-6">
+                          {appointmentTypes.find((type) => type.id === appointment.appointment_type_id)?.name || 'Appointment type'}
+                        </div>
+                      )}
                       {appointment.vehicle && (
                         <div className="flex items-center gap-2">
                           <Car className="w-4 h-4 text-slate-500" />
@@ -415,6 +573,21 @@ export function AppointmentsManagement() {
                     Mark Complete
                   </button>
                   <button
+                    onClick={() => handleCreateRepairOrder(appointment)}
+                    disabled={Boolean(appointment.repair_order_id)}
+                    className="flex items-center gap-2 px-4 py-2 text-white font-medium rounded-lg transition-colors disabled:cursor-not-allowed"
+                    style={{ backgroundColor: appointment.repair_order_id ? '#94a3b8' : brandSettings.primary_color }}
+                    onMouseEnter={(e) => {
+                      if (!appointment.repair_order_id) e.currentTarget.style.backgroundColor = brandSettings.secondary_color;
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!appointment.repair_order_id) e.currentTarget.style.backgroundColor = brandSettings.primary_color;
+                    }}
+                  >
+                    <ClipboardList className="w-4 h-4" />
+                    {appointment.repair_order_id ? 'RO Created' : 'Create RO'}
+                  </button>
+                  <button
                     onClick={() => {
                       const reason = prompt('Enter cancellation reason (optional):');
                       handleUpdateStatus(appointment.id, 'cancelled', reason || undefined, 'cancelled');
@@ -433,6 +606,26 @@ export function AppointmentsManagement() {
                   >
                     <AlertCircle className="w-4 h-4" />
                     No Show
+                  </button>
+                </div>
+              )}
+
+              {appointment.status === 'completed' && (
+                <div className="flex gap-2 pt-4 border-t border-slate-200">
+                  <button
+                    onClick={() => handleCreateRepairOrder(appointment)}
+                    disabled={Boolean(appointment.repair_order_id)}
+                    className="flex items-center gap-2 px-4 py-2 text-white font-medium rounded-lg transition-colors disabled:cursor-not-allowed"
+                    style={{ backgroundColor: appointment.repair_order_id ? '#94a3b8' : brandSettings.primary_color }}
+                    onMouseEnter={(e) => {
+                      if (!appointment.repair_order_id) e.currentTarget.style.backgroundColor = brandSettings.secondary_color;
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!appointment.repair_order_id) e.currentTarget.style.backgroundColor = brandSettings.primary_color;
+                    }}
+                  >
+                    <ClipboardList className="w-4 h-4" />
+                    {appointment.repair_order_id ? 'RO Created' : 'Create RO'}
                   </button>
                 </div>
               )}
