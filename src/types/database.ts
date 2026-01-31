@@ -841,6 +841,11 @@ export interface Database {
           customer_declined_at?: string | null;
           customer_notified_at?: string | null;
           admin_notified_at?: string | null;
+          customer_signature?: string | null;
+          customer_signature_name?: string | null;
+          customer_signature_status?: string | null;
+          customer_signature_at?: string | null;
+          has_signature?: boolean;
         };
         Insert: {
           id?: string;
@@ -868,6 +873,11 @@ export interface Database {
           customer_declined_at?: string | null;
           customer_notified_at?: string | null;
           admin_notified_at?: string | null;
+          customer_signature?: string | null;
+          customer_signature_name?: string | null;
+          customer_signature_status?: string | null;
+          customer_signature_at?: string | null;
+          has_signature?: boolean;
         };
         Update: {
           id?: string;
@@ -895,6 +905,11 @@ export interface Database {
           customer_declined_at?: string | null;
           customer_notified_at?: string | null;
           admin_notified_at?: string | null;
+          customer_signature?: string | null;
+          customer_signature_name?: string | null;
+          customer_signature_status?: string | null;
+          customer_signature_at?: string | null;
+          has_signature?: boolean;
         };
       };
       repair_order_items: {

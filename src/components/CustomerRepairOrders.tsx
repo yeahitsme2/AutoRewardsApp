@@ -35,9 +35,17 @@ export function CustomerRepairOrders() {
   const [loading, setLoading] = useState(true);
   const [tableMissing, setTableMissing] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [signatureOpen, setSignatureOpen] = useState(false);
+  const [signatureName, setSignatureName] = useState('');
+  const [signatureAction, setSignatureAction] = useState<'approve' | 'decline' | null>(null);
+  const [signatureOrderId, setSignatureOrderId] = useState<string | null>(null);
+  const [declineReason, setDeclineReason] = useState('');
   const prevOrderIdsRef = useRef<Set<string>>(new Set());
   const prevStatusRef = useRef<Record<string, RepairOrder['status']>>({});
   const mediaUrlRef = useRef<Record<string, string>>({});
+  const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const isDrawingRef = useRef(false);
+  const lastPointRef = useRef<{ x: number; y: number } | null>(null);
   const itemChannelsRef = useRef<Record<string, ReturnType<typeof supabase.channel>>>({});
   const reportChannelsRef = useRef<Record<string, ReturnType<typeof supabase.channel>>>({});
 
@@ -330,7 +338,7 @@ export function CustomerRepairOrders() {
     }
   };
 
-  const handleSendToShop = async (orderId: string) => {
+  const handleSendToShop = async (orderId: string, signature?: { name: string; dataUrl: string }) => {
     try {
       const order = orders.find((o) => o.id === orderId);
       if (!order) return;
@@ -341,17 +349,22 @@ export function CustomerRepairOrders() {
       }
 
       const totals = computeTotals(order.items || []);
-      const { error } = await supabase
-        .from('repair_orders')
-        .update({
-          status: 'approved',
-          ...totals,
-          approved_at: new Date().toISOString(),
-          customer_approved_at: new Date().toISOString(),
-          customer_response_by: customer?.id || null,
-          admin_notified_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
+        const { error } = await supabase
+          .from('repair_orders')
+          .update({
+            status: 'approved',
+            ...totals,
+            approved_at: new Date().toISOString(),
+            customer_approved_at: new Date().toISOString(),
+            customer_response_by: customer?.id || null,
+            customer_signature: signature?.dataUrl || null,
+            customer_signature_name: signature?.name || null,
+            customer_signature_status: signature ? 'approved' : null,
+            customer_signature_at: signature ? new Date().toISOString() : null,
+            has_signature: Boolean(signature),
+            admin_notified_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
         .eq('id', orderId);
       if (error) throw error;
 
@@ -384,10 +397,9 @@ export function CustomerRepairOrders() {
     }
   };
 
-  const handleDecline = async (orderId: string) => {
+  const handleDecline = async (orderId: string, signature?: { name: string; dataUrl: string }, reason?: string) => {
     try {
       const order = orders.find((o) => o.id === orderId);
-      const reason = prompt('Add a note for the shop (optional):');
       const { error } = await supabase
         .from('repair_orders')
         .update({
@@ -395,6 +407,11 @@ export function CustomerRepairOrders() {
           customer_notes: reason || null,
           customer_declined_at: new Date().toISOString(),
           customer_response_by: customer?.id || null,
+          customer_signature: signature?.dataUrl || null,
+          customer_signature_name: signature?.name || null,
+          customer_signature_status: signature ? 'declined' : null,
+          customer_signature_at: signature ? new Date().toISOString() : null,
+          has_signature: Boolean(signature),
           admin_notified_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
@@ -425,10 +442,100 @@ export function CustomerRepairOrders() {
       }
       showMessage('success', 'Repair order declined');
       loadOrders();
-    } catch (error) {
-      console.error('Error declining repair order:', error);
-      showMessage('error', 'Failed to decline repair order');
+      } catch (error) {
+        console.error('Error declining repair order:', error);
+        showMessage('error', 'Failed to decline repair order');
+      }
+    };
+
+  const resetSignature = () => {
+    setSignatureName('');
+    setSignatureAction(null);
+    setSignatureOrderId(null);
+    setDeclineReason('');
+    setSignatureOpen(false);
+    const canvas = signatureCanvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx?.clearRect(0, 0, canvas.width, canvas.height);
     }
+  };
+
+  const openSignatureModal = (action: 'approve' | 'decline', orderId: string) => {
+    setSignatureAction(action);
+    setSignatureOrderId(orderId);
+    setSignatureOpen(true);
+    requestAnimationFrame(() => {
+      const canvas = signatureCanvasRef.current;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const scale = window.devicePixelRatio || 1;
+      canvas.width = rect.width * scale;
+      canvas.height = rect.height * scale;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.scale(scale, scale);
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#0f172a';
+      ctx.clearRect(0, 0, rect.width, rect.height);
+    });
+  };
+
+  const handlePointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    isDrawingRef.current = true;
+    lastPointRef.current = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+  };
+
+  const handlePointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isDrawingRef.current) return;
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    const point = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    const last = lastPointRef.current;
+    if (last) {
+      ctx.beginPath();
+      ctx.moveTo(last.x, last.y);
+      ctx.lineTo(point.x, point.y);
+      ctx.stroke();
+    }
+    lastPointRef.current = point;
+  };
+
+  const handlePointerUp = () => {
+    isDrawingRef.current = false;
+    lastPointRef.current = null;
+  };
+
+  const handleClearSignature = () => {
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  };
+
+  const handleSignatureSubmit = async () => {
+    if (!signatureOrderId || !signatureAction) return;
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    if (!signatureName.trim()) {
+      showMessage('error', 'Please enter your name to sign.');
+      return;
+    }
+    const dataUrl = canvas.toDataURL('image/png');
+    if (signatureAction === 'approve') {
+      await handleSendToShop(signatureOrderId, { name: signatureName.trim(), dataUrl });
+    } else {
+      await handleDecline(signatureOrderId, { name: signatureName.trim(), dataUrl }, declineReason.trim());
+    }
+    resetSignature();
   };
 
   const showMessage = (type: 'success' | 'error', text: string) => {
@@ -790,20 +897,20 @@ export function CustomerRepairOrders() {
                     <CheckCircle className="w-4 h-4" />
                     Approve all
                   </button>
-                  <button
-                    onClick={() => handleSendToShop(order.id)}
-                    className={`flex items-center gap-2 px-4 py-2 text-white rounded-lg ${hasPendingItems ? 'opacity-60 cursor-not-allowed' : ''}`}
-                    style={{ backgroundColor: brandSettings.primary_color }}
-                    disabled={hasPendingItems}
-                    title={hasPendingItems ? 'Approve or decline all items first' : undefined}
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                    Send to shop
-                  </button>
-                  <button
-                    onClick={() => handleDecline(order.id)}
-                    className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg"
-                  >
+                    <button
+                      onClick={() => openSignatureModal('approve', order.id)}
+                      className={`flex items-center gap-2 px-4 py-2 text-white rounded-lg ${hasPendingItems ? 'opacity-60 cursor-not-allowed' : ''}`}
+                      style={{ backgroundColor: brandSettings.primary_color }}
+                      disabled={hasPendingItems}
+                      title={hasPendingItems ? 'Approve or decline all items first' : undefined}
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      Send to shop
+                    </button>
+                    <button
+                      onClick={() => openSignatureModal('decline', order.id)}
+                      className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg"
+                    >
                     <AlertCircle className="w-4 h-4" />
                     Decline
                   </button>
@@ -814,6 +921,86 @@ export function CustomerRepairOrders() {
         </div>
         );
       })}
+      {signatureOpen && signatureAction && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg p-5 space-y-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">
+                  {signatureAction === 'approve' ? 'Approve & Sign' : 'Decline & Sign'}
+                </h3>
+                <p className="text-sm text-slate-500">Please add your signature to confirm your decision.</p>
+              </div>
+              <button
+                onClick={resetSignature}
+                className="w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center hover:bg-slate-50"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <label className="text-sm font-medium text-slate-700">Full name</label>
+              <input
+                type="text"
+                value={signatureName}
+                onChange={(e) => setSignatureName(e.target.value)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                placeholder="Your name"
+              />
+            </div>
+
+            {signatureAction === 'decline' && (
+              <div className="space-y-3">
+                <label className="text-sm font-medium text-slate-700">Reason (optional)</label>
+                <textarea
+                  value={declineReason}
+                  onChange={(e) => setDeclineReason(e.target.value)}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 min-h-[90px]"
+                  placeholder="Add a note for the shop"
+                />
+              </div>
+            )}
+
+            <div>
+              <label className="text-sm font-medium text-slate-700">Signature</label>
+              <div className="mt-2 border border-slate-200 rounded-xl overflow-hidden">
+                <canvas
+                  ref={signatureCanvasRef}
+                  className="w-full h-40 touch-none bg-white"
+                  onPointerDown={handlePointerDown}
+                  onPointerMove={handlePointerMove}
+                  onPointerUp={handlePointerUp}
+                  onPointerLeave={handlePointerUp}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <button
+                onClick={handleClearSignature}
+                className="text-sm text-slate-500 hover:text-slate-700"
+              >
+                Clear signature
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={resetSignature}
+                  className="px-3 py-2 text-sm border border-slate-200 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSignatureSubmit}
+                  className="px-3 py-2 text-sm bg-slate-900 text-white rounded-lg"
+                >
+                  Confirm & Send
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
