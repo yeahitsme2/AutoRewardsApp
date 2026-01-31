@@ -33,6 +33,14 @@ DriveRewards v2.0 is an end-to-end shop management and customer engagement platf
 - Real-time updates via Supabase Realtime
 - Optional push notification support (VAPID)
 
+## V2.1 (Coming Soon)
+
+- Square Payments integration
+- SMS messaging
+- Email messaging
+- Refined repair order experience
+- Push notifications fully enabled end-to-end
+
 ## Tech Stack
 
 - React + Vite + TypeScript
