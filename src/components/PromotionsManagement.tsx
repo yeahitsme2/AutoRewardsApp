@@ -241,6 +241,33 @@ export function PromotionsManagement() {
 
       if (error) throw error;
 
+      await supabase.from('notifications').insert(
+        newCustomerIds.map((customerId) => ({
+          shop_id: shop.id,
+          recipient_role: 'customer',
+          recipient_id: customerId,
+          title: 'New Offer Available',
+          body: selectedPromotion.title,
+          entity_type: 'promotion',
+          entity_id: selectedPromotion.id,
+          action_url: '/?tab=offers',
+        }))
+      );
+
+      await Promise.allSettled(
+        newCustomerIds.map((customerId) =>
+          supabase.functions.invoke('send-push', {
+            body: {
+              target: 'customer',
+              customer_id: customerId,
+              title: 'New Offer Available',
+              message: selectedPromotion.title,
+              url: '/?tab=offers',
+            },
+          })
+        )
+      );
+
       alert(`Promotion sent to ${newCustomerIds.length} customer(s)!`);
       setShowSendModal(false);
       setSelectedPromotion(null);

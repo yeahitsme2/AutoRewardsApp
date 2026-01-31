@@ -49,6 +49,12 @@ export function CustomerDashboard() {
     }
   }, [customer?.shop_id]);
 
+  useEffect(() => {
+    if (activeTab === 'offers') {
+      loadUnreadPromoCount();
+    }
+  }, [activeTab]);
+
   const loadData = async () => {
     try {
       const { data: vehiclesData, error: vehiclesError } = await supabase
