@@ -136,7 +136,7 @@ export const fetchCloseoutPreview = async (range: CloseoutRange, shopId?: string
     throw new Error('No active session');
   }
 
-  const { data, error } = await supabase.functions.invoke('closeouts-preview', {
+  const { data, error } = await supabase.functions.invoke('closeouts-preview-public', {
     body: {
       start: range.start.toISOString(),
       end: range.end.toISOString(),
