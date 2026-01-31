@@ -209,14 +209,32 @@ serve(async (req) => {
     if (servicesError) throw servicesError;
     const pointsEarned = (services || []).reduce((sum, row) => sum + toNumber(row.points_earned), 0);
 
-    const { data: redemptions, error: redemptionError } = await supabase
+    let pointsRedeemed = 0;
+    let redemptionData: any[] = [];
+    let redemptionError: any = null;
+    const redemptionQuery = await supabase
       .from('reward_redemptions')
       .select('points_spent, created_at')
       .eq('shop_id', shopId)
       .gte('created_at', start.toISOString())
       .lt('created_at', end.toISOString());
-    if (redemptionError) throw redemptionError;
-    const pointsRedeemed = (redemptions || []).reduce((sum, row) => sum + toNumber(row.points_spent), 0);
+    redemptionData = redemptionQuery.data || [];
+    redemptionError = redemptionQuery.error;
+
+    if (redemptionError?.code === '42703') {
+      const fallbackQuery = await supabase
+        .from('reward_redemptions')
+        .select('points_spent, processed_at')
+        .eq('shop_id', shopId)
+        .gte('processed_at', start.toISOString())
+        .lt('processed_at', end.toISOString());
+      redemptionData = fallbackQuery.data || [];
+      redemptionError = fallbackQuery.error;
+    }
+
+    if (!redemptionError) {
+      pointsRedeemed = redemptionData.reduce((sum, row) => sum + toNumber(row.points_spent), 0);
+    }
 
     const roRows = roList.map((ro) => {
       const customer = customerMap.get(ro.customer_id);
