@@ -70,7 +70,7 @@ export function InventoryManagement() {
   const [stockAdjustment, setStockAdjustment] = useState({
     part_id: '',
     location_id: '',
-    quantity: 0,
+    quantity: '',
   });
   const [poDraft, setPoDraft] = useState({
     vendor_id: '',
@@ -689,7 +689,8 @@ export function InventoryManagement() {
 
   const handleAdjustStock = async () => {
     if (!admin?.shop_id) return;
-    if (!stockAdjustment.part_id || !stockAdjustment.location_id || stockAdjustment.quantity === 0) {
+    const adjustmentQty = Number(stockAdjustment.quantity);
+    if (!stockAdjustment.part_id || !stockAdjustment.location_id || !Number.isFinite(adjustmentQty) || adjustmentQty === 0) {
       showMessage('error', 'Select part, location, and quantity');
       return;
     }
@@ -699,7 +700,7 @@ export function InventoryManagement() {
         location_id: stockAdjustment.location_id,
         part_id: stockAdjustment.part_id,
         transaction_type: 'adjust',
-        quantity: Number(stockAdjustment.quantity),
+        quantity: adjustmentQty,
         reference_type: 'adjustment',
       });
       if (error) throw error;
@@ -709,11 +710,11 @@ export function InventoryManagement() {
         eventType: 'inventory_adjustment',
         entityType: 'part',
         entityId: stockAdjustment.part_id,
-        metadata: { quantity: Number(stockAdjustment.quantity), location_id: stockAdjustment.location_id },
+        metadata: { quantity: adjustmentQty, location_id: stockAdjustment.location_id },
       });
-      await updatePartLocation(stockAdjustment.part_id, stockAdjustment.location_id, Number(stockAdjustment.quantity));
+      await updatePartLocation(stockAdjustment.part_id, stockAdjustment.location_id, adjustmentQty);
       showMessage('success', 'Stock adjusted');
-      setStockAdjustment({ part_id: '', location_id: '', quantity: 0 });
+      setStockAdjustment({ part_id: '', location_id: '', quantity: '' });
       loadPartLocations();
       loadTransactions();
     } catch (error) {
@@ -1606,7 +1607,7 @@ export function InventoryManagement() {
                 <input
                   type="number"
                   value={stockAdjustment.quantity}
-                  onChange={(e) => setStockAdjustment({ ...stockAdjustment, quantity: Number(e.target.value) })}
+                  onChange={(e) => setStockAdjustment({ ...stockAdjustment, quantity: e.target.value })}
                   className="px-3 py-2 border border-slate-300 rounded-lg text-sm w-full"
                   placeholder="+/- qty"
                 />
