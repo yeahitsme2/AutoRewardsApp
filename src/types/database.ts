@@ -569,6 +569,8 @@ export interface Database {
           service_type: string;
           scheduled_date: string;
           scheduled_time: string;
+          requested_date?: string | null;
+          requested_time?: string | null;
           status: string;
           notes: string | null;
           description: string | null;
@@ -592,6 +594,8 @@ export interface Database {
           service_type: string;
           scheduled_date: string;
           scheduled_time: string;
+          requested_date?: string | null;
+          requested_time?: string | null;
           status?: string;
           notes?: string | null;
           description?: string | null;
@@ -615,6 +619,8 @@ export interface Database {
           service_type?: string;
           scheduled_date?: string;
           scheduled_time?: string;
+          requested_date?: string | null;
+          requested_time?: string | null;
           status?: string;
           notes?: string | null;
           description?: string | null;
