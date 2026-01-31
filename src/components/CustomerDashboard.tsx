@@ -3,7 +3,7 @@ import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
 import { useShop } from '../lib/ShopContext';
 import { supabase } from '../lib/supabase';
-import { Bell, Car, Calendar, Award, LogOut, Wrench, Gift, Tag, Plus, ClipboardList, MessageSquare } from 'lucide-react';
+import { Bell, Car, Calendar, Award, LogOut, Wrench, Gift, Tag, Plus, ClipboardList, MessageSquare, User } from 'lucide-react';
 import { CustomerRewards } from './CustomerRewards';
 import { CustomerServices } from './CustomerServices';
 import { CustomerPromotions } from './CustomerPromotions';
@@ -21,7 +21,7 @@ interface VehicleWithServices extends Vehicle {
   services: Service[];
 }
 
-type TabType = 'vehicles' | 'services' | 'appointments' | 'repair_orders' | 'rewards' | 'offers' | 'messages';
+type TabType = 'vehicles' | 'services' | 'appointments' | 'repair_orders' | 'rewards' | 'offers' | 'messages' | 'profile';
 type NotificationItem = Database['public']['Tables']['notifications']['Row'];
 
 export function CustomerDashboard() {
@@ -36,6 +36,8 @@ export function CustomerDashboard() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [profileDraft, setProfileDraft] = useState({ full_name: '', email: '', phone: '' });
+  const [savingProfile, setSavingProfile] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -48,6 +50,15 @@ export function CustomerDashboard() {
       ensurePushSubscription({ userRole: 'customer', shopId: customer.shop_id });
     }
   }, [customer?.shop_id]);
+
+  useEffect(() => {
+    if (!customer) return;
+    setProfileDraft({
+      full_name: customer.full_name || '',
+      email: customer.email || '',
+      phone: customer.phone || '',
+    });
+  }, [customer?.id]);
 
   useEffect(() => {
     if (activeTab === 'offers') {
@@ -117,6 +128,33 @@ export function CustomerDashboard() {
       setUnreadNotifications(rows.filter((note) => !note.is_read).length);
     } catch (error) {
       console.error('Error loading notifications:', error);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!customer) return;
+    if (!profileDraft.full_name.trim()) {
+      alert('Name is required.');
+      return;
+    }
+    setSavingProfile(true);
+    try {
+      const { error } = await supabase
+        .from('customers')
+        .update({
+          full_name: profileDraft.full_name.trim(),
+          email: profileDraft.email.trim() || null,
+          phone: profileDraft.phone.trim() || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', customer.id);
+      if (error) throw error;
+      await refreshCustomer();
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+      alert('Failed to update profile.');
+    } finally {
+      setSavingProfile(false);
     }
   };
 
@@ -457,6 +495,17 @@ export function CustomerDashboard() {
               <MessageSquare className="w-5 h-5" />
               <span className="text-sm sm:text-base">Messages</span>
             </button>
+            <button
+              onClick={() => setActiveTab('profile')}
+              className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-3 font-medium transition-colors border-b-2 whitespace-nowrap flex-shrink-0"
+              style={activeTab === 'profile' ? {
+                borderBottomColor: brandSettings.primary_color,
+                color: brandSettings.primary_color
+              } : { borderBottomColor: 'transparent', color: '#475569' }}
+            >
+              <User className="w-5 h-5" />
+              <span className="text-sm sm:text-base">Profile</span>
+            </button>
           </div>
         </div>
 
@@ -581,6 +630,74 @@ export function CustomerDashboard() {
         {activeTab === 'offers' && <CustomerPromotions />}
 
         {activeTab === 'messages' && <MessagesCenter mode="customer" />}
+
+        {activeTab === 'profile' && (
+          <div className="max-w-2xl space-y-6">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-10 h-10 rounded-lg flex items-center justify-center"
+                  style={{ backgroundColor: `${brandSettings.primary_color}20` }}
+                >
+                  <User className="w-5 h-5" style={{ color: brandSettings.primary_color }} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">Your Profile</h3>
+                  <p className="text-sm text-slate-500">Keep your contact details up to date.</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
+                  <input
+                    value={profileDraft.full_name}
+                    onChange={(e) => setProfileDraft({ ...profileDraft, full_name: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    placeholder="Your name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
+                  <input
+                    value={profileDraft.phone}
+                    onChange={(e) => setProfileDraft({ ...profileDraft, phone: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    placeholder="(555) 123-4567"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={profileDraft.email}
+                    onChange={(e) => setProfileDraft({ ...profileDraft, email: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    placeholder="you@example.com"
+                  />
+                  <p className="text-xs text-slate-500 mt-2">
+                    Updating email here updates your customer profile record.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between border-t border-slate-200 pt-4">
+                <div className="text-sm text-slate-600">
+                  Tier: <span className="font-semibold text-slate-900">{customer?.tier || 'bronze'}</span> ·
+                  Points: <span className="font-semibold text-slate-900">{customer?.reward_points || 0}</span>
+                </div>
+                <button
+                  onClick={handleSaveProfile}
+                  disabled={savingProfile}
+                  className="px-4 py-2 text-white rounded-lg text-sm"
+                  style={{ backgroundColor: brandSettings.primary_color }}
+                >
+                  {savingProfile ? 'Saving...' : 'Save Profile'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       {showAddVehicleModal && customer && (
