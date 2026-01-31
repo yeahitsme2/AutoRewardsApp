@@ -342,6 +342,11 @@ export function CustomerRepairOrders() {
     try {
       const order = orders.find((o) => o.id === orderId);
       if (!order) return;
+      if (!signature) {
+        openSignatureModal('approve', orderId);
+        showMessage('error', 'Signature is required to send to shop.');
+        return;
+      }
       const pending = (order.items || []).some((item) => !item.status || item.status === 'pending');
       if (pending) {
         showMessage('error', 'Please approve or decline all items before sending to the shop.');
@@ -400,6 +405,11 @@ export function CustomerRepairOrders() {
   const handleDecline = async (orderId: string, signature?: { name: string; dataUrl: string }, reason?: string) => {
     try {
       const order = orders.find((o) => o.id === orderId);
+      if (!signature) {
+        openSignatureModal('decline', orderId);
+        showMessage('error', 'Signature is required to decline.');
+        return;
+      }
       const { error } = await supabase
         .from('repair_orders')
         .update({
