@@ -950,6 +950,7 @@ export function RepairOrdersManagement() {
               const sortedTiers = Object.values(tierLevels).sort((a, b) => b.minPoints - a.minPoints);
               const nextTier = sortedTiers.find((tier) => nextPoints >= tier.minPoints) || tierLevels.bronze;
 
+              let shouldAwardPoints = true;
               const { data: existingService } = await supabase
                 .from('services')
                 .select('id')
@@ -957,7 +958,24 @@ export function RepairOrdersManagement() {
                 .eq('source_id', orderId)
                 .maybeSingle();
 
+              if (existingService) {
+                shouldAwardPoints = false;
+              }
+
               if (!existingService) {
+                const { data: legacyService } = await supabase
+                  .from('services')
+                  .select('id')
+                  .eq('customer_id', order.customer_id)
+                  .eq('service_type', 'Repair Order')
+                  .eq('description', `Repair Order ${order.ro_number}`)
+                  .maybeSingle();
+                if (legacyService) {
+                  shouldAwardPoints = false;
+                }
+              }
+
+              if (shouldAwardPoints) {
                 const servicePayload = {
                   shop_id: order.shop_id,
                   customer_id: order.customer_id,
@@ -991,27 +1009,29 @@ export function RepairOrdersManagement() {
                 }
               }
 
-              const customerUpdate = await supabase
-                .from('customers')
-                .update({
-                  reward_points: nextPoints,
-                  tier: nextTier.name,
-                  tier_multiplier: nextTier.multiplier,
-                  updated_at: new Date().toISOString(),
-                })
-                .eq('id', order.customer_id);
-              if (customerUpdate.error && isMissingColumn(customerUpdate.error)) {
-                const fallbackUpdate = await supabase
+              if (shouldAwardPoints) {
+                const customerUpdate = await supabase
                   .from('customers')
                   .update({
                     reward_points: nextPoints,
                     tier: nextTier.name,
+                    tier_multiplier: nextTier.multiplier,
                     updated_at: new Date().toISOString(),
                   })
                   .eq('id', order.customer_id);
-                if (fallbackUpdate.error) throw fallbackUpdate.error;
-              } else if (customerUpdate.error) {
-                throw customerUpdate.error;
+                if (customerUpdate.error && isMissingColumn(customerUpdate.error)) {
+                  const fallbackUpdate = await supabase
+                    .from('customers')
+                    .update({
+                      reward_points: nextPoints,
+                      tier: nextTier.name,
+                      updated_at: new Date().toISOString(),
+                    })
+                    .eq('id', order.customer_id);
+                  if (fallbackUpdate.error) throw fallbackUpdate.error;
+                } else if (customerUpdate.error) {
+                  throw customerUpdate.error;
+                }
               }
             }
           }
