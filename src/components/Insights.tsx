@@ -206,7 +206,7 @@ export function Insights() {
     setCloseoutLoading(true);
     setCloseoutError(null);
     try {
-      const data = await fetchCloseoutPreview(range);
+      const data = await fetchCloseoutPreview(range, admin?.shop_id ?? null);
       setCloseoutPreview(data);
     } catch (error) {
       console.error('Failed to load closeout preview:', error);

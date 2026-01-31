@@ -129,17 +129,26 @@ export const toDateInputValue = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 
-export const fetchCloseoutPreview = async (range: CloseoutRange) => {
+export const fetchCloseoutPreview = async (range: CloseoutRange, shopId?: string | null) => {
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) throw sessionError;
+  if (!sessionData.session?.access_token) {
+    throw new Error('No active session');
+  }
+
   const { data, error } = await supabase.functions.invoke('closeouts-preview', {
     body: {
       start: range.start.toISOString(),
       end: range.end.toISOString(),
       label: range.label,
       period_type: range.periodType,
+      shop_id: shopId ?? null,
+    },
+    headers: {
+      Authorization: `Bearer ${sessionData.session.access_token}`,
     },
   });
 
   if (error) throw error;
   return data as CloseoutPreview;
 };
-
