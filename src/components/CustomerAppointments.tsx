@@ -357,6 +357,17 @@ export function CustomerAppointments() {
         metadata: { scheduled_date: formData.scheduled_date, scheduled_time: formData.scheduled_time },
       });
 
+      await supabase.from('notifications').insert({
+        shop_id: customer!.shop_id,
+        recipient_role: 'admin',
+        recipient_id: null,
+        title: 'New Appointment Request',
+        body: `${formData.service_type} on ${formData.scheduled_date} at ${formData.scheduled_time}`,
+        entity_type: 'appointment',
+        entity_id: inserted?.id || null,
+        action_url: '/?tab=appointments',
+      });
+
       showMessage('success', 'Appointment request submitted successfully');
       setShowBooking(false);
       setFormData({
