@@ -136,26 +136,20 @@ export const fetchCloseoutPreview = async (range: CloseoutRange, shopId?: string
     throw new Error('No active session');
   }
 
-  const response = await fetch('/api/closeouts-preview', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${sessionData.session.access_token}`,
-    },
-    body: JSON.stringify({
+  const { data, error } = await supabase.functions.invoke('closeouts-preview', {
+    body: {
       start: range.start.toISOString(),
       end: range.end.toISOString(),
       label: range.label,
       period_type: range.periodType,
       shop_id: shopId ?? null,
       access_token: sessionData.session.access_token,
-    }),
+    },
+    headers: {
+      Authorization: `Bearer ${sessionData.session.access_token}`,
+    },
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(errorText || 'Failed to load closeout preview');
-  }
-
-  return (await response.json()) as CloseoutPreview;
+  if (error) throw error;
+  return data as CloseoutPreview;
 };
