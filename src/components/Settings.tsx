@@ -92,6 +92,7 @@ export function Settings() {
   const [smsUsage, setSmsUsage] = useState<{ month: string; used: number }>({ month: '', used: 0 });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [testingPush, setTestingPush] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   const [copied, setCopied] = useState(false);
@@ -414,6 +415,32 @@ export function Settings() {
   const showMessage = (type: 'success' | 'error', text: string) => {
     setMessage({ type, text });
     setTimeout(() => setMessage(null), 3000);
+  };
+
+  const handleTestPush = async () => {
+    if (!admin?.shop_id) {
+      showMessage('error', 'Only admins can send test push notifications.');
+      return;
+    }
+    setTestingPush(true);
+    try {
+      const { error } = await supabase.functions.invoke('send-push', {
+        body: {
+          target: 'admin',
+          shop_id: admin.shop_id,
+          title: 'Test Push Notification',
+          message: 'If you see this, push notifications are working.',
+          url: '/?tab=my_shop&sub=messages',
+        },
+      });
+      if (error) throw error;
+      showMessage('success', 'Test push sent. Check your device.');
+    } catch (error) {
+      console.error('Failed to send test push:', error);
+      showMessage('error', 'Failed to send test push.');
+    } finally {
+      setTestingPush(false);
+    }
   };
 
   const tabs: { id: SettingsTab; label: string }[] = [
@@ -1388,6 +1415,27 @@ export function Settings() {
               />
               <p className="text-xs text-slate-500">
                 Used for system notifications such as DVI published and appointment reminders.
+              </p>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-3">
+              <div className="flex items-center gap-2 text-slate-700">
+                <MessageSquare className="w-4 h-4" />
+                <p className="font-semibold text-slate-900">Push Notifications</p>
+              </div>
+              <p className="text-xs text-slate-500">
+                Sends a test push to admin devices subscribed for this shop.
+              </p>
+              <button
+                type="button"
+                onClick={handleTestPush}
+                disabled={testingPush}
+                className="px-4 py-2 border border-slate-300 rounded-lg text-sm"
+              >
+                {testingPush ? 'Sending...' : 'Send Test Push'}
+              </button>
+              <p className="text-[11px] text-slate-400">
+                Remove this test button after verifying notifications.
               </p>
             </div>
           </div>
