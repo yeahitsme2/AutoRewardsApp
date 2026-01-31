@@ -152,6 +152,15 @@ export function ChatThread({ shopId, customerId, repairOrderId, threadType, titl
 
       const notificationBody = messageText.trim() || (fileQueue ? `Attachment: ${fileQueue.name}` : 'New message');
       if (admin && customerId) {
+        await supabase.functions.invoke('send-push', {
+          body: {
+            target: 'customer',
+            customer_id: customerId,
+            title: 'New message from the shop',
+            message: notificationBody,
+            url: '/?tab=messages',
+          },
+        });
         await supabase.from('notifications').insert({
           shop_id: shopId,
           recipient_role: 'customer',
@@ -164,6 +173,15 @@ export function ChatThread({ shopId, customerId, repairOrderId, threadType, titl
         });
       }
       if (customer) {
+        await supabase.functions.invoke('send-push', {
+          body: {
+            target: 'admin',
+            shop_id: shopId,
+            title: 'New message from customer',
+            message: notificationBody,
+            url: '/?tab=my_shop&sub=messages',
+          },
+        });
         await supabase.from('notifications').insert({
           shop_id: shopId,
           recipient_role: 'admin',

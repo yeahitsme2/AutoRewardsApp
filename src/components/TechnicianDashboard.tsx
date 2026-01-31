@@ -590,6 +590,15 @@ export function TechnicianDashboard() {
           body: 'Your digital vehicle inspection report is now available in the app.',
           status: 'queued',
         });
+        await supabase.functions.invoke('send-push', {
+          body: {
+            target: 'customer',
+            customer_id: selectedReport.customer_id,
+            title: 'Inspection Ready',
+            message: 'Your digital vehicle inspection is now available.',
+            url: '/?tab=repair_orders',
+          },
+        });
         await supabase.from('notifications').insert({
           shop_id: admin.shop_id,
           recipient_role: 'customer',
