@@ -214,9 +214,30 @@ export function AdminDashboard() {
     if (!note.is_read) {
       await markNotificationRead(note.id);
     }
-    if (note.entity_type === 'repair_order') {
+    if (note.action_url) {
+      try {
+        const url = new URL(note.action_url, window.location.origin);
+        const tab = url.searchParams.get('tab');
+        const sub = url.searchParams.get('sub');
+        if (tab === 'appointments' || tab === 'customers' || tab === 'rewards' || tab === 'promotions' || tab === 'settings') {
+          setActiveTab(tab);
+        } else if (tab === 'my_shop') {
+          setActiveTab('my_shop');
+          if (sub === 'schedule' || sub === 'repair_orders' || sub === 'inspections' || sub === 'inventory' || sub === 'messages' || sub === 'insights') {
+            setMyShopTab(sub);
+          }
+        }
+      } catch (error) {
+        console.warn('Invalid notification URL:', error);
+      }
+    } else if (note.entity_type === 'repair_order') {
       setActiveTab('my_shop');
       setMyShopTab('repair_orders');
+    } else if (note.entity_type === 'appointment') {
+      setActiveTab('appointments');
+    } else if (note.entity_type === 'chat') {
+      setActiveTab('my_shop');
+      setMyShopTab('messages');
     }
     setShowNotifications(false);
   };

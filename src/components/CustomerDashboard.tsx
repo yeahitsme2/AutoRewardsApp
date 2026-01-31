@@ -174,8 +174,22 @@ export function CustomerDashboard() {
     if (!note.is_read) {
       await markNotificationRead(note.id);
     }
-    if (note.entity_type === 'repair_order' || note.entity_type === 'dvi_report') {
+    if (note.action_url) {
+      try {
+        const url = new URL(note.action_url, window.location.origin);
+        const tab = url.searchParams.get('tab');
+        if (tab === 'repair_orders' || tab === 'appointments' || tab === 'messages' || tab === 'offers') {
+          setActiveTab(tab as TabType);
+        }
+      } catch (error) {
+        console.warn('Invalid notification URL:', error);
+      }
+    } else if (note.entity_type === 'repair_order' || note.entity_type === 'dvi_report') {
       setActiveTab('repair_orders');
+    } else if (note.entity_type === 'appointment') {
+      setActiveTab('appointments');
+    } else if (note.entity_type === 'chat') {
+      setActiveTab('messages');
     }
     setShowNotifications(false);
   };
