@@ -1,6 +1,8 @@
 import { serve } from 'https://deno.land/std@0.201.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+const FUNCTION_VERSION = 'closeouts-preview-2026-01-31a';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -268,12 +270,12 @@ serve(async (req) => {
 
     return new Response(JSON.stringify(payload), {
       status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json', 'x-function-version': FUNCTION_VERSION },
     });
   } catch (err) {
     return new Response(JSON.stringify({ error: String(err) }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json', 'x-function-version': FUNCTION_VERSION },
     });
   }
 });
