@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../lib/AuthContext';
 import { Calendar, Award, Car, Wrench } from 'lucide-react';
 import type { Service, Vehicle } from '../types/database';
 
@@ -8,24 +9,35 @@ interface ServiceWithVehicle extends Service {
 }
 
 export function CustomerServices() {
+  const { customer } = useAuth();
   const [services, setServices] = useState<ServiceWithVehicle[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!customer?.id) return;
     loadServices();
-
-    const interval = setInterval(() => {
-      loadServices();
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, []);
+    const channel = supabase
+      .channel(`customer-services-${customer.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'services',
+        filter: `customer_id=eq.${customer.id}`,
+      }, () => {
+        loadServices();
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [customer?.id]);
 
   const loadServices = async () => {
     try {
       const { data: servicesData, error: servicesError } = await supabase
         .from('services')
         .select('*, vehicle:vehicles(*)')
+        .eq('customer_id', customer?.id || '00000000-0000-0000-0000-000000000000')
         .order('service_date', { ascending: false });
 
       if (servicesError) throw servicesError;

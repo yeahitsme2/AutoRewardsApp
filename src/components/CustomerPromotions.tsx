@@ -25,11 +25,21 @@ export function CustomerPromotions() {
 
     loadPromotions();
     markPromotionsAsRead();
-    const interval = setInterval(() => {
-      loadPromotions();
-    }, 5000);
+    const channel = supabase
+      .channel(`customer-promotions-${customer.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'customer_promotions',
+        filter: `customer_id=eq.${customer.id}`,
+      }, () => {
+        loadPromotions();
+      })
+      .subscribe();
 
-    return () => clearInterval(interval);
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [customer]);
 
   const markPromotionsAsRead = async () => {

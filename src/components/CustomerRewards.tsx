@@ -23,11 +23,29 @@ export function CustomerRewards() {
     }
 
     loadData();
-    const interval = setInterval(() => {
-      loadData();
-    }, 5000);
+    const channel = supabase
+      .channel(`customer-rewards-${customer.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'reward_items',
+        filter: `shop_id=eq.${customer.shop_id}`,
+      }, () => {
+        loadData();
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'reward_redemptions',
+        filter: `customer_id=eq.${customer.id}`,
+      }, () => {
+        loadData();
+      })
+      .subscribe();
 
-    return () => clearInterval(interval);
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [customer?.id]);
 
   const loadData = async () => {

@@ -41,10 +41,22 @@ export function AppointmentsManagement() {
     loadAppointments();
     loadLocations();
     loadAppointmentTypes();
-
-    const interval = setInterval(loadAppointments, 5000);
-    return () => clearInterval(interval);
-  }, []);
+    if (!admin?.shop_id) return;
+    const channel = supabase
+      .channel(`admin-appointments-${admin.shop_id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'appointments',
+        filter: `shop_id=eq.${admin.shop_id}`,
+      }, () => {
+        loadAppointments();
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [admin?.shop_id]);
 
   const loadLocations = async () => {
     if (!admin?.shop_id) return;

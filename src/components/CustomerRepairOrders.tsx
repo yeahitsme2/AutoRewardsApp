@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
@@ -38,11 +38,110 @@ export function CustomerRepairOrders() {
   const prevOrderIdsRef = useRef<Set<string>>(new Set());
   const prevStatusRef = useRef<Record<string, RepairOrder['status']>>({});
   const mediaUrlRef = useRef<Record<string, string>>({});
+  const itemChannelsRef = useRef<Record<string, ReturnType<typeof supabase.channel>>>({});
+  const reportChannelsRef = useRef<Record<string, ReturnType<typeof supabase.channel>>>({});
 
   useEffect(() => {
     loadOrders();
-    const interval = setInterval(loadOrders, 5000);
-    return () => clearInterval(interval);
+    if (!customer?.id) return;
+    const channel = supabase
+      .channel(`customer-repair-orders-${customer.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'repair_orders',
+        filter: `customer_id=eq.${customer.id}`,
+      }, () => {
+        loadOrders();
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'dvi_reports',
+        filter: `customer_id=eq.${customer.id}`,
+      }, () => {
+        loadOrders();
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const orderIds = useMemo(() => orders.map((order) => order.id), [orders]);
+  const reportIds = useMemo(
+    () => Object.values(dviReports).flat().map((report) => report.id),
+    [dviReports]
+  );
+
+  useEffect(() => {
+    orderIds.forEach((orderId) => {
+      if (itemChannelsRef.current[orderId]) return;
+      const channel = supabase
+        .channel(`customer-ro-items-${orderId}`)
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'repair_order_items',
+          filter: `repair_order_id=eq.${orderId}`,
+        }, () => {
+          loadOrders();
+        })
+        .subscribe();
+      itemChannelsRef.current[orderId] = channel;
+    });
+
+    Object.keys(itemChannelsRef.current).forEach((orderId) => {
+      if (!orderIds.includes(orderId)) {
+        supabase.removeChannel(itemChannelsRef.current[orderId]);
+        delete itemChannelsRef.current[orderId];
+      }
+    });
+  }, [orderIds]);
+
+  useEffect(() => {
+    reportIds.forEach((reportId) => {
+      if (reportChannelsRef.current[reportId]) return;
+      const channel = supabase
+        .channel(`customer-dvi-items-${reportId}`)
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'dvi_report_items',
+          filter: `report_id=eq.${reportId}`,
+        }, () => {
+          loadOrders();
+        })
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'dvi_item_media',
+        }, () => {
+          loadOrders();
+        })
+        .subscribe();
+      reportChannelsRef.current[reportId] = channel;
+    });
+
+    Object.keys(reportChannelsRef.current).forEach((reportId) => {
+      if (!reportIds.includes(reportId)) {
+        supabase.removeChannel(reportChannelsRef.current[reportId]);
+        delete reportChannelsRef.current[reportId];
+      }
+    });
+  }, [reportIds]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(itemChannelsRef.current).forEach((channel) => {
+        supabase.removeChannel(channel);
+      });
+      Object.values(reportChannelsRef.current).forEach((channel) => {
+        supabase.removeChannel(channel);
+      });
+      itemChannelsRef.current = {};
+      reportChannelsRef.current = {};
+    };
   }, []);
 
   useEffect(() => {

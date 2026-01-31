@@ -40,14 +40,7 @@ export function CustomerDashboard() {
   useEffect(() => {
     loadData();
     loadUnreadPromoCount();
-
-    const interval = setInterval(() => {
-      loadData();
-      refreshCustomer();
-      loadUnreadPromoCount();
-    }, 5000);
-
-    return () => clearInterval(interval);
+    return () => {};
   }, []);
 
   useEffect(() => {
@@ -120,6 +113,40 @@ export function CustomerDashboard() {
       console.error('Error loading notifications:', error);
     }
   };
+
+  useEffect(() => {
+    if (!customer?.id) return;
+    const channel = supabase
+      .channel(`customer-dashboard-${customer.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'vehicles',
+        filter: `customer_id=eq.${customer.id}`,
+      }, () => {
+        loadData();
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'services',
+        filter: `customer_id=eq.${customer.id}`,
+      }, () => {
+        loadData();
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'customer_promotions',
+        filter: `customer_id=eq.${customer.id}`,
+      }, () => {
+        loadUnreadPromoCount();
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [customer?.id]);
 
   useEffect(() => {
     if (!customer?.id) return;

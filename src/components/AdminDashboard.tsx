@@ -148,11 +148,7 @@ export function AdminDashboard() {
       }
     }
 
-    const interval = setInterval(() => {
-      loadPendingAppointments();
-    }, 5000);
-
-    return () => clearInterval(interval);
+    return () => {};
   }, [loadData, loadPendingAppointments]);
 
   useEffect(() => {
@@ -263,6 +259,24 @@ export function AdminDashboard() {
       supabase.removeChannel(channel);
     };
   }, [admin?.shop_id, loadData, loadPendingAppointments]);
+
+  useEffect(() => {
+    if (!admin?.shop_id) return;
+    const channel = supabase
+      .channel(`admin-appointments-${admin.shop_id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'appointments',
+        filter: `shop_id=eq.${admin.shop_id}`,
+      }, () => {
+        loadPendingAppointments();
+      });
+    channel.subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [admin?.shop_id, loadPendingAppointments]);
 
   useEffect(() => {
     let filtered = customers;

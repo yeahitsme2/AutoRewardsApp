@@ -37,9 +37,32 @@ export function ChatThread({ shopId, customerId, repairOrderId, threadType, titl
   useEffect(() => {
     if (!shopId) return;
     loadThread();
-    const interval = setInterval(loadMessages, 5000);
-    return () => clearInterval(interval);
   }, [shopId, customerId, repairOrderId, threadType]);
+
+  useEffect(() => {
+    if (!thread?.id) return;
+    const channel = supabase
+      .channel(`chat-thread-${thread.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'chat_messages',
+        filter: `thread_id=eq.${thread.id}`,
+      }, () => {
+        loadMessages(thread.id);
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'chat_attachments',
+      }, () => {
+        loadMessages(thread.id);
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [thread?.id]);
 
   const loadThread = async () => {
     try {
