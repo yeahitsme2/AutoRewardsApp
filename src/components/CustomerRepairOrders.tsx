@@ -857,6 +857,7 @@ export function CustomerRepairOrders() {
                                           <img
                                             src={mediaUrl}
                                             alt={media.file_name}
+                                            loading="lazy"
                                             className="w-20 h-20 rounded-lg object-cover border border-slate-200"
                                           />
                                         </button>
@@ -921,6 +922,16 @@ export function CustomerRepairOrders() {
                 )}
               </div>
 
+              <div className="grid grid-cols-2 gap-2 text-sm text-slate-600">
+                <span>Labor</span>
+                <span className="text-right">${displayTotals.labor_total.toFixed(2)}</span>
+                <span>Parts</span>
+                <span className="text-right">${displayTotals.parts_total.toFixed(2)}</span>
+                <span>Fees</span>
+                <span className="text-right">${displayTotals.fees_total.toFixed(2)}</span>
+                <span>Tax</span>
+                <span className="text-right">${displayTotals.tax_total.toFixed(2)}</span>
+              </div>
               <div className="flex items-center justify-between text-sm text-slate-600">
                 <span>Estimated total</span>
                 <span className="text-lg font-semibold text-slate-900">
@@ -935,14 +946,15 @@ export function CustomerRepairOrders() {
               )}
 
               {order.status === 'awaiting_approval' && (
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => handleApproveAll(order.id)}
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 text-slate-700"
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                    Approve all
-                  </button>
+                <div className="sticky bottom-0 bg-white/95 backdrop-blur border-t border-slate-200 pt-3">
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => handleApproveAll(order.id)}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 text-slate-700"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      Approve all
+                    </button>
                     <button
                       onClick={() => openSignatureModal('approve', order.id)}
                       className={`flex items-center gap-2 px-4 py-2 text-white rounded-lg ${hasPendingItems ? 'opacity-60 cursor-not-allowed' : ''}`}
@@ -957,9 +969,10 @@ export function CustomerRepairOrders() {
                       onClick={() => openSignatureModal('decline', order.id)}
                       className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg"
                     >
-                    <AlertCircle className="w-4 h-4" />
-                    Decline
-                  </button>
+                      <AlertCircle className="w-4 h-4" />
+                      Decline
+                    </button>
+                  </div>
                 </div>
               )}
             </>

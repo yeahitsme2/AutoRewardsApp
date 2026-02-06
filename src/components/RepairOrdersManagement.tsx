@@ -18,6 +18,21 @@ interface RepairOrderWithDetails extends RepairOrder {
   items?: RepairOrderItem[];
 }
 
+type QuickAddTemplate = {
+  id: string;
+  label: string;
+  labor: {
+    description: string;
+    hours: number;
+    unit_price: number;
+  };
+  parts: Array<{
+    description: string;
+    quantity: number;
+    unit_price: number;
+  }>;
+};
+
 type RepairOrderStatus = RepairOrder['status'];
 
 const statusOptions: RepairOrderStatus[] = ['draft', 'awaiting_approval', 'approved', 'declined', 'inspection_complete', 'closed'];
@@ -157,12 +172,39 @@ export function RepairOrdersManagement() {
     const items = [...dviRecommendations.priority, ...dviRecommendations.future];
     return items.filter((item) => dviSelected[item.id] && !item.alreadyAdded).length;
   }, [dviRecommendations, dviSelected]);
+  const quickAddTemplates = useMemo<QuickAddTemplate[]>(() => ([
+    {
+      id: 'oil-change',
+      label: 'Oil Change',
+      labor: { description: 'Oil change labor', hours: 0.5, unit_price: laborRate },
+      parts: [
+        { description: 'Oil filter', quantity: 1, unit_price: 8 },
+        { description: 'Engine oil', quantity: 5, unit_price: 6 },
+      ],
+    },
+    {
+      id: 'brake-service',
+      label: 'Brake Service',
+      labor: { description: 'Brake service labor', hours: 1.5, unit_price: laborRate },
+      parts: [
+        { description: 'Brake pads', quantity: 1, unit_price: 85 },
+        { description: 'Brake rotors', quantity: 2, unit_price: 110 },
+      ],
+    },
+    {
+      id: 'tire-rotation',
+      label: 'Tire Rotation',
+      labor: { description: 'Tire rotation labor', hours: 0.6, unit_price: laborRate },
+      parts: [],
+    },
+  ]), [laborRate]);
   const [newOrder, setNewOrder] = useState({
     customer_id: '',
     vehicle_id: '',
     internal_notes: '',
   });
   const [itemDrafts, setItemDrafts] = useState<Record<string, typeof emptyItem>>({});
+  const restoredDraftsRef = useRef<Set<string>>(new Set());
   const [reservationDraft, setReservationDraft] = useState({
     part_id: '',
     location_id: '',
@@ -201,6 +243,55 @@ export function RepairOrdersManagement() {
       }
     }, 400);
   };
+
+  const getDraftStorageKey = (orderId: string) => `ro-draft-${admin?.shop_id || 'shop'}-${orderId}`;
+
+  useEffect(() => {
+    if (!selectedOrderId) return;
+    if (restoredDraftsRef.current.has(selectedOrderId)) return;
+    const raw = localStorage.getItem(getDraftStorageKey(selectedOrderId));
+    if (!raw) return;
+    try {
+      const payload = JSON.parse(raw) as {
+        itemDraft?: typeof emptyItem;
+        editDrafts?: Record<string, Partial<RepairOrderItem>>;
+      };
+      if (payload.itemDraft) {
+        setItemDrafts((prev) => ({
+          ...prev,
+          [selectedOrderId]: { ...emptyItem, ...payload.itemDraft },
+        }));
+      }
+      if (payload.editDrafts) {
+        setEditDrafts((prev) => ({ ...prev, ...payload.editDrafts }));
+      }
+      restoredDraftsRef.current.add(selectedOrderId);
+      showMessage('success', 'Restored draft changes');
+    } catch (error) {
+      console.warn('Failed to restore draft:', error);
+    }
+  }, [selectedOrderId]);
+
+  useEffect(() => {
+    if (!selectedOrderId) return;
+    const orderItems = selectedOrder?.items || [];
+    const editDraftsForOrder = orderItems.reduce<Record<string, Partial<RepairOrderItem>>>((acc, item) => {
+      if (editDrafts[item.id]) acc[item.id] = editDrafts[item.id];
+      return acc;
+    }, {});
+    const draft = itemDrafts[selectedOrderId];
+    const handle = setTimeout(() => {
+      try {
+        localStorage.setItem(
+          getDraftStorageKey(selectedOrderId),
+          JSON.stringify({ itemDraft: draft, editDrafts: editDraftsForOrder })
+        );
+      } catch (error) {
+        console.warn('Failed to save draft:', error);
+      }
+    }, 450);
+    return () => clearTimeout(handle);
+  }, [selectedOrderId, itemDrafts, editDrafts, selectedOrder?.items]);
 
   useEffect(() => {
     loadOrders();
@@ -1248,6 +1339,64 @@ export function RepairOrdersManagement() {
     }
   };
 
+  const handleQuickAddTemplate = async (orderId: string, template: QuickAddTemplate) => {
+    try {
+      const laborTotal = roundToCents(template.labor.hours * template.labor.unit_price);
+      const { data: laborItem, error: laborError } = await supabase
+        .from('repair_order_items')
+        .insert({
+          repair_order_id: orderId,
+          item_type: 'labor',
+          description: template.labor.description,
+          quantity: 1,
+          labor_hours: template.labor.hours,
+          unit_price: template.labor.unit_price,
+          total: laborTotal,
+          taxable: taxableTypes.includes('labor'),
+          status: 'pending',
+        })
+        .select('*')
+        .single();
+      if (laborError) throw laborError;
+
+      const partRows = template.parts.map((part) => ({
+        repair_order_id: orderId,
+        item_type: 'part',
+        description: part.description,
+        quantity: part.quantity,
+        labor_hours: null,
+        unit_price: part.unit_price,
+        total: roundToCents(part.quantity * part.unit_price),
+        taxable: taxableTypes.includes('part'),
+        parent_item_id: laborItem?.id || null,
+        status: 'pending',
+      }));
+
+      if (partRows.length) {
+        const { error: partError } = await supabase
+          .from('repair_order_items')
+          .insert(partRows);
+        if (partError) throw partError;
+      }
+
+      const { data: itemsData, error: itemsError } = await supabase
+        .from('repair_order_items')
+        .select('*')
+        .eq('repair_order_id', orderId)
+        .order('created_at', { ascending: true });
+      if (itemsError) throw itemsError;
+      const nextItems = (itemsData || []) as RepairOrderItem[];
+      setOrders((prev) =>
+        prev.map((order) => (order.id === orderId ? { ...order, items: nextItems } : order))
+      );
+      await updateOrderTotals(orderId, nextItems);
+      showMessage('success', `${template.label} added`);
+    } catch (error) {
+      console.error('Failed to add quick template:', error);
+      showMessage('error', 'Failed to add quick template');
+    }
+  };
+
   const showMessage = (type: 'success' | 'error', text: string) => {
     setMessage({ type, text });
     setTimeout(() => setMessage(null), 3000);
@@ -1933,6 +2082,18 @@ export function RepairOrdersManagement() {
 
                 <div className="bg-slate-50 rounded-lg p-4 space-y-2">
                   <h4 className="font-semibold text-slate-900">Add Line Item</h4>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Quick add bundles</span>
+                    {quickAddTemplates.map((template) => (
+                      <button
+                        key={template.id}
+                        onClick={() => selectedOrder && handleQuickAddTemplate(selectedOrder.id, template)}
+                        className="px-3 py-1.5 rounded-full border border-slate-200 bg-white text-xs text-slate-700 hover:border-slate-300 hover:text-slate-900"
+                      >
+                        {template.label}
+                      </button>
+                    ))}
+                  </div>
                     <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
                       <select
                         value={(itemDrafts[selectedOrder.id] || emptyItem).item_type}

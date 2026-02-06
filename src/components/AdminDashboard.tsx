@@ -131,8 +131,9 @@ export function AdminDashboard() {
         .limit(20);
       if (error) throw error;
       const rows = (data || []) as NotificationItem[];
-      setNotifications(rows);
-      setUnreadNotifications(rows.filter((item) => !item.is_read).length);
+      const deduped = Array.from(new Map(rows.map((item) => [item.id, item])).values());
+      setNotifications(deduped);
+      setUnreadNotifications(deduped.filter((item) => !item.is_read).length);
     } catch (error) {
       console.error('Error loading notifications:', error);
     }
@@ -175,6 +176,11 @@ export function AdminDashboard() {
       ensurePushSubscription({ userRole: 'admin', shopId: admin.shop_id });
     }
   }, [admin?.shop_id]);
+
+  useEffect(() => {
+    if (!showNotifications) return;
+    markAllNotificationsRead();
+  }, [showNotifications]);
 
   const markNotificationRead = async (notificationId: string) => {
     try {
