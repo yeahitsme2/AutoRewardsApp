@@ -1,5 +1,16 @@
-import { describe, expect, it } from 'vitest';
-import { formatDateRange, getPresetRange } from '../closeouts';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('../supabase', () => ({
+  supabase: {
+    auth: {
+      getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
+    },
+  },
+  supabaseUrl: 'http://localhost',
+  supabaseAnonKey: 'anon',
+}));
+
+const { formatDateRange, getPresetRange } = await import('../closeouts');
 
 describe('closeout ranges', () => {
   it('builds today range with exclusive end', () => {

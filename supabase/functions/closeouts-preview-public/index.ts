@@ -114,7 +114,7 @@ serve(async (req) => {
 
     const { data: repairOrders, error: roError } = await supabase
       .from('repair_orders')
-      .select('id, ro_number, customer_id, vehicle_id, labor_total, parts_total, fees_total, tax_total, grand_total, closed_at, status')
+      .select('id, ro_number, customer_id, vehicle_id, labor_total, parts_total, fees_total, tax_total, grand_total, supplies_amount, closed_at, status')
       .eq('shop_id', shopId)
       .eq('status', 'closed')
       .gte('closed_at', start.toISOString())
@@ -157,14 +157,15 @@ serve(async (req) => {
         acc.labor += toNumber(ro.labor_total);
         acc.parts += toNumber(ro.parts_total);
         acc.fees += toNumber(ro.fees_total);
+        acc.supplies += toNumber((ro as any).supplies_amount);
         acc.tax += toNumber(ro.tax_total);
         acc.grand += toNumber(ro.grand_total);
         return acc;
       },
-      { labor: 0, parts: 0, fees: 0, tax: 0, grand: 0 }
+      { labor: 0, parts: 0, fees: 0, supplies: 0, tax: 0, grand: 0 }
     );
 
-    const netSales = salesTotals.labor + salesTotals.parts + salesTotals.fees;
+    const netSales = salesTotals.labor + salesTotals.parts + salesTotals.fees + salesTotals.supplies;
     const carCount = roList.length;
     const averageRepairOrder = carCount > 0 ? netSales / carCount : 0;
     const effectiveLaborRate = laborHours > 0 ? salesTotals.labor / laborHours : null;
@@ -242,6 +243,12 @@ serve(async (req) => {
       const vehicleLabel = vehicle
         ? `${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}`.trim()
         : null;
+      const suppliesTotal = toNumber((ro as any).supplies_amount);
+      const grandTotal = toNumber(ro.labor_total)
+        + toNumber(ro.parts_total)
+        + toNumber(ro.fees_total)
+        + toNumber(ro.tax_total)
+        + suppliesTotal;
       return {
         id: ro.id,
         ro_number: ro.ro_number,
@@ -251,8 +258,9 @@ serve(async (req) => {
         labor_total: toNumber(ro.labor_total),
         parts_total: toNumber(ro.parts_total),
         fees_total: toNumber(ro.fees_total),
+        supplies_total: suppliesTotal,
         tax_total: toNumber(ro.tax_total),
-        grand_total: toNumber(ro.grand_total),
+        grand_total: grandTotal,
       };
     });
 
@@ -276,6 +284,7 @@ serve(async (req) => {
         labor: salesTotals.labor,
         parts: salesTotals.parts,
         fees: salesTotals.fees,
+        supplies: salesTotals.supplies,
         tax: salesTotals.tax,
         discounts: 0,
       },

@@ -13,6 +13,7 @@ export interface CloseoutSalesBreakdown {
   labor: number;
   parts: number;
   fees: number;
+  supplies: number;
   tax: number;
   discounts: number;
 }
@@ -47,6 +48,7 @@ export interface CloseoutRoRow {
   labor_total: number;
   parts_total: number;
   fees_total: number;
+  supplies_total: number;
   tax_total: number;
   grand_total: number;
 }

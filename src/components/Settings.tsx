@@ -82,6 +82,19 @@ export function Settings() {
     taxable_item_types: ['part'],
   });
   const [laborRate, setLaborRate] = useState(0);
+  const [suppliesSettings, setSuppliesSettings] = useState({
+    enabled: false,
+    mode: 'included',
+    calc_method: 'percent_labor',
+    basis: 'non_declined',
+    rate: 0,
+    flat_amount: 0,
+    min_amount: null as number | null,
+    max_amount: null as number | null,
+    taxable: false,
+    disclosure_enabled: false,
+    disclosure_text: '',
+  });
   const [communicationsSettings, setCommunicationsSettings] = useState({
     sms_enabled: false,
     sms_monthly_allowance: 200,
@@ -240,6 +253,23 @@ export function Settings() {
           taxable_item_types: (data as any).taxable_item_types || ['part'],
         });
         setLaborRate(Number((data as any).labor_rate || 0));
+        setSuppliesSettings({
+          enabled: Boolean((data as any).supplies_enabled),
+          mode: (data as any).supplies_mode || 'included',
+          calc_method: (data as any).supplies_calc_method || 'percent_labor',
+          basis: (data as any).supplies_basis || 'non_declined',
+          rate: Number((data as any).supplies_rate || 0),
+          flat_amount: Number((data as any).supplies_flat_amount || 0),
+          min_amount: (data as any).supplies_min_amount !== undefined && (data as any).supplies_min_amount !== null
+            ? Number((data as any).supplies_min_amount)
+            : null,
+          max_amount: (data as any).supplies_max_amount !== undefined && (data as any).supplies_max_amount !== null
+            ? Number((data as any).supplies_max_amount)
+            : null,
+          taxable: Boolean((data as any).supplies_taxable),
+          disclosure_enabled: Boolean((data as any).supplies_disclosure_enabled),
+          disclosure_text: (data as any).supplies_disclosure_text || '',
+        });
         setCommunicationsSettings({
           sms_enabled: Boolean((data as any).sms_enabled),
           sms_monthly_allowance: Number((data as any).sms_monthly_allowance || 200),
@@ -321,6 +351,17 @@ export function Settings() {
         tax_rate: taxSettings.tax_rate,
         taxable_item_types: taxSettings.taxable_item_types,
         labor_rate: laborRate,
+        supplies_enabled: suppliesSettings.enabled,
+        supplies_mode: suppliesSettings.mode,
+        supplies_calc_method: suppliesSettings.calc_method,
+        supplies_basis: suppliesSettings.basis,
+        supplies_rate: suppliesSettings.calc_method === 'flat_per_ro' ? null : suppliesSettings.rate,
+        supplies_flat_amount: suppliesSettings.calc_method === 'flat_per_ro' ? suppliesSettings.flat_amount : null,
+        supplies_min_amount: suppliesSettings.min_amount,
+        supplies_max_amount: suppliesSettings.max_amount,
+        supplies_taxable: suppliesSettings.taxable,
+        supplies_disclosure_enabled: suppliesSettings.disclosure_enabled,
+        supplies_disclosure_text: suppliesSettings.disclosure_text.trim() || null,
         sms_enabled: communicationsSettings.sms_enabled,
         sms_monthly_allowance: communicationsSettings.sms_monthly_allowance,
         sms_allow_overage: communicationsSettings.sms_allow_overage,
@@ -1309,6 +1350,164 @@ export function Settings() {
                   These will be pre-selected when adding line items, but can still be overridden per item.
                 </p>
               </div>
+            </div>
+          </div>
+
+          <div className="border-t border-slate-200 pt-6 space-y-4">
+            <h4 className="text-base font-semibold text-slate-900 mb-2 flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-slate-700" />
+              Shop Supplies (Included)
+            </h4>
+
+            <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-900">Enable shop supplies</p>
+                  <p className="text-xs text-slate-500">Adds supplies to totals without showing a line item.</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={suppliesSettings.enabled}
+                  onChange={(e) => setSuppliesSettings({ ...suppliesSettings, enabled: e.target.checked })}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Calculation Method</label>
+                  <select
+                    value={suppliesSettings.calc_method}
+                    onChange={(e) => setSuppliesSettings({ ...suppliesSettings, calc_method: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                    disabled={!suppliesSettings.enabled}
+                  >
+                    <option value="percent_labor">Percent of labor</option>
+                    <option value="percent_labor_parts">Percent of labor + parts</option>
+                    <option value="flat_per_ro">Flat per repair order</option>
+                    <option value="per_billed_hour">Per billed labor hour</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Basis</label>
+                  <select
+                    value={suppliesSettings.basis}
+                    onChange={(e) => setSuppliesSettings({ ...suppliesSettings, basis: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                    disabled={!suppliesSettings.enabled}
+                  >
+                    <option value="non_declined">Include all non-declined</option>
+                    <option value="approved_only">Approved items only</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {suppliesSettings.calc_method !== 'flat_per_ro' && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      {suppliesSettings.calc_method === 'per_billed_hour' ? 'Rate ($/hr)' : 'Rate (%)'}
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={suppliesSettings.rate}
+                      onChange={(e) => setSuppliesSettings({
+                        ...suppliesSettings,
+                        rate: Number(e.target.value || 0),
+                      })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                      disabled={!suppliesSettings.enabled}
+                    />
+                  </div>
+                )}
+
+                {suppliesSettings.calc_method === 'flat_per_ro' && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Flat amount ($)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={suppliesSettings.flat_amount}
+                      onChange={(e) => setSuppliesSettings({
+                        ...suppliesSettings,
+                        flat_amount: Number(e.target.value || 0),
+                      })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                      disabled={!suppliesSettings.enabled}
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Min cap ($)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={suppliesSettings.min_amount ?? ''}
+                    onChange={(e) => setSuppliesSettings({
+                      ...suppliesSettings,
+                      min_amount: e.target.value === '' ? null : Number(e.target.value),
+                    })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                    disabled={!suppliesSettings.enabled}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Max cap ($)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={suppliesSettings.max_amount ?? ''}
+                    onChange={(e) => setSuppliesSettings({
+                      ...suppliesSettings,
+                      max_amount: e.target.value === '' ? null : Number(e.target.value),
+                    })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                    disabled={!suppliesSettings.enabled}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 flex-wrap">
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={suppliesSettings.taxable}
+                    onChange={(e) => setSuppliesSettings({ ...suppliesSettings, taxable: e.target.checked })}
+                    disabled={!suppliesSettings.enabled}
+                  />
+                  Taxable
+                </label>
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={suppliesSettings.disclosure_enabled}
+                    onChange={(e) => setSuppliesSettings({ ...suppliesSettings, disclosure_enabled: e.target.checked })}
+                    disabled={!suppliesSettings.enabled}
+                  />
+                  Show disclosure on customer documents
+                </label>
+              </div>
+
+              {suppliesSettings.disclosure_enabled && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Disclosure text</label>
+                  <textarea
+                    value={suppliesSettings.disclosure_text}
+                    onChange={(e) => setSuppliesSettings({ ...suppliesSettings, disclosure_text: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    rows={2}
+                    placeholder="Shop supplies are included in your total."
+                    disabled={!suppliesSettings.enabled}
+                  />
+                </div>
+              )}
             </div>
           </div>
           </>

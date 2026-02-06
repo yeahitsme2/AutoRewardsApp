@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
+import { calculateTotalsWithSupplies } from '../lib/repairOrderTotals';
 import { AlertCircle, CheckCircle, ChevronDown, ChevronRight, ClipboardList, ClipboardCheck, MessageSquare } from 'lucide-react';
 import { ChatThread } from './ChatThread';
 import type { DviItemMedia, DviReport, DviReportItem, RepairOrder, RepairOrderItem } from '../types/database';
@@ -32,6 +33,7 @@ export function CustomerRepairOrders() {
   const [expandedChat, setExpandedChat] = useState<Record<string, boolean>>({});
   const [lightboxImage, setLightboxImage] = useState<{ url: string; label: string } | null>(null);
   const [taxRate, setTaxRate] = useState(0);
+  const [suppliesDisclosure, setSuppliesDisclosure] = useState({ enabled: false, text: '' });
   const [loading, setLoading] = useState(true);
   const [tableMissing, setTableMissing] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -330,6 +332,7 @@ export function CustomerRepairOrders() {
         setOrders((prev) =>
           prev.map((o) => (o.id === orderId ? { ...o, items: nextItems, ...totals } : o))
         );
+        await refreshOrderTotals(orderId);
       }
       showMessage('success', 'Line items approved');
     } catch (error) {
@@ -557,11 +560,15 @@ export function CustomerRepairOrders() {
     try {
       const { data, error } = await supabase
         .from('shop_settings')
-        .select('tax_rate, taxable_item_types')
+        .select('tax_rate, taxable_item_types, supplies_disclosure_enabled, supplies_disclosure_text')
         .eq('shop_id', shopId)
         .maybeSingle();
       if (error) throw error;
       setTaxRate(Number((data as any)?.tax_rate || 0));
+      setSuppliesDisclosure({
+        enabled: Boolean((data as any)?.supplies_disclosure_enabled),
+        text: (data as any)?.supplies_disclosure_text || '',
+      });
     } catch (error) {
       console.error('Failed to load tax settings:', error);
     }
@@ -583,6 +590,27 @@ export function CustomerRepairOrders() {
     const tax_total = Number((taxableSubtotal * (taxRate / 100)).toFixed(2));
     const grand_total = Number((labor_total + parts_total + fees_total + tax_total).toFixed(2));
     return { labor_total, parts_total, fees_total, tax_total, grand_total };
+  };
+
+  const getDisplayTotals = (order: RepairOrder | null) => calculateTotalsWithSupplies({
+    labor_total: order?.labor_total,
+    parts_total: order?.parts_total,
+    fees_total: order?.fees_total,
+    tax_total: order?.tax_total,
+    supplies_amount: order?.supplies_amount,
+  });
+
+  const refreshOrderTotals = async (orderId: string) => {
+    const { data, error } = await supabase
+      .from('repair_orders')
+      .select('id, labor_total, parts_total, fees_total, tax_total, grand_total, supplies_amount')
+      .eq('id', orderId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return;
+    setOrders((prev) =>
+      prev.map((order) => (order.id === orderId ? { ...order, ...data } : order))
+    );
   };
 
   const updateLineItemStatus = async (order: RepairOrderWithItems, itemId: string, status: 'approved' | 'declined') => {
@@ -613,6 +641,7 @@ export function CustomerRepairOrders() {
       setOrders((prev) =>
         prev.map((o) => (o.id === order.id ? { ...o, items: nextItems, ...totals } : o))
       );
+      await refreshOrderTotals(order.id);
       showMessage('success', `Item ${status}`);
     } catch (error) {
       console.error('Failed to update line item:', error);
@@ -693,6 +722,7 @@ export function CustomerRepairOrders() {
 
       {orders.map((order) => {
         const hasPendingItems = (order.items || []).some((item) => !item.status || item.status === 'pending');
+        const displayTotals = getDisplayTotals(order);
         return (
         <div key={order.id} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
           <div className="flex items-start justify-between gap-3">
@@ -894,9 +924,15 @@ export function CustomerRepairOrders() {
               <div className="flex items-center justify-between text-sm text-slate-600">
                 <span>Estimated total</span>
                 <span className="text-lg font-semibold text-slate-900">
-                  ${computeTotals(order.items || []).grand_total.toFixed(2)}
+                  ${displayTotals.grand_total.toFixed(2)}
                 </span>
               </div>
+
+              {suppliesDisclosure.enabled && (
+                <p className="text-xs text-slate-500">
+                  {suppliesDisclosure.text || 'Shop supplies are included in your total.'}
+                </p>
+              )}
 
               {order.status === 'awaiting_approval' && (
                 <div className="flex flex-wrap gap-2">

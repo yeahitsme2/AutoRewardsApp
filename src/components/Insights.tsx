@@ -302,7 +302,7 @@ export function Insights() {
   };
 
   const openSnapshot = (snapshot: CloseoutSnapshot) => {
-    const preview = snapshot.totals_json as CloseoutPreview;
+    const preview = snapshot.totals_json as unknown as CloseoutPreview;
     const endExclusive = new Date(`${snapshot.end_date}T00:00:00`);
     endExclusive.setDate(endExclusive.getDate() + 1);
     setActiveSnapshot(snapshot);
@@ -329,13 +329,14 @@ export function Insights() {
       'Labor Total': row.labor_total,
       'Parts Total': row.parts_total,
       'Fees Total': row.fees_total,
+      'Supplies (included)': row.supplies_total || 0,
       'Tax Total': row.tax_total,
       'Grand Total': row.grand_total,
     }));
 
     const headers = rows.length
       ? Object.keys(rows[0])
-      : ['RO #', 'Customer', 'Vehicle', 'Closed At', 'Labor Total', 'Parts Total', 'Fees Total', 'Tax Total', 'Grand Total'];
+      : ['RO #', 'Customer', 'Vehicle', 'Closed At', 'Labor Total', 'Parts Total', 'Fees Total', 'Supplies (included)', 'Tax Total', 'Grand Total'];
     const csvLines = [
       headers.join(','),
       ...rows.map((row) => headers.map((key) => JSON.stringify((row as any)[key] ?? '')).join(',')),
@@ -802,6 +803,10 @@ export function Insights() {
                           <span>{formatCurrency(closeoutPreview.sales.fees)}</span>
                         </div>
                         <div className="flex items-center justify-between">
+                          <span>Supplies (included)</span>
+                          <span>{formatCurrency(closeoutPreview.sales.supplies || 0)}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
                           <span>Tax</span>
                           <span>{formatCurrency(closeoutPreview.sales.tax)}</span>
                         </div>
@@ -872,6 +877,7 @@ export function Insights() {
                             <th className="py-2 pr-4">Customer</th>
                             <th className="py-2 pr-4">Vehicle</th>
                             <th className="py-2 pr-4">Closed</th>
+                            <th className="py-2 pr-4">Supplies</th>
                             <th className="py-2 pr-4">Total</th>
                           </tr>
                         </thead>
@@ -882,6 +888,7 @@ export function Insights() {
                               <td className="py-2 pr-4">{row.customer_name || '—'}</td>
                               <td className="py-2 pr-4">{row.vehicle_label || '—'}</td>
                               <td className="py-2 pr-4">{row.closed_at ? new Date(row.closed_at).toLocaleDateString() : '—'}</td>
+                              <td className="py-2 pr-4">{formatCurrency(row.supplies_total || 0)}</td>
                               <td className="py-2 pr-4">{formatCurrency(row.grand_total)}</td>
                             </tr>
                           ))}
