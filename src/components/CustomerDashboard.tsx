@@ -140,8 +140,9 @@ export function CustomerDashboard() {
         .limit(20);
       if (error) throw error;
       const rows = (data || []) as NotificationItem[];
-      setNotifications(rows);
-      setUnreadNotifications(rows.filter((note) => !note.is_read).length);
+      const deduped = Array.from(new Map(rows.map((item) => [item.id, item])).values());
+      setNotifications(deduped);
+      setUnreadNotifications(deduped.filter((note) => !note.is_read).length);
     } catch (error) {
       console.error('Error loading notifications:', error);
     }
@@ -213,6 +214,11 @@ export function CustomerDashboard() {
       supabase.removeChannel(channel);
     };
   }, [customer?.id]);
+
+  useEffect(() => {
+    if (!showNotifications) return;
+    markAllNotificationsRead();
+  }, [showNotifications]);
 
   useEffect(() => {
     if (!customer?.id) return;

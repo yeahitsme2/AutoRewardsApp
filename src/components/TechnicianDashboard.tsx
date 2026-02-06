@@ -62,6 +62,7 @@ export function TechnicianDashboard() {
   const [globalItemTitle, setGlobalItemTitle] = useState('');
   const [publishConfirm, setPublishConfirm] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [speedMode, setSpeedMode] = useState(false);
   const [reportItemCounts, setReportItemCounts] = useState<Record<string, { green: number; yellow: number; red: number }>>({});
   const pendingUpdatesRef = useRef<Record<string, Partial<DviReportItem>>>({});
   const updateTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -151,6 +152,10 @@ export function TechnicianDashboard() {
       }),
     }));
   }, [reportItems, selectedTemplate, templateItemLookup]);
+
+  const flatChecklistItems = useMemo(() => (
+    checklistSections.flatMap((section) => section.items)
+  ), [checklistSections]);
 
   const totals = useMemo(() => {
     return reportItems.reduce(
@@ -531,6 +536,21 @@ export function TechnicianDashboard() {
     updateTimersRef.current[itemId] = setTimeout(() => {
       flushItemUpdate(itemId);
     }, 800);
+  };
+
+  const handleQuickCondition = (itemId: string, condition: 'green' | 'yellow' | 'red') => {
+    queueItemUpdate(itemId, { condition });
+    if (!speedMode) return;
+    const currentIndex = flatChecklistItems.findIndex((item) => item.id === itemId);
+    if (currentIndex === -1) return;
+    const nextItem = flatChecklistItems[currentIndex + 1];
+    if (!nextItem) return;
+    setSelectedItemId(nextItem.id);
+    setDrawerOpen(true);
+    const nextElement = document.getElementById(`dvi-item-${nextItem.id}`);
+    if (nextElement) {
+      nextElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
   };
 
   const flushItemUpdate = async (itemId: string) => {
@@ -1058,7 +1078,19 @@ export function TechnicianDashboard() {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 border border-slate-200 rounded-xl p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 border border-slate-200 rounded-xl p-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Speed pass</span>
+                    <button
+                      type="button"
+                      onClick={() => setSpeedMode((prev) => !prev)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${
+                        speedMode ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-600'
+                      }`}
+                    >
+                      {speedMode ? 'On' : 'Off'}
+                    </button>
+                  </div>
                   <input
                     value={globalSection}
                     onChange={(event) => setGlobalSection(event.target.value)}
@@ -1095,11 +1127,21 @@ export function TechnicianDashboard() {
 
                       <div className="grid grid-cols-1 gap-2">
                         {section.items.map((item) => (
-                          <button
+                          <div
                             key={item.id}
+                            id={`dvi-item-${item.id}`}
+                            role="button"
+                            tabIndex={0}
                             onClick={() => {
                               setSelectedItemId(item.id);
                               setDrawerOpen(true);
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                setSelectedItemId(item.id);
+                                setDrawerOpen(true);
+                              }
                             }}
                             className={`flex items-center justify-between rounded-xl border px-3 py-2 text-left text-sm transition ${
                               selectedItemId === item.id ? 'border-slate-400 bg-slate-50' : 'border-slate-200'
@@ -1117,6 +1159,28 @@ export function TechnicianDashboard() {
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1">
+                                {(['green', 'yellow', 'red'] as const).map((condition) => (
+                                  <button
+                                    key={condition}
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      handleQuickCondition(item.id, condition);
+                                    }}
+                                    className={`h-6 w-6 rounded-full border text-[10px] font-semibold uppercase ${
+                                      condition === 'green'
+                                        ? 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                                        : condition === 'yellow'
+                                        ? 'border-amber-200 text-amber-700 hover:bg-amber-50'
+                                        : 'border-rose-200 text-rose-700 hover:bg-rose-50'
+                                    }`}
+                                    aria-label={`Mark ${condition}`}
+                                  >
+                                    {condition.slice(0, 1)}
+                                  </button>
+                                ))}
+                              </div>
                               <span className={`px-2 py-1 text-xs rounded-full ${item.condition === 'green' ? 'bg-emerald-100 text-emerald-700' : item.condition === 'yellow' ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'}`}>
                                 {item.condition.toUpperCase()}
                               </span>
@@ -1124,7 +1188,7 @@ export function TechnicianDashboard() {
                                 {reportMedia.filter((media) => media.report_item_id === item.id).length} media
                               </span>
                             </div>
-                          </button>
+                          </div>
                         ))}
                       </div>
 
