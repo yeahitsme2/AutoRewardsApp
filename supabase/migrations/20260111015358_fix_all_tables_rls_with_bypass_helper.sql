@@ -54,9 +54,25 @@ CREATE POLICY "Shop admins can manage promotions"
 -- Fix appointments table
 DROP POLICY IF EXISTS "Shop admins can manage shop appointments" ON appointments;
 
-CREATE POLICY "Shop admins can manage shop appointments"
-  ON appointments
-  FOR ALL
-  TO authenticated
-  USING (is_admin_for_shop(shop_id))
-  WITH CHECK (is_admin_for_shop(shop_id));
+DO $do$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'appointments' AND column_name = 'shop_id'
+  ) THEN
+    CREATE POLICY "Shop admins can manage shop appointments"
+      ON appointments
+      FOR ALL
+      TO authenticated
+      USING (is_admin_for_shop(shop_id))
+      WITH CHECK (is_admin_for_shop(shop_id));
+  ELSE
+    CREATE POLICY "Shop admins can manage shop appointments"
+      ON appointments
+      FOR ALL
+      TO authenticated
+      USING (is_admin_for_shop((SELECT shop_id FROM customers WHERE id = appointments.customer_id)))
+      WITH CHECK (is_admin_for_shop((SELECT shop_id FROM customers WHERE id = appointments.customer_id)));
+  END IF;
+END
+$do$;

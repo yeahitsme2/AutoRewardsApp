@@ -3,9 +3,42 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
 import { useShop } from '../lib/ShopContext';
-import { Settings as SettingsIcon, Save, DollarSign, Award, Palette, Image, Store, QrCode, Download, Copy, Check } from 'lucide-react';
+import { Settings as SettingsIcon, Save, DollarSign, Award, Palette, Image, Store, QrCode, Download, Copy, Check, Wrench, MessageSquare, Phone, Mail } from 'lucide-react';
 import QRCodeLib from 'qrcode';
 import type { ShopSettings } from '../types/database';
+
+const dayLabels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const serviceCatalog = [
+  'Oil Change',
+  'Tire Rotation',
+  'Brake Service',
+  'Engine Diagnostic',
+  'Transmission Service',
+  'AC Service',
+  'General Inspection',
+  'Component Replacement',
+  'Other',
+];
+
+const defaultBusinessHours = [
+  { day: 0, is_open: false, open_time: '08:00', close_time: '17:00' },
+  { day: 1, is_open: true, open_time: '08:00', close_time: '17:00' },
+  { day: 2, is_open: true, open_time: '08:00', close_time: '17:00' },
+  { day: 3, is_open: true, open_time: '08:00', close_time: '17:00' },
+  { day: 4, is_open: true, open_time: '08:00', close_time: '17:00' },
+  { day: 5, is_open: true, open_time: '08:00', close_time: '17:00' },
+  { day: 6, is_open: true, open_time: '09:00', close_time: '13:00' },
+];
+
+type SettingsTab = 'shop' | 'brand' | 'scheduling' | 'rewards' | 'repair_orders' | 'communications';
+
+type MarkupRuleDraft = {
+  id?: string;
+  min_cost: number;
+  max_cost: number | null;
+  markup_percent: number;
+  is_active: boolean;
+};
 
 export function Settings() {
   const { customer, admin } = useAuth();
@@ -14,6 +47,7 @@ export function Settings() {
   const currentUser = admin || customer;
   const publicBaseUrl = (import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin).replace(/\/+$/, '');
   const [settings, setSettings] = useState<ShopSettings | null>(null);
+  const [activeTab, setActiveTab] = useState<SettingsTab>('shop');
   const [shopName, setShopName] = useState('');
   const [pointsPerDollar, setPointsPerDollar] = useState<number>(10);
   const [tierSettings, setTierSettings] = useState({
@@ -32,11 +66,38 @@ export function Settings() {
     secondary_color: '#0f172a',
     welcome_message: 'Welcome back',
   });
+  const [schedulerSupported, setSchedulerSupported] = useState(true);
+  const [scheduleSettings, setScheduleSettings] = useState({
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    appointment_duration_minutes: 30,
+    lead_time_minutes: 120,
+    bay_count: 1,
+    tech_count: 1,
+    business_hours: defaultBusinessHours,
+    auto_confirm_services: ['Oil Change', 'Tire Rotation'],
+    approval_required_services: ['Engine Diagnostic', 'Component Replacement'],
+  });
+  const [taxSettings, setTaxSettings] = useState({
+    tax_rate: 0,
+    taxable_item_types: ['part'],
+  });
+  const [laborRate, setLaborRate] = useState(0);
+  const [communicationsSettings, setCommunicationsSettings] = useState({
+    sms_enabled: false,
+    sms_monthly_allowance: 200,
+    sms_allow_overage: false,
+    sms_overage_rate: 0,
+    email_from: '',
+  });
+  const [smsUsage, setSmsUsage] = useState<{ month: string; used: number }>({ month: '', used: 0 });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [testingPush, setTestingPush] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   const [copied, setCopied] = useState(false);
+  const [markupRulesSupported, setMarkupRulesSupported] = useState(true);
+  const [markupRules, setMarkupRules] = useState<MarkupRuleDraft[]>([]);
   const qrCanvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -100,6 +161,28 @@ export function Settings() {
     }
   };
 
+  const loadSmsUsage = async (shopId: string) => {
+    try {
+      const now = new Date();
+      const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+        .toISOString()
+        .slice(0, 10);
+      const { data, error } = await supabase
+        .from('sms_usage_monthly')
+        .select('*')
+        .eq('shop_id', shopId)
+        .eq('month', monthStart)
+        .maybeSingle();
+      if (error) throw error;
+      setSmsUsage({
+        month: monthStart,
+        used: Number(data?.outbound_segments || 0),
+      });
+    } catch (error) {
+      console.error('Failed to load SMS usage:', error);
+    }
+  };
+
   const loadSettings = async () => {
     if (!shop?.id) {
       setLoading(false);
@@ -131,11 +214,66 @@ export function Settings() {
           platinum_multiplier: Number(data.platinum_multiplier || 2.0),
         });
         setBrandSettings({
-          logo_url: data.logo_url || '',
+          logo_url: data.shop_logo_url || '',
           primary_color: data.primary_color || '#10b981',
           secondary_color: data.secondary_color || '#0f172a',
           welcome_message: data.welcome_message || 'Welcome back',
         });
+        const hasSchedulerFields = Object.prototype.hasOwnProperty.call(data, 'business_hours');
+        setSchedulerSupported(hasSchedulerFields);
+        if (hasSchedulerFields) {
+          setScheduleSettings({
+            timezone: data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+            appointment_duration_minutes: Number(data.appointment_duration_minutes || 30),
+            lead_time_minutes: Number(data.lead_time_minutes || 120),
+            bay_count: Number(data.bay_count || 1),
+            tech_count: Number(data.tech_count || 1),
+            business_hours: (data.business_hours as any) || defaultBusinessHours,
+            auto_confirm_services: (data.auto_confirm_services as string[]) || ['Oil Change', 'Tire Rotation'],
+            approval_required_services: (data.approval_required_services as string[]) || ['Engine Diagnostic', 'Component Replacement'],
+          });
+        } else {
+          setScheduleSettings((prev) => ({ ...prev }));
+        }
+        setTaxSettings({
+          tax_rate: Number((data as any).tax_rate || 0),
+          taxable_item_types: (data as any).taxable_item_types || ['part'],
+        });
+        setLaborRate(Number((data as any).labor_rate || 0));
+        setCommunicationsSettings({
+          sms_enabled: Boolean((data as any).sms_enabled),
+          sms_monthly_allowance: Number((data as any).sms_monthly_allowance || 200),
+          sms_allow_overage: Boolean((data as any).sms_allow_overage),
+          sms_overage_rate: Number((data as any).sms_overage_rate || 0),
+          email_from: (data as any).email_from || '',
+        });
+        await loadSmsUsage(shop.id);
+      }
+
+      const { data: markupData, error: markupError } = await supabase
+        .from('repair_order_markup_rules')
+        .select('*')
+        .eq('shop_id', shop.id)
+        .order('min_cost', { ascending: true });
+
+      if (markupError) {
+        const missing = markupError.code === '42P01' || markupError.message?.includes('repair_order_markup_rules');
+        setMarkupRulesSupported(!missing);
+        if (!missing) {
+          console.error('Error loading markup rules:', markupError);
+        }
+        setMarkupRules([]);
+      } else {
+        setMarkupRulesSupported(true);
+        setMarkupRules(
+          (markupData || []).map((rule: any) => ({
+            id: rule.id,
+            min_cost: Number(rule.min_cost || 0),
+            max_cost: rule.max_cost === null ? null : Number(rule.max_cost),
+            markup_percent: Number(rule.markup_percent || 0),
+            is_active: rule.is_active !== false,
+          }))
+        );
       }
     } catch (error) {
       console.error('Error loading settings:', error);
@@ -176,8 +314,28 @@ export function Settings() {
       const updateData = {
         points_per_dollar: pointsPerDollar,
         ...tierSettings,
-        ...brandSettings,
-        logo_url: brandSettings.logo_url || null,
+        primary_color: brandSettings.primary_color,
+        secondary_color: brandSettings.secondary_color,
+        welcome_message: brandSettings.welcome_message,
+        shop_logo_url: brandSettings.logo_url || null,
+        tax_rate: taxSettings.tax_rate,
+        taxable_item_types: taxSettings.taxable_item_types,
+        labor_rate: laborRate,
+        sms_enabled: communicationsSettings.sms_enabled,
+        sms_monthly_allowance: communicationsSettings.sms_monthly_allowance,
+        sms_allow_overage: communicationsSettings.sms_allow_overage,
+        sms_overage_rate: communicationsSettings.sms_overage_rate,
+        email_from: communicationsSettings.email_from || null,
+        ...(schedulerSupported ? {
+          business_hours: scheduleSettings.business_hours,
+          appointment_duration_minutes: scheduleSettings.appointment_duration_minutes,
+          lead_time_minutes: scheduleSettings.lead_time_minutes,
+          bay_count: scheduleSettings.bay_count,
+          tech_count: scheduleSettings.tech_count,
+          timezone: scheduleSettings.timezone,
+          auto_confirm_services: scheduleSettings.auto_confirm_services,
+          approval_required_services: scheduleSettings.approval_required_services,
+        } : {}),
         updated_at: new Date().toISOString(),
         updated_by: updatedById,
       };
@@ -196,6 +354,46 @@ export function Settings() {
       if (error) {
         console.error('Update error details:', error);
         throw error;
+      }
+
+      if (markupRulesSupported) {
+        const invalidRule = markupRules.find((rule) => {
+          const min = Number(rule.min_cost);
+          const max = rule.max_cost === null ? null : Number(rule.max_cost);
+          const markup = Number(rule.markup_percent);
+          return !Number.isFinite(min)
+            || min < 0
+            || (max !== null && (!Number.isFinite(max) || max < min))
+            || !Number.isFinite(markup)
+            || markup < 0;
+        });
+
+        if (invalidRule) {
+          throw new Error('One or more markup rules have invalid ranges or percentages.');
+        }
+
+        const { error: deleteError } = await supabase
+          .from('repair_order_markup_rules')
+          .delete()
+          .eq('shop_id', shop.id);
+
+        if (deleteError) throw deleteError;
+
+        const nextRules = markupRules.map((rule) => ({
+          shop_id: shop.id,
+          min_cost: Number(rule.min_cost),
+          max_cost: rule.max_cost === null || rule.max_cost === ('' as any) ? null : Number(rule.max_cost),
+          markup_percent: Number(rule.markup_percent),
+          is_active: rule.is_active !== false,
+          updated_at: new Date().toISOString(),
+        }));
+
+        if (nextRules.length > 0) {
+          const { error: insertError } = await supabase
+            .from('repair_order_markup_rules')
+            .insert(nextRules);
+          if (insertError) throw insertError;
+        }
       }
 
       showMessage('success', 'Settings saved successfully');
@@ -219,6 +417,45 @@ export function Settings() {
     setTimeout(() => setMessage(null), 3000);
   };
 
+  const handleTestPush = async () => {
+    if (!admin?.shop_id) {
+      showMessage('error', 'Only admins can send test push notifications.');
+      return;
+    }
+    setTestingPush(true);
+    try {
+      const { error } = await supabase.functions.invoke('send-push', {
+        body: {
+          target: 'admin',
+          shop_id: admin.shop_id,
+          title: 'Test Push Notification',
+          message: 'If you see this, push notifications are working.',
+          url: '/?tab=my_shop&sub=messages',
+        },
+      });
+      if (error) throw error;
+      showMessage('success', 'Test push sent. Check your device.');
+    } catch (error) {
+      console.error('Failed to send test push:', error);
+      showMessage('error', 'Failed to send test push.');
+    } finally {
+      setTestingPush(false);
+    }
+  };
+
+  const tabs: { id: SettingsTab; label: string }[] = [
+    { id: 'shop', label: 'Shop Settings' },
+    { id: 'brand', label: 'Brand Settings' },
+    { id: 'scheduling', label: 'Scheduling Settings' },
+    { id: 'rewards', label: 'Rewards Settings' },
+    { id: 'repair_orders', label: 'Repair Order Settings' },
+    { id: 'communications', label: 'Communications' },
+  ];
+  const smsRemaining = Math.max(communicationsSettings.sms_monthly_allowance - smsUsage.used, 0);
+  const smsUsagePercent = communicationsSettings.sms_monthly_allowance > 0
+    ? Math.round((smsUsage.used / communicationsSettings.sms_monthly_allowance) * 100)
+    : 0;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -236,13 +473,34 @@ export function Settings() {
               <SettingsIcon className="w-5 h-5 text-slate-700" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-slate-900">Shop Settings</h3>
-              <p className="text-sm text-slate-600">Configure reward system and other options</p>
+              <h3 className="text-lg font-semibold text-slate-900">Settings</h3>
+              <p className="text-sm text-slate-600">Manage shop configuration, branding, scheduling, rewards, and RO markup</p>
             </div>
           </div>
         </div>
 
+        <div className="px-6 border-b border-slate-200 bg-white">
+          <div className="flex flex-wrap gap-2 py-3">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                  activeTab === tab.id
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="p-6 space-y-8">
+          {activeTab === 'shop' && (
+          <>
           <div>
             <h4 className="text-base font-semibold text-slate-900 mb-4 flex items-center gap-2">
               <Store className="w-5 h-5 text-slate-700" />
@@ -356,8 +614,12 @@ export function Settings() {
               </div>
             </div>
           </div>
+          </>
+          )}
 
-          <div className="border-t border-slate-200 pt-6">
+          {activeTab === 'brand' && (
+          <>
+          <div>
             <h4 className="text-base font-semibold text-slate-900 mb-4 flex items-center gap-2">
               <Palette className="w-5 h-5 text-slate-700" />
               Brand Customization
@@ -491,8 +753,194 @@ export function Settings() {
               </div>
             </div>
           </div>
+          </>
+          )}
 
-          <div className="border-t border-slate-200 pt-6">
+          {activeTab === 'scheduling' && (
+          <>
+          <div>
+            <h4 className="text-base font-semibold text-slate-900 mb-4">Scheduling Settings</h4>
+
+            {!schedulerSupported && (
+              <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
+                Scheduler settings will save after the database schema is updated. You can configure them now and re-save later.
+              </div>
+            )}
+
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Time Zone</label>
+                  <input
+                    type="text"
+                    value={scheduleSettings.timezone}
+                    onChange={(e) => setScheduleSettings({ ...scheduleSettings, timezone: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                    placeholder="America/New_York"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">Use an IANA time zone (e.g., America/New_York).</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Appointment Duration</label>
+                  <input
+                    type="number"
+                    min={15}
+                    step={5}
+                    value={scheduleSettings.appointment_duration_minutes}
+                    onChange={(e) => setScheduleSettings({ ...scheduleSettings, appointment_duration_minutes: Number(e.target.value) })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">Minutes per appointment (default 30).</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Lead Time (minutes)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={15}
+                    value={scheduleSettings.lead_time_minutes}
+                    onChange={(e) => setScheduleSettings({ ...scheduleSettings, lead_time_minutes: Number(e.target.value) })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">Minimum time before an appointment can be booked.</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Bay Count</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={scheduleSettings.bay_count}
+                    onChange={(e) => setScheduleSettings({ ...scheduleSettings, bay_count: Number(e.target.value) })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Tech Count</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={scheduleSettings.tech_count}
+                    onChange={(e) => setScheduleSettings({ ...scheduleSettings, tech_count: Number(e.target.value) })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <h5 className="text-sm font-semibold text-slate-900 mb-2">Business Hours</h5>
+                <div className="space-y-2">
+                  {scheduleSettings.business_hours.map((dayConfig: any, idx: number) => (
+                    <div key={dayConfig.day} className="flex flex-wrap items-center gap-3 border border-slate-200 rounded-lg p-3">
+                      <label className="flex items-center gap-2 text-sm font-medium text-slate-700 w-28">
+                        <input
+                          type="checkbox"
+                          checked={dayConfig.is_open}
+                          onChange={(e) => {
+                            const next = [...scheduleSettings.business_hours];
+                            next[idx] = { ...dayConfig, is_open: e.target.checked };
+                            setScheduleSettings({ ...scheduleSettings, business_hours: next });
+                          }}
+                        />
+                        {dayLabels[dayConfig.day]}
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="time"
+                          value={dayConfig.open_time}
+                          disabled={!dayConfig.is_open}
+                          onChange={(e) => {
+                            const next = [...scheduleSettings.business_hours];
+                            next[idx] = { ...dayConfig, open_time: e.target.value };
+                            setScheduleSettings({ ...scheduleSettings, business_hours: next });
+                          }}
+                          className="px-2 py-1 border border-slate-300 rounded-lg text-sm"
+                        />
+                        <span className="text-slate-500 text-sm">to</span>
+                        <input
+                          type="time"
+                          value={dayConfig.close_time}
+                          disabled={!dayConfig.is_open}
+                          onChange={(e) => {
+                            const next = [...scheduleSettings.business_hours];
+                            next[idx] = { ...dayConfig, close_time: e.target.value };
+                            setScheduleSettings({ ...scheduleSettings, business_hours: next });
+                          }}
+                          className="px-2 py-1 border border-slate-300 rounded-lg text-sm"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h5 className="text-sm font-semibold text-slate-900 mb-2">Auto-Confirm Services</h5>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {serviceCatalog.map((service) => {
+                    const checked = scheduleSettings.auto_confirm_services.includes(service);
+                    return (
+                      <label key={service} className="flex items-center gap-2 text-sm text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            const nextAuto = e.target.checked
+                              ? [...scheduleSettings.auto_confirm_services, service]
+                              : scheduleSettings.auto_confirm_services.filter((item) => item !== service);
+                            const nextApproval = scheduleSettings.approval_required_services.filter((item) => item !== service);
+                            setScheduleSettings({
+                              ...scheduleSettings,
+                              auto_confirm_services: nextAuto,
+                              approval_required_services: nextApproval,
+                            });
+                          }}
+                        />
+                        {service}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <h5 className="text-sm font-semibold text-slate-900 mb-2">Advisor Approval Required</h5>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {serviceCatalog.map((service) => {
+                    const checked = scheduleSettings.approval_required_services.includes(service);
+                    return (
+                      <label key={service} className="flex items-center gap-2 text-sm text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            const nextApproval = e.target.checked
+                              ? [...scheduleSettings.approval_required_services, service]
+                              : scheduleSettings.approval_required_services.filter((item) => item !== service);
+                            const nextAuto = scheduleSettings.auto_confirm_services.filter((item) => item !== service);
+                            setScheduleSettings({
+                              ...scheduleSettings,
+                              approval_required_services: nextApproval,
+                              auto_confirm_services: nextAuto,
+                            });
+                          }}
+                        />
+                        {service}
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  Services marked for advisor approval will be saved as pending until a service advisor confirms.
+                </p>
+              </div>
+            </div>
+          </div>
+          </>
+          )}
+
+          {activeTab === 'rewards' && (
+          <>
+          <div>
             <h4 className="text-base font-semibold text-slate-900 mb-4">Rewards Configuration</h4>
 
             <div className="space-y-4">
@@ -692,6 +1140,307 @@ export function Settings() {
               </div>
             </div>
           </div>
+          </>
+          )}
+
+          {activeTab === 'repair_orders' && (
+          <>
+          <div className="space-y-4">
+            <h4 className="text-base font-semibold text-slate-900 mb-2 flex items-center gap-2">
+              <Wrench className="w-5 h-5 text-slate-700" />
+              Repair Order Markup Rules (Parts Only)
+            </h4>
+
+            <div className="bg-white border border-slate-200 rounded-lg p-4">
+              <label className="block text-sm font-medium text-slate-700 mb-2">Default Labor Rate ($/hr)</label>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={laborRate}
+                onChange={(e) => setLaborRate(Number(e.target.value || 0))}
+                className="w-full md:w-64 px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+              <p className="text-xs text-slate-500 mt-2">
+                Used to calculate labor totals (hours x rate) for repair orders.
+              </p>
+            </div>
+
+            {!markupRulesSupported && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
+                Markup rules will save after the database schema is updated. You can configure them now and re-save later.
+              </div>
+            )}
+
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                <div>Min Cost</div>
+                <div>Max Cost</div>
+                <div>Markup %</div>
+                <div>Active</div>
+              </div>
+              {markupRules.length === 0 && (
+                <div className="text-sm text-slate-600">No markup rules yet. Add your first range below.</div>
+              )}
+              {markupRules.map((rule, idx) => (
+                <div key={rule.id || idx} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-center">
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={rule.min_cost}
+                    onChange={(e) => {
+                      const next = [...markupRules];
+                      next[idx] = { ...rule, min_cost: Number(e.target.value) };
+                      setMarkupRules(next);
+                    }}
+                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  />
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={rule.max_cost === null ? '' : rule.max_cost}
+                    onChange={(e) => {
+                      const next = [...markupRules];
+                      const value = e.target.value;
+                      next[idx] = { ...rule, max_cost: value === '' ? null : Number(value) };
+                      setMarkupRules(next);
+                    }}
+                    placeholder="No max"
+                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  />
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.1"
+                    value={rule.markup_percent}
+                    onChange={(e) => {
+                      const next = [...markupRules];
+                      next[idx] = { ...rule, markup_percent: Number(e.target.value) };
+                      setMarkupRules(next);
+                    }}
+                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  />
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-2 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={rule.is_active}
+                        onChange={(e) => {
+                          const next = [...markupRules];
+                          next[idx] = { ...rule, is_active: e.target.checked };
+                          setMarkupRules(next);
+                        }}
+                      />
+                      Active
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setMarkupRules(markupRules.filter((_, ruleIdx) => ruleIdx !== idx))}
+                      className="text-xs text-red-600 hover:text-red-700"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setMarkupRules([...markupRules, { min_cost: 0, max_cost: null, markup_percent: 0, is_active: true }])}
+                className="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg"
+              >
+                Add Markup Rule
+              </button>
+              <p className="text-xs text-slate-500">
+                Set ranges to automatically calculate part pricing from cost.
+              </p>
+            </div>
+          </div>
+
+          <div className="border-t border-slate-200 pt-6 space-y-4">
+            <h4 className="text-base font-semibold text-slate-900 mb-2 flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-slate-700" />
+              Tax Defaults
+            </h4>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Tax Rate (%)</label>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={taxSettings.tax_rate}
+                  onChange={(e) => setTaxSettings({
+                    ...taxSettings,
+                    tax_rate: Number(e.target.value),
+                  })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <p className="text-sm font-medium text-slate-700 mb-2">Taxable line item types (default)</p>
+                <div className="flex flex-wrap gap-4">
+                  {['labor', 'part', 'fee'].map((type) => {
+                    const checked = taxSettings.taxable_item_types.includes(type);
+                    return (
+                      <label key={type} className="flex items-center gap-2 text-sm text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            const next = e.target.checked
+                              ? [...taxSettings.taxable_item_types, type]
+                              : taxSettings.taxable_item_types.filter((item) => item !== type);
+                            setTaxSettings({ ...taxSettings, taxable_item_types: next });
+                          }}
+                        />
+                        {type.charAt(0).toUpperCase() + type.slice(1)}
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  These will be pre-selected when adding line items, but can still be overridden per item.
+                </p>
+              </div>
+            </div>
+          </div>
+          </>
+          )}
+
+          {activeTab === 'communications' && (
+          <>
+          <div className="space-y-4">
+            <h4 className="text-base font-semibold text-slate-900 mb-2 flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-slate-700" />
+              Communications Settings
+            </h4>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-900">Enable SMS fallback</p>
+                  <p className="text-xs text-slate-500">SMS is only used when enabled and the customer has opted in.</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={communicationsSettings.sms_enabled}
+                  onChange={(e) => setCommunicationsSettings({ ...communicationsSettings, sms_enabled: e.target.checked })}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Monthly Allowance</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="1"
+                    value={communicationsSettings.sms_monthly_allowance}
+                    onChange={(e) => setCommunicationsSettings({
+                      ...communicationsSettings,
+                      sms_monthly_allowance: Number(e.target.value || 0),
+                    })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">Outbound SMS segments included per month.</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Overage Rate (per segment)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={communicationsSettings.sms_overage_rate}
+                    onChange={(e) => setCommunicationsSettings({
+                      ...communicationsSettings,
+                      sms_overage_rate: Number(e.target.value || 0),
+                    })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 mt-6 md:mt-0">
+                  <input
+                    type="checkbox"
+                    checked={communicationsSettings.sms_allow_overage}
+                    onChange={(e) => setCommunicationsSettings({
+                      ...communicationsSettings,
+                      sms_allow_overage: e.target.checked,
+                    })}
+                  />
+                  <label className="text-sm text-slate-700">Allow overage</label>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-3">
+              <div className="flex items-center gap-2 text-slate-700">
+                <Phone className="w-4 h-4" />
+                <p className="font-semibold text-slate-900">SMS Usage (Current Month)</p>
+              </div>
+              <div className="flex items-center justify-between text-sm text-slate-600">
+                <span>Used: {smsUsage.used}</span>
+                <span>Remaining: {smsRemaining}</span>
+              </div>
+              <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                <div
+                  className={`h-full ${smsUsagePercent >= 100 ? 'bg-red-500' : smsUsagePercent >= 75 ? 'bg-yellow-500' : 'bg-emerald-500'}`}
+                  style={{ width: `${Math.min(smsUsagePercent, 100)}%` }}
+                />
+              </div>
+              <p className="text-xs text-slate-500">
+                {smsUsagePercent >= 100 ? 'Over allowance' : `${smsUsagePercent}% of monthly allowance used.`}
+              </p>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
+              <div className="flex items-center gap-2 text-slate-700">
+                <Mail className="w-4 h-4" />
+                <p className="font-semibold text-slate-900">Email Sender</p>
+              </div>
+              <input
+                type="email"
+                placeholder="noreply@yourshop.com"
+                value={communicationsSettings.email_from}
+                onChange={(e) => setCommunicationsSettings({ ...communicationsSettings, email_from: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+              />
+              <p className="text-xs text-slate-500">
+                Used for system notifications such as DVI published and appointment reminders.
+              </p>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-3">
+              <div className="flex items-center gap-2 text-slate-700">
+                <MessageSquare className="w-4 h-4" />
+                <p className="font-semibold text-slate-900">Push Notifications</p>
+              </div>
+              <p className="text-xs text-slate-500">
+                Sends a test push to admin devices subscribed for this shop.
+              </p>
+              <button
+                type="button"
+                onClick={handleTestPush}
+                disabled={testingPush}
+                className="px-4 py-2 border border-slate-300 rounded-lg text-sm"
+              >
+                {testingPush ? 'Sending...' : 'Send Test Push'}
+              </button>
+              <p className="text-[11px] text-slate-400">
+                Remove this test button after verifying notifications.
+              </p>
+            </div>
+          </div>
+          </>
+          )}
         </div>
 
         <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">

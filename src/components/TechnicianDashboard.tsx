@@ -862,7 +862,6 @@ export function TechnicianDashboard() {
     }
     return selectedRo.customer_id ? `Customer ${selectedRo.customer_id.slice(0, 6)}` : null;
   }, [selectedRo, customerNameById]);
-
   const mileageNumber = Number(reportMileage);
   const mileageValid = Number.isFinite(mileageNumber) && mileageNumber > 0;
 

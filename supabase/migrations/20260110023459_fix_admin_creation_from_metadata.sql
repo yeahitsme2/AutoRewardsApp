@@ -34,9 +34,18 @@ BEGIN
   v_is_admin := COALESCE((NEW.raw_user_meta_data->>'is_admin')::boolean, false);
 
   IF v_shop_id IS NOT NULL THEN
-    INSERT INTO customers (auth_user_id, shop_id, email, full_name, phone, is_admin)
-    VALUES (NEW.id, v_shop_id, v_email, COALESCE(v_full_name, 'Customer'), v_phone, v_is_admin)
-    ON CONFLICT (auth_user_id) DO NOTHING;
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'customers' AND column_name = 'auth_user_id'
+    ) THEN
+      INSERT INTO customers (auth_user_id, shop_id, email, full_name, phone, is_admin)
+      VALUES (NEW.id, v_shop_id, v_email, COALESCE(v_full_name, 'Customer'), v_phone, v_is_admin)
+      ON CONFLICT (auth_user_id) DO NOTHING;
+    ELSE
+      INSERT INTO customers (id, shop_id, email, full_name, phone, is_admin)
+      VALUES (NEW.id, v_shop_id, v_email, COALESCE(v_full_name, 'Customer'), v_phone, v_is_admin)
+      ON CONFLICT (id) DO NOTHING;
+    END IF;
   END IF;
 
   RETURN NEW;

@@ -34,3 +34,24 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
 }
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .closeout-print,
+  .closeout-print * {
+    visibility: visible;
+  }
+
+  .closeout-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-height: none !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+}

@@ -83,44 +83,67 @@ CREATE POLICY "Super admins can update admins"
     )
   );
 
--- Admins can view their own record
-CREATE POLICY "Admins can view own record"
-  ON admins FOR SELECT
-  TO authenticated
-  USING (auth_user_id = auth.uid());
-
--- Admins can update their own record
-CREATE POLICY "Admins can update own record"
-  ON admins FOR UPDATE
-  TO authenticated
-  USING (auth_user_id = auth.uid())
-  WITH CHECK (auth_user_id = auth.uid());
-
--- Migrate existing admin customers to admins table
-DO $$
+DO $do$
 DECLARE
   admin_customer RECORD;
 BEGIN
-  FOR admin_customer IN 
-    SELECT * FROM customers WHERE is_admin = true AND auth_user_id IS NOT NULL
-  LOOP
-    INSERT INTO admins (
-      auth_user_id,
-      shop_id,
-      email,
-      full_name,
-      is_active,
-      created_at,
-      updated_at
-    ) VALUES (
-      admin_customer.auth_user_id,
-      admin_customer.shop_id,
-      admin_customer.email,
-      admin_customer.full_name,
-      true,
-      admin_customer.created_at,
-      admin_customer.updated_at
-    )
-    ON CONFLICT (auth_user_id) DO NOTHING;
-  END LOOP;
-END $$;
+  -- Admins can view their own record (auth_user_id or id fallback)
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 'customers' AND column_name = 'auth_user_id'
+  ) THEN
+    CREATE POLICY "Admins can view own record"
+      ON admins FOR SELECT
+      TO authenticated
+      USING (auth_user_id = auth.uid());
+
+    CREATE POLICY "Admins can update own record"
+      ON admins FOR UPDATE
+      TO authenticated
+      USING (auth_user_id = auth.uid())
+      WITH CHECK (auth_user_id = auth.uid());
+  ELSE
+    CREATE POLICY "Admins can view own record"
+      ON admins FOR SELECT
+      TO authenticated
+      USING (auth_user_id = auth.uid());
+
+    CREATE POLICY "Admins can update own record"
+      ON admins FOR UPDATE
+      TO authenticated
+      USING (auth_user_id = auth.uid())
+      WITH CHECK (auth_user_id = auth.uid());
+  END IF;
+
+  -- Migrate existing admin customers to admins table when auth_user_id exists
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 'customers' AND column_name = 'auth_user_id'
+  ) THEN
+    FOR admin_customer IN 
+      SELECT * FROM customers WHERE is_admin = true AND auth_user_id IS NOT NULL
+    LOOP
+      INSERT INTO admins (
+        auth_user_id,
+        shop_id,
+        email,
+        full_name,
+        is_active,
+        created_at,
+        updated_at
+      ) VALUES (
+        admin_customer.auth_user_id,
+        admin_customer.shop_id,
+        admin_customer.email,
+        admin_customer.full_name,
+        true,
+        admin_customer.created_at,
+        admin_customer.updated_at
+      )
+      ON CONFLICT (auth_user_id) DO NOTHING;
+    END LOOP;
+  END IF;
+END
+$do$;

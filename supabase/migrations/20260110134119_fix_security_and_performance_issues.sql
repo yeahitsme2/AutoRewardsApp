@@ -64,58 +64,119 @@ CREATE POLICY "Shop admins can view their shop"
   USING (id = get_user_shop_id());
 
 -- CUSTOMERS TABLE
-DROP POLICY IF EXISTS "Users can view their own customer record" ON customers;
-CREATE POLICY "Users can view their own customer record"
-  ON customers FOR SELECT
-  TO authenticated
-  USING (auth_user_id = (SELECT auth.uid()));
+DO $do$
+BEGIN
+  DROP POLICY IF EXISTS "Users can view their own customer record" ON customers;
+  DROP POLICY IF EXISTS "Users can update their own customer record" ON customers;
+  DROP POLICY IF EXISTS "Users can manage their own vehicles" ON vehicles;
+  DROP POLICY IF EXISTS "Users can view their own services" ON services;
+  DROP POLICY IF EXISTS "Users can view and create their own redemptions" ON reward_redemptions;
+  DROP POLICY IF EXISTS "Users can create redemptions" ON reward_redemptions;
+  DROP POLICY IF EXISTS "Users can view their own promotions" ON customer_promotions;
+  DROP POLICY IF EXISTS "Users can manage their own appointments" ON appointments;
 
-DROP POLICY IF EXISTS "Users can update their own customer record" ON customers;
-CREATE POLICY "Users can update their own customer record"
-  ON customers FOR UPDATE
-  TO authenticated
-  USING (auth_user_id = (SELECT auth.uid()))
-  WITH CHECK (auth_user_id = (SELECT auth.uid()));
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 'customers' AND column_name = 'auth_user_id'
+  ) THEN
+    -- CUSTOMERS TABLE
+    CREATE POLICY "Users can view their own customer record"
+      ON customers FOR SELECT
+      TO authenticated
+      USING (auth_user_id = (SELECT auth.uid()));
 
--- VEHICLES TABLE  
-DROP POLICY IF EXISTS "Users can manage their own vehicles" ON vehicles;
-CREATE POLICY "Users can manage their own vehicles"
-  ON vehicles FOR ALL
-  TO authenticated
-  USING (customer_id IN (SELECT id FROM customers WHERE auth_user_id = (SELECT auth.uid())))
-  WITH CHECK (customer_id IN (SELECT id FROM customers WHERE auth_user_id = (SELECT auth.uid())));
+    CREATE POLICY "Users can update their own customer record"
+      ON customers FOR UPDATE
+      TO authenticated
+      USING (auth_user_id = (SELECT auth.uid()))
+      WITH CHECK (auth_user_id = (SELECT auth.uid()));
 
--- SERVICES TABLE
-DROP POLICY IF EXISTS "Users can view their own services" ON services;
-CREATE POLICY "Users can view their own services"
-  ON services FOR SELECT
-  TO authenticated
-  USING (customer_id IN (SELECT id FROM customers WHERE auth_user_id = (SELECT auth.uid())));
+    -- VEHICLES TABLE
+    CREATE POLICY "Users can manage their own vehicles"
+      ON vehicles FOR ALL
+      TO authenticated
+      USING (customer_id IN (SELECT id FROM customers WHERE auth_user_id = (SELECT auth.uid())))
+      WITH CHECK (customer_id IN (SELECT id FROM customers WHERE auth_user_id = (SELECT auth.uid())));
 
--- REWARD_REDEMPTIONS TABLE
-DROP POLICY IF EXISTS "Users can view and create their own redemptions" ON reward_redemptions;
-CREATE POLICY "Users can view and create their own redemptions"
-  ON reward_redemptions FOR SELECT
-  TO authenticated
-  USING (customer_id IN (SELECT id FROM customers WHERE auth_user_id = (SELECT auth.uid())));
+    -- SERVICES TABLE
+    CREATE POLICY "Users can view their own services"
+      ON services FOR SELECT
+      TO authenticated
+      USING (customer_id IN (SELECT id FROM customers WHERE auth_user_id = (SELECT auth.uid())));
 
-DROP POLICY IF EXISTS "Users can create redemptions" ON reward_redemptions;
-CREATE POLICY "Users can create redemptions"
-  ON reward_redemptions FOR INSERT
-  TO authenticated
-  WITH CHECK (customer_id IN (SELECT id FROM customers WHERE auth_user_id = (SELECT auth.uid())));
+    -- REWARD_REDEMPTIONS TABLE
+    CREATE POLICY "Users can view and create their own redemptions"
+      ON reward_redemptions FOR SELECT
+      TO authenticated
+      USING (customer_id IN (SELECT id FROM customers WHERE auth_user_id = (SELECT auth.uid())));
 
--- CUSTOMER_PROMOTIONS TABLE
-DROP POLICY IF EXISTS "Users can view their own promotions" ON customer_promotions;
-CREATE POLICY "Users can view their own promotions"
-  ON customer_promotions FOR SELECT
-  TO authenticated
-  USING (customer_id IN (SELECT id FROM customers WHERE auth_user_id = (SELECT auth.uid())));
+    CREATE POLICY "Users can create redemptions"
+      ON reward_redemptions FOR INSERT
+      TO authenticated
+      WITH CHECK (customer_id IN (SELECT id FROM customers WHERE auth_user_id = (SELECT auth.uid())));
 
--- APPOINTMENTS TABLE
-DROP POLICY IF EXISTS "Users can manage their own appointments" ON appointments;
-CREATE POLICY "Users can manage their own appointments"
-  ON appointments FOR ALL
-  TO authenticated
-  USING (customer_id IN (SELECT id FROM customers WHERE auth_user_id = (SELECT auth.uid())))
-  WITH CHECK (customer_id IN (SELECT id FROM customers WHERE auth_user_id = (SELECT auth.uid())));
+    -- CUSTOMER_PROMOTIONS TABLE
+    CREATE POLICY "Users can view their own promotions"
+      ON customer_promotions FOR SELECT
+      TO authenticated
+      USING (customer_id IN (SELECT id FROM customers WHERE auth_user_id = (SELECT auth.uid())));
+
+    -- APPOINTMENTS TABLE
+    CREATE POLICY "Users can manage their own appointments"
+      ON appointments FOR ALL
+      TO authenticated
+      USING (customer_id IN (SELECT id FROM customers WHERE auth_user_id = (SELECT auth.uid())))
+      WITH CHECK (customer_id IN (SELECT id FROM customers WHERE auth_user_id = (SELECT auth.uid())));
+  ELSE
+    -- CUSTOMERS TABLE (fallback to customers.id = auth.uid())
+    CREATE POLICY "Users can view their own customer record"
+      ON customers FOR SELECT
+      TO authenticated
+      USING (id = (SELECT auth.uid()));
+
+    CREATE POLICY "Users can update their own customer record"
+      ON customers FOR UPDATE
+      TO authenticated
+      USING (id = (SELECT auth.uid()))
+      WITH CHECK (id = (SELECT auth.uid()));
+
+    -- VEHICLES TABLE
+    CREATE POLICY "Users can manage their own vehicles"
+      ON vehicles FOR ALL
+      TO authenticated
+      USING (customer_id IN (SELECT id FROM customers WHERE id = (SELECT auth.uid())))
+      WITH CHECK (customer_id IN (SELECT id FROM customers WHERE id = (SELECT auth.uid())));
+
+    -- SERVICES TABLE
+    CREATE POLICY "Users can view their own services"
+      ON services FOR SELECT
+      TO authenticated
+      USING (customer_id IN (SELECT id FROM customers WHERE id = (SELECT auth.uid())));
+
+    -- REWARD_REDEMPTIONS TABLE
+    CREATE POLICY "Users can view and create their own redemptions"
+      ON reward_redemptions FOR SELECT
+      TO authenticated
+      USING (customer_id IN (SELECT id FROM customers WHERE id = (SELECT auth.uid())));
+
+    CREATE POLICY "Users can create redemptions"
+      ON reward_redemptions FOR INSERT
+      TO authenticated
+      WITH CHECK (customer_id IN (SELECT id FROM customers WHERE id = (SELECT auth.uid())));
+
+    -- CUSTOMER_PROMOTIONS TABLE
+    CREATE POLICY "Users can view their own promotions"
+      ON customer_promotions FOR SELECT
+      TO authenticated
+      USING (customer_id IN (SELECT id FROM customers WHERE id = (SELECT auth.uid())));
+
+    -- APPOINTMENTS TABLE
+    CREATE POLICY "Users can manage their own appointments"
+      ON appointments FOR ALL
+      TO authenticated
+      USING (customer_id IN (SELECT id FROM customers WHERE id = (SELECT auth.uid())))
+      WITH CHECK (customer_id IN (SELECT id FROM customers WHERE id = (SELECT auth.uid())));
+  END IF;
+END
+$do$;

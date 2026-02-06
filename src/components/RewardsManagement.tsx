@@ -30,6 +30,9 @@ export function RewardsManagement() {
     points_required: '',
   });
 
+  const getPointsCost = (reward: RewardItem) =>
+    (reward as any).points_required ?? (reward as any).points_cost ?? 0;
+
   useEffect(() => {
     loadData();
   }, []);
@@ -37,14 +40,19 @@ export function RewardsManagement() {
   const loadData = async () => {
     try {
       const [rewardsResult, customersResult] = await Promise.all([
-        supabase.from('reward_items').select('*').order('points_required', { ascending: true }),
+        supabase.from('reward_items').select('*'),
         supabase.from('customers').select('*').order('full_name', { ascending: true }),
       ]);
 
       if (rewardsResult.error) throw rewardsResult.error;
       if (customersResult.error) throw customersResult.error;
 
-      setRewardItems(rewardsResult.data || []);
+      const sortedRewards = (rewardsResult.data || []).slice().sort((a, b) => {
+        const costA = (a as any).points_required ?? (a as any).points_cost ?? 0;
+        const costB = (b as any).points_required ?? (b as any).points_cost ?? 0;
+        return costA - costB;
+      });
+      setRewardItems(sortedRewards);
       setCustomers(customersResult.data || []);
     } catch (error) {
       console.error('Error loading rewards:', error);
@@ -62,13 +70,24 @@ export function RewardsManagement() {
     }
 
     try {
-      const { error } = await supabase.from('reward_items').insert({
+      const pointsValue = parseInt(formData.points_required);
+      let { error } = await supabase.from('reward_items').insert({
         shop_id: shop.id,
         name: formData.name,
         description: formData.description,
-        points_required: parseInt(formData.points_required),
+        points_required: pointsValue,
         is_active: true,
       });
+
+      if (error && error.code === '42703') {
+        ({ error } = await supabase.from('reward_items').insert({
+          shop_id: shop.id,
+          name: formData.name,
+          description: formData.description,
+          points_cost: pointsValue,
+          is_active: true,
+        }));
+      }
 
       if (error) throw error;
 
@@ -123,7 +142,7 @@ export function RewardsManagement() {
     setEditData({
       name: reward.name,
       description: reward.description || '',
-      points_required: reward.points_required.toString(),
+      points_required: getPointsCost(reward).toString(),
     });
   };
 
@@ -134,15 +153,28 @@ export function RewardsManagement() {
 
   const handleUpdate = async (id: string) => {
     try {
-      const { error } = await supabase
+      const pointsValue = parseInt(editData.points_required);
+      let { error } = await supabase
         .from('reward_items')
         .update({
           name: editData.name,
           description: editData.description,
-          points_required: parseInt(editData.points_required),
+          points_required: pointsValue,
           updated_at: new Date().toISOString(),
         })
         .eq('id', id);
+
+      if (error && error.code === '42703') {
+        ({ error } = await supabase
+          .from('reward_items')
+          .update({
+            name: editData.name,
+            description: editData.description,
+            points_cost: pointsValue,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', id));
+      }
 
       if (error) throw error;
 
@@ -162,7 +194,8 @@ export function RewardsManagement() {
       const customer = customers.find((c) => c.id === customerId);
       if (!customer) return;
 
-      if (customer.reward_points < selectedReward.points_required) {
+      const pointsCost = getPointsCost(selectedReward);
+      if (customer.reward_points < pointsCost) {
         alert('Customer does not have enough points for this reward.');
         return;
       }
@@ -170,7 +203,7 @@ export function RewardsManagement() {
       const { error } = await supabase.from('reward_redemptions').insert({
         customer_id: customerId,
         reward_item_id: selectedReward.id,
-        points_spent: selectedReward.points_required,
+        points_spent: pointsCost,
         status: 'completed',
       });
 
@@ -382,7 +415,7 @@ export function RewardsManagement() {
                 <div className="flex items-center justify-between pt-3 border-t border-slate-200">
                   <div className="flex items-center gap-1.5 font-semibold" style={{ color: brandSettings.primary_color }}>
                     <Award className="w-5 h-5" />
-                    <span>{reward.points_required} pts</span>
+                    <span>{getPointsCost(reward)} pts</span>
                   </div>
                   {reward.is_active && (
                     <button
@@ -423,7 +456,7 @@ export function RewardsManagement() {
             <div className="p-6 border-b border-slate-200">
               <h3 className="text-xl font-bold text-slate-900">Redeem Reward</h3>
               <p className="text-sm text-slate-600 mt-1">
-                {selectedReward.name} ({selectedReward.points_required} points)
+                {selectedReward.name} ({getPointsCost(selectedReward)} points)
               </p>
             </div>
 
@@ -436,7 +469,7 @@ export function RewardsManagement() {
                     <button
                       key={customer.id}
                       onClick={() => handleRedeemForCustomer(customer.id)}
-                      disabled={customer.reward_points < selectedReward.points_required}
+                      disabled={customer.reward_points < getPointsCost(selectedReward)}
                       className="w-full text-left p-3 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                       <div className="flex items-center justify-between">
@@ -448,7 +481,7 @@ export function RewardsManagement() {
                           <p className="text-sm font-semibold" style={{ color: brandSettings.primary_color }}>
                             {customer.reward_points} pts
                           </p>
-                          {customer.reward_points < selectedReward.points_required && (
+                          {customer.reward_points < getPointsCost(selectedReward) && (
                             <p className="text-xs text-red-600">Not enough points</p>
                           )}
                         </div>

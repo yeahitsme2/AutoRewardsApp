@@ -34,26 +34,56 @@ DROP POLICY IF EXISTS "Shop admins can insert services" ON services;
 DROP POLICY IF EXISTS "Shop admins can update services" ON services;
 DROP POLICY IF EXISTS "Shop admins can delete services" ON services;
 
-CREATE POLICY "Shop admins can view services"
-  ON services FOR SELECT
-  TO authenticated
-  USING (is_admin_for_shop_secure(shop_id));
+DO $do$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'services' AND column_name = 'shop_id'
+  ) THEN
+    CREATE POLICY "Shop admins can view services"
+      ON services FOR SELECT
+      TO authenticated
+      USING (is_admin_for_shop_secure(shop_id));
 
-CREATE POLICY "Shop admins can insert services"
-  ON services FOR INSERT
-  TO authenticated
-  WITH CHECK (is_admin_for_shop_secure(shop_id));
+    CREATE POLICY "Shop admins can insert services"
+      ON services FOR INSERT
+      TO authenticated
+      WITH CHECK (is_admin_for_shop_secure(shop_id));
 
-CREATE POLICY "Shop admins can update services"
-  ON services FOR UPDATE
-  TO authenticated
-  USING (is_admin_for_shop_secure(shop_id))
-  WITH CHECK (is_admin_for_shop_secure(shop_id));
+    CREATE POLICY "Shop admins can update services"
+      ON services FOR UPDATE
+      TO authenticated
+      USING (is_admin_for_shop_secure(shop_id))
+      WITH CHECK (is_admin_for_shop_secure(shop_id));
 
-CREATE POLICY "Shop admins can delete services"
-  ON services FOR DELETE
-  TO authenticated
-  USING (is_admin_for_shop_secure(shop_id));
+    CREATE POLICY "Shop admins can delete services"
+      ON services FOR DELETE
+      TO authenticated
+      USING (is_admin_for_shop_secure(shop_id));
+  ELSE
+    CREATE POLICY "Shop admins can view services"
+      ON services FOR SELECT
+      TO authenticated
+      USING (is_admin_for_shop_secure((SELECT shop_id FROM customers WHERE id = services.customer_id)));
+
+    CREATE POLICY "Shop admins can insert services"
+      ON services FOR INSERT
+      TO authenticated
+      WITH CHECK (is_admin_for_shop_secure((SELECT shop_id FROM customers WHERE id = services.customer_id)));
+
+    CREATE POLICY "Shop admins can update services"
+      ON services FOR UPDATE
+      TO authenticated
+      USING (is_admin_for_shop_secure((SELECT shop_id FROM customers WHERE id = services.customer_id)))
+      WITH CHECK (is_admin_for_shop_secure((SELECT shop_id FROM customers WHERE id = services.customer_id)));
+
+    CREATE POLICY "Shop admins can delete services"
+      ON services FOR DELETE
+      TO authenticated
+      USING (is_admin_for_shop_secure((SELECT shop_id FROM customers WHERE id = services.customer_id)));
+  END IF;
+END
+$do$;
 
 -- Update vehicles policies
 DROP POLICY IF EXISTS "Shop admins can view vehicles" ON vehicles;
@@ -61,26 +91,56 @@ DROP POLICY IF EXISTS "Shop admins can insert vehicles" ON vehicles;
 DROP POLICY IF EXISTS "Shop admins can update vehicles" ON vehicles;
 DROP POLICY IF EXISTS "Shop admins can delete vehicles" ON vehicles;
 
-CREATE POLICY "Shop admins can view vehicles"
-  ON vehicles FOR SELECT
-  TO authenticated
-  USING (is_admin_for_shop_secure(shop_id));
+DO $do$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'vehicles' AND column_name = 'shop_id'
+  ) THEN
+    CREATE POLICY "Shop admins can view vehicles"
+      ON vehicles FOR SELECT
+      TO authenticated
+      USING (is_admin_for_shop_secure(shop_id));
 
-CREATE POLICY "Shop admins can insert vehicles"
-  ON vehicles FOR INSERT
-  TO authenticated
-  WITH CHECK (is_admin_for_shop_secure(shop_id));
+    CREATE POLICY "Shop admins can insert vehicles"
+      ON vehicles FOR INSERT
+      TO authenticated
+      WITH CHECK (is_admin_for_shop_secure(shop_id));
 
-CREATE POLICY "Shop admins can update vehicles"
-  ON vehicles FOR UPDATE
-  TO authenticated
-  USING (is_admin_for_shop_secure(shop_id))
-  WITH CHECK (is_admin_for_shop_secure(shop_id));
+    CREATE POLICY "Shop admins can update vehicles"
+      ON vehicles FOR UPDATE
+      TO authenticated
+      USING (is_admin_for_shop_secure(shop_id))
+      WITH CHECK (is_admin_for_shop_secure(shop_id));
 
-CREATE POLICY "Shop admins can delete vehicles"
-  ON vehicles FOR DELETE
-  TO authenticated
-  USING (is_admin_for_shop_secure(shop_id));
+    CREATE POLICY "Shop admins can delete vehicles"
+      ON vehicles FOR DELETE
+      TO authenticated
+      USING (is_admin_for_shop_secure(shop_id));
+  ELSE
+    CREATE POLICY "Shop admins can view vehicles"
+      ON vehicles FOR SELECT
+      TO authenticated
+      USING (is_admin_for_shop_secure((SELECT shop_id FROM customers WHERE id = vehicles.customer_id)));
+
+    CREATE POLICY "Shop admins can insert vehicles"
+      ON vehicles FOR INSERT
+      TO authenticated
+      WITH CHECK (is_admin_for_shop_secure((SELECT shop_id FROM customers WHERE id = vehicles.customer_id)));
+
+    CREATE POLICY "Shop admins can update vehicles"
+      ON vehicles FOR UPDATE
+      TO authenticated
+      USING (is_admin_for_shop_secure((SELECT shop_id FROM customers WHERE id = vehicles.customer_id)))
+      WITH CHECK (is_admin_for_shop_secure((SELECT shop_id FROM customers WHERE id = vehicles.customer_id)));
+
+    CREATE POLICY "Shop admins can delete vehicles"
+      ON vehicles FOR DELETE
+      TO authenticated
+      USING (is_admin_for_shop_secure((SELECT shop_id FROM customers WHERE id = vehicles.customer_id)));
+  END IF;
+END
+$do$;
 
 -- Update reward_items policies
 DROP POLICY IF EXISTS "Shop admins can view reward items" ON reward_items;
@@ -169,26 +229,56 @@ DROP POLICY IF EXISTS "Shop admins can insert appointments" ON appointments;
 DROP POLICY IF EXISTS "Shop admins can update appointments" ON appointments;
 DROP POLICY IF EXISTS "Shop admins can delete appointments" ON appointments;
 
-CREATE POLICY "Shop admins can view appointments"
-  ON appointments FOR SELECT
-  TO authenticated
-  USING (is_admin_for_shop_secure(shop_id));
+DO $do$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'appointments' AND column_name = 'shop_id'
+  ) THEN
+    CREATE POLICY "Shop admins can view appointments"
+      ON appointments FOR SELECT
+      TO authenticated
+      USING (is_admin_for_shop_secure(shop_id));
 
-CREATE POLICY "Shop admins can insert appointments"
-  ON appointments FOR INSERT
-  TO authenticated
-  WITH CHECK (is_admin_for_shop_secure(shop_id));
+    CREATE POLICY "Shop admins can insert appointments"
+      ON appointments FOR INSERT
+      TO authenticated
+      WITH CHECK (is_admin_for_shop_secure(shop_id));
 
-CREATE POLICY "Shop admins can update appointments"
-  ON appointments FOR UPDATE
-  TO authenticated
-  USING (is_admin_for_shop_secure(shop_id))
-  WITH CHECK (is_admin_for_shop_secure(shop_id));
+    CREATE POLICY "Shop admins can update appointments"
+      ON appointments FOR UPDATE
+      TO authenticated
+      USING (is_admin_for_shop_secure(shop_id))
+      WITH CHECK (is_admin_for_shop_secure(shop_id));
 
-CREATE POLICY "Shop admins can delete appointments"
-  ON appointments FOR DELETE
-  TO authenticated
-  USING (is_admin_for_shop_secure(shop_id));
+    CREATE POLICY "Shop admins can delete appointments"
+      ON appointments FOR DELETE
+      TO authenticated
+      USING (is_admin_for_shop_secure(shop_id));
+  ELSE
+    CREATE POLICY "Shop admins can view appointments"
+      ON appointments FOR SELECT
+      TO authenticated
+      USING (is_admin_for_shop_secure((SELECT shop_id FROM customers WHERE id = appointments.customer_id)));
+
+    CREATE POLICY "Shop admins can insert appointments"
+      ON appointments FOR INSERT
+      TO authenticated
+      WITH CHECK (is_admin_for_shop_secure((SELECT shop_id FROM customers WHERE id = appointments.customer_id)));
+
+    CREATE POLICY "Shop admins can update appointments"
+      ON appointments FOR UPDATE
+      TO authenticated
+      USING (is_admin_for_shop_secure((SELECT shop_id FROM customers WHERE id = appointments.customer_id)))
+      WITH CHECK (is_admin_for_shop_secure((SELECT shop_id FROM customers WHERE id = appointments.customer_id)));
+
+    CREATE POLICY "Shop admins can delete appointments"
+      ON appointments FOR DELETE
+      TO authenticated
+      USING (is_admin_for_shop_secure((SELECT shop_id FROM customers WHERE id = appointments.customer_id)));
+  END IF;
+END
+$do$;
 
 -- Update shop_settings policies
 DROP POLICY IF EXISTS "Shop admins can view their shop settings" ON shop_settings;

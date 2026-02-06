@@ -25,3 +25,6 @@ dist-ssr
 # Android signing
 android/keystore.properties
 android/*.keystore
+
+# Supabase CLI
+supabase/.temp/

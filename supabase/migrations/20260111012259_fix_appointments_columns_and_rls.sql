@@ -92,48 +92,78 @@ DROP POLICY IF EXISTS "Users can manage their own appointments" ON appointments;
 DROP POLICY IF EXISTS "Customers can create appointments" ON appointments;
 DROP POLICY IF EXISTS "Customers can view own appointments" ON appointments;
 DROP POLICY IF EXISTS "Customers can update own pending appointments" ON appointments;
+DO $do$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'customers' AND column_name = 'auth_user_id'
+  ) THEN
+    -- Customers can insert appointments in their shop
+    CREATE POLICY "Customers can create appointments in their shop"
+      ON appointments FOR INSERT
+      TO authenticated
+      WITH CHECK (
+        customer_id IN (
+          SELECT id FROM customers
+          WHERE auth_user_id = auth.uid()
+        )
+        AND shop_id = (
+          SELECT shop_id FROM customers
+          WHERE auth_user_id = auth.uid()
+          LIMIT 1
+        )
+      );
 
--- Customers can insert appointments in their shop
-CREATE POLICY "Customers can create appointments in their shop"
-  ON appointments FOR INSERT
-  TO authenticated
-  WITH CHECK (
-    customer_id IN (
-      SELECT id FROM customers 
-      WHERE auth_user_id = auth.uid()
-    )
-    AND shop_id = (
-      SELECT shop_id FROM customers 
-      WHERE auth_user_id = auth.uid()
-      LIMIT 1
-    )
-  );
+    -- Customers can view their own appointments
+    CREATE POLICY "Customers can view their own appointments"
+      ON appointments FOR SELECT
+      TO authenticated
+      USING (
+        customer_id IN (
+          SELECT id FROM customers
+          WHERE auth_user_id = auth.uid()
+        )
+      );
 
--- Customers can view their own appointments
-CREATE POLICY "Customers can view their own appointments"
-  ON appointments FOR SELECT
-  TO authenticated
-  USING (
-    customer_id IN (
-      SELECT id FROM customers 
-      WHERE auth_user_id = auth.uid()
-    )
-  );
+    -- Customers can update their own pending/confirmed appointments
+    CREATE POLICY "Customers can update their own appointments"
+      ON appointments FOR UPDATE
+      TO authenticated
+      USING (
+        customer_id IN (
+          SELECT id FROM customers
+          WHERE auth_user_id = auth.uid()
+        )
+        AND status IN ('pending', 'confirmed')
+      )
+      WITH CHECK (
+        customer_id IN (
+          SELECT id FROM customers
+          WHERE auth_user_id = auth.uid()
+        )
+      );
+  ELSE
+    -- Fallback without auth_user_id and without appointments.shop_id
+    CREATE POLICY "Customers can create appointments in their shop"
+      ON appointments FOR INSERT
+      TO authenticated
+      WITH CHECK (
+        customer_id = auth.uid()
+      );
 
--- Customers can update their own pending/confirmed appointments
-CREATE POLICY "Customers can update their own appointments"
-  ON appointments FOR UPDATE
-  TO authenticated
-  USING (
-    customer_id IN (
-      SELECT id FROM customers 
-      WHERE auth_user_id = auth.uid()
-    )
-    AND status IN ('pending', 'confirmed')
-  )
-  WITH CHECK (
-    customer_id IN (
-      SELECT id FROM customers 
-      WHERE auth_user_id = auth.uid()
-    )
-  );
+    CREATE POLICY "Customers can view their own appointments"
+      ON appointments FOR SELECT
+      TO authenticated
+      USING (customer_id = auth.uid());
+
+    CREATE POLICY "Customers can update their own appointments"
+      ON appointments FOR UPDATE
+      TO authenticated
+      USING (
+        customer_id = auth.uid()
+        AND status IN ('pending', 'confirmed')
+      )
+      WITH CHECK (customer_id = auth.uid());
+  END IF;
+END
+$do$;

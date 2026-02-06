@@ -24,11 +24,15 @@ export function RewardProgress({ customer }: RewardProgressProps) {
         .from('reward_items')
         .select('*')
         .eq('shop_id', customer.shop_id)
-        .eq('is_active', true)
-        .order('points_required', { ascending: true });
+        .eq('is_active', true);
 
       if (error) throw error;
-      setRewards(data || []);
+      const sortedRewards = (data || []).slice().sort((a, b) => {
+        const costA = (a as any).points_required ?? (a as any).points_cost ?? 0;
+        const costB = (b as any).points_required ?? (b as any).points_cost ?? 0;
+        return costA - costB;
+      });
+      setRewards(sortedRewards);
     } catch (error) {
       console.error('Error loading rewards:', error);
     } finally {
@@ -66,6 +70,7 @@ export function RewardProgress({ customer }: RewardProgressProps) {
   }
 
   const { reward, pointsNeeded, progressPercent } = nextRewardInfo;
+  const rewardCost = (reward as any).points_required ?? (reward as any).points_cost ?? 0;
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
@@ -83,7 +88,7 @@ export function RewardProgress({ customer }: RewardProgressProps) {
         <div className="flex items-center justify-between text-sm">
           <span className="text-slate-600">Your progress</span>
           <span className="font-semibold text-slate-900">
-            {customer.reward_points} / {reward.points_required} points
+            {customer.reward_points} / {rewardCost} points
           </span>
         </div>
         <div className="relative h-3 bg-slate-100 rounded-full overflow-hidden">

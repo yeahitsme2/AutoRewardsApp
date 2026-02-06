@@ -42,9 +42,8 @@ export function AddVehicleModal({ customer, onClose }: AddVehicleModalProps) {
         throw new Error('Shop information is not available');
       }
 
-      const { error: insertError } = await supabase.from('vehicles').insert({
+      const vehiclePayload: any = {
         customer_id: customer.id,
-        shop_id: shop.id,
         make: formData.make,
         model: formData.model,
         year,
@@ -53,9 +52,20 @@ export function AddVehicleModal({ customer, onClose }: AddVehicleModalProps) {
         color: formData.color || null,
         current_mileage: formData.mileage ? parseInt(formData.mileage) : 0,
         picture_url: formData.pictureUrl || null,
+      };
+
+      const primaryInsert = await supabase.from('vehicles').insert({
+        ...vehiclePayload,
+        shop_id: shop.id,
       });
 
-      if (insertError) throw insertError;
+      if (primaryInsert.error) {
+        const missingColumn = primaryInsert.error.code === '42703'
+          || (typeof primaryInsert.error.message === 'string' && primaryInsert.error.message.includes('does not exist'));
+        if (!missingColumn) throw primaryInsert.error;
+        const fallbackInsert = await supabase.from('vehicles').insert(vehiclePayload);
+        if (fallbackInsert.error) throw fallbackInsert.error;
+      }
 
       onClose();
     } catch (err: unknown) {

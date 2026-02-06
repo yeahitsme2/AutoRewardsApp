@@ -12,7 +12,17 @@
 */
 
 -- Drop ALL policies that depend on the helper functions
-DROP POLICY IF EXISTS "Super admins can view all super admins" ON super_admins;
+DO $do$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.tables
+    WHERE table_schema = 'public'
+      AND table_name = 'super_admins'
+  ) THEN
+    DROP POLICY IF EXISTS "Super admins can view all super admins" ON super_admins;
+  END IF;
+END $do$;
 DROP POLICY IF EXISTS "Super admins can do anything with shops" ON shops;
 DROP POLICY IF EXISTS "Shop admins can view their shop" ON shops;
 DROP POLICY IF EXISTS "Super admins can do anything with shop settings" ON shop_settings;
@@ -39,7 +49,16 @@ DROP POLICY IF EXISTS "Shop admins can manage their shop appointments" ON appoin
 -- Now drop and recreate functions with SECURITY DEFINER
 DROP FUNCTION IF EXISTS is_super_admin();
 DROP FUNCTION IF EXISTS is_shop_admin();
-DROP FUNCTION IF EXISTS get_user_shop_id();
+DROP FUNCTION IF EXISTS get_user_shop_id() CASCADE;
+
+-- Ensure super_admins table exists (some schemas may not include it yet)
+CREATE TABLE IF NOT EXISTS super_admins (
+  id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email text UNIQUE NOT NULL,
+  full_name text NOT NULL,
+  created_at timestamptz DEFAULT now()
+);
+ALTER TABLE super_admins ENABLE ROW LEVEL SECURITY;
 
 -- Recreate is_super_admin with SECURITY DEFINER
 CREATE FUNCTION is_super_admin()
@@ -54,30 +73,75 @@ SELECT EXISTS (
 );
 $$;
 
--- Recreate is_shop_admin with SECURITY DEFINER  
-CREATE FUNCTION is_shop_admin()
-RETURNS BOOLEAN
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-SELECT EXISTS (
-  SELECT 1 FROM customers 
-  WHERE auth_user_id = auth.uid() AND is_admin = true
-);
-$$;
+-- Recreate is_shop_admin with SECURITY DEFINER (supports schemas without auth_user_id)
+DO $do$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'customers'
+      AND column_name = 'auth_user_id'
+  ) THEN
+    CREATE FUNCTION is_shop_admin()
+    RETURNS BOOLEAN
+    LANGUAGE sql
+    STABLE
+    SECURITY DEFINER
+    SET search_path = public
+    AS $$
+      SELECT EXISTS (
+        SELECT 1 FROM customers
+        WHERE auth_user_id = auth.uid() AND is_admin = true
+      );
+    $$;
+  ELSE
+    CREATE FUNCTION is_shop_admin()
+    RETURNS BOOLEAN
+    LANGUAGE sql
+    STABLE
+    SECURITY DEFINER
+    SET search_path = public
+    AS $$
+      SELECT EXISTS (
+        SELECT 1 FROM customers
+        WHERE id = auth.uid() AND is_admin = true
+      );
+    $$;
+  END IF;
+END $do$;
 
--- Recreate get_user_shop_id with SECURITY DEFINER
-CREATE FUNCTION get_user_shop_id()
-RETURNS UUID
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-SELECT shop_id FROM customers WHERE auth_user_id = auth.uid() LIMIT 1;
-$$;
+-- Recreate get_user_shop_id with SECURITY DEFINER (supports schemas without auth_user_id)
+DO $do$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'customers'
+      AND column_name = 'auth_user_id'
+  ) THEN
+    CREATE FUNCTION get_user_shop_id()
+    RETURNS UUID
+    LANGUAGE sql
+    STABLE
+    SECURITY DEFINER
+    SET search_path = public
+    AS $$
+      SELECT shop_id FROM customers WHERE auth_user_id = auth.uid() LIMIT 1;
+    $$;
+  ELSE
+    CREATE FUNCTION get_user_shop_id()
+    RETURNS UUID
+    LANGUAGE sql
+    STABLE
+    SECURITY DEFINER
+    SET search_path = public
+    AS $$
+      SELECT shop_id FROM customers WHERE id = auth.uid() LIMIT 1;
+    $$;
+  END IF;
+END $do$;
 
 -- Recreate super_admins policy
 CREATE POLICY "Super admins can view all super admins"
@@ -149,11 +213,22 @@ CREATE POLICY "Super admins can do anything with services"
   USING (is_super_admin())
   WITH CHECK (is_super_admin());
 
-CREATE POLICY "Shop admins can manage their shop services"
-  ON services FOR ALL
-  TO authenticated
-  USING (shop_id = get_user_shop_id() AND is_shop_admin())
-  WITH CHECK (shop_id = get_user_shop_id() AND is_shop_admin());
+DO $do$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'services'
+      AND column_name = 'shop_id'
+  ) THEN
+    CREATE POLICY "Shop admins can manage their shop services"
+      ON services FOR ALL
+      TO authenticated
+      USING (shop_id = get_user_shop_id() AND is_shop_admin())
+      WITH CHECK (shop_id = get_user_shop_id() AND is_shop_admin());
+  END IF;
+END $do$;
 
 -- Recreate reward_items policies
 CREATE POLICY "Super admins can do anything with reward items"
@@ -236,8 +311,19 @@ CREATE POLICY "Super admins can do anything with appointments"
   USING (is_super_admin())
   WITH CHECK (is_super_admin());
 
-CREATE POLICY "Shop admins can manage their shop appointments"
-  ON appointments FOR ALL
-  TO authenticated
-  USING (shop_id = get_user_shop_id() AND is_shop_admin())
-  WITH CHECK (shop_id = get_user_shop_id() AND is_shop_admin());
+DO $do$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'appointments'
+      AND column_name = 'shop_id'
+  ) THEN
+    CREATE POLICY "Shop admins can manage their shop appointments"
+      ON appointments FOR ALL
+      TO authenticated
+      USING (shop_id = get_user_shop_id() AND is_shop_admin())
+      WITH CHECK (shop_id = get_user_shop_id() AND is_shop_admin());
+  END IF;
+END $do$;

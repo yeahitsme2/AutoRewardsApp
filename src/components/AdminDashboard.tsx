@@ -1,30 +1,39 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
 import { supabase } from '../lib/supabase';
-import { LogOut, Wrench, Users, UserCheck, UserX, Search, Gift, Crown, Settings as SettingsIcon, Tag, Calendar, TrendingUp, X, Car, Award } from 'lucide-react';
+import { Bell, LogOut, Wrench, Users, UserCheck, UserX, Search, Gift, Crown, Settings as SettingsIcon, Tag, Calendar, TrendingUp, X, Car, Award, ClipboardList, Clock, Briefcase, ClipboardCheck, Boxes, MessageSquare } from 'lucide-react';
 import { AddServiceModal } from './AddServiceModal';
 import { AddVehicleModal } from './AddVehicleModal';
 import { RewardsManagement } from './RewardsManagement';
 import { PromotionsManagement } from './PromotionsManagement';
 import { AppointmentsManagement } from './AppointmentsManagement';
+import { RepairOrdersManagement } from './RepairOrdersManagement';
+import { ScheduleBoard } from './ScheduleBoard';
+import { DviManagement } from './DviManagement';
+import { InventoryManagement } from './InventoryManagement';
+import { MessagesCenter } from './MessagesCenter';
 import { Settings } from './Settings';
 import { UserManagement } from './UserManagement';
 import { Insights } from './Insights';
 import { getTierInfo, calculateSpendingToNextTier } from '../lib/rewardsUtils';
-import type { Customer, Vehicle, Service } from '../types/database';
+import { ensurePushSubscription } from '../lib/pushNotifications';
+import type { Customer, Vehicle, Service, Database } from '../types/database';
 
 interface CustomerWithVehicles extends Customer {
   vehicles: Vehicle[];
   services: Service[];
 }
 
-type TabType = 'customers' | 'appointments' | 'rewards' | 'promotions' | 'insights' | 'users' | 'settings';
+type TabType = 'customers' | 'appointments' | 'my_shop' | 'rewards' | 'promotions' | 'users' | 'settings';
+type MyShopTab = 'schedule' | 'repair_orders' | 'inspections' | 'inventory' | 'messages' | 'insights';
+type NotificationItem = Database['public']['Tables']['notifications']['Row'];
 
 export function AdminDashboard() {
   const { admin, signOut } = useAuth();
   const { brandSettings } = useBrand();
   const [activeTab, setActiveTab] = useState<TabType>('customers');
+  const [myShopTab, setMyShopTab] = useState<MyShopTab>('schedule');
   const [customers, setCustomers] = useState<CustomerWithVehicles[]>([]);
   const [filteredCustomers, setFilteredCustomers] = useState<CustomerWithVehicles[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -35,56 +44,18 @@ export function AdminDashboard() {
   const [showAddVehicle, setShowAddVehicle] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [pendingAppointments, setPendingAppointments] = useState(0);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const pendingCountRef = useRef(0);
 
-  useEffect(() => {
-    loadData();
-    loadPendingAppointments();
+  const getLifetimeSpending = (customer: Customer) =>
+    (customer as any).lifetime_spending ??
+    (customer as any).total_lifetime_spending ??
+    (customer as any).total_spent ??
+    0;
 
-    if (typeof Notification !== 'undefined') {
-      if (Notification.permission === 'default') {
-        Notification.requestPermission();
-      }
-    }
-
-    const interval = setInterval(() => {
-      loadPendingAppointments();
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    let filtered = customers;
-
-    if (dateFilter) {
-      filtered = filtered.filter((cust) => {
-        const createdDate = new Date(cust.created_at).toISOString().split('T')[0];
-        return createdDate === dateFilter;
-      });
-      setFilteredCustomers(filtered);
-      return;
-    }
-
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter((cust) => {
-        const fullName = cust.full_name?.toLowerCase() || '';
-        const email = cust.email?.toLowerCase() || '';
-        const phone = cust.phone?.toLowerCase() || '';
-        return fullName.includes(query) || email.includes(query) || phone.includes(query);
-      });
-      setFilteredCustomers(filtered);
-      return;
-    }
-
-    if (!showAllCustomers) {
-      filtered = filtered.slice(0, 10);
-    }
-
-    setFilteredCustomers(filtered);
-  }, [searchQuery, dateFilter, showAllCustomers, customers]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const { data: customersData, error: customersError } = await supabase
         .from('customers')
@@ -120,9 +91,9 @@ export function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const loadPendingAppointments = async () => {
+  const loadPendingAppointments = useCallback(async () => {
     try {
       const { count, error } = await supabase
         .from('appointments')
@@ -132,7 +103,7 @@ export function AdminDashboard() {
       if (error) throw error;
 
       const newCount = count || 0;
-      if (newCount > pendingAppointments && pendingAppointments > 0) {
+      if (newCount > pendingCountRef.current && pendingCountRef.current > 0) {
         if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
           new Notification('New Appointment Request', {
             body: 'A customer has requested a new appointment',
@@ -141,11 +112,202 @@ export function AdminDashboard() {
         }
       }
 
+      pendingCountRef.current = newCount;
       setPendingAppointments(newCount);
     } catch (error) {
       console.error('Error loading pending appointments:', error);
     }
+  }, []);
+
+  const loadNotifications = useCallback(async () => {
+    if (!admin?.shop_id) return;
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('recipient_role', 'admin')
+        .eq('shop_id', admin.shop_id)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      const rows = (data || []) as NotificationItem[];
+      setNotifications(rows);
+      setUnreadNotifications(rows.filter((item) => !item.is_read).length);
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+    }
+  }, [admin?.shop_id]);
+
+  useEffect(() => {
+    loadData();
+    loadPendingAppointments();
+
+    if (typeof Notification !== 'undefined') {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    }
+
+    return () => {};
+  }, [loadData, loadPendingAppointments]);
+
+  useEffect(() => {
+    if (!admin?.shop_id) return;
+    loadNotifications();
+    const channel = supabase
+      .channel(`admin-notifications-${admin.shop_id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'notifications',
+        filter: `shop_id=eq.${admin.shop_id}`,
+      }, () => {
+        loadNotifications();
+      });
+    channel.subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [admin?.shop_id, loadNotifications]);
+
+  useEffect(() => {
+    if (admin?.shop_id) {
+      ensurePushSubscription({ userRole: 'admin', shopId: admin.shop_id });
+    }
+  }, [admin?.shop_id]);
+
+  const markNotificationRead = async (notificationId: string) => {
+    try {
+      await supabase
+        .from('notifications')
+        .update({ is_read: true, read_at: new Date().toISOString() })
+        .eq('id', notificationId);
+      setNotifications((prev) =>
+        prev.map((note) => (note.id === notificationId ? { ...note, is_read: true, read_at: new Date().toISOString() } : note))
+      );
+      setUnreadNotifications((prev) => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error('Failed to mark notification read:', error);
+    }
   };
+
+  const markAllNotificationsRead = async () => {
+    const unreadIds = notifications.filter((note) => !note.is_read).map((note) => note.id);
+    if (unreadIds.length === 0) return;
+    try {
+      await supabase
+        .from('notifications')
+        .update({ is_read: true, read_at: new Date().toISOString() })
+        .in('id', unreadIds);
+      setNotifications((prev) => prev.map((note) => ({ ...note, is_read: true, read_at: new Date().toISOString() })));
+      setUnreadNotifications(0);
+    } catch (error) {
+      console.error('Failed to mark all notifications read:', error);
+    }
+  };
+
+  const handleNotificationOpen = async (note: NotificationItem) => {
+    if (!note.is_read) {
+      await markNotificationRead(note.id);
+    }
+    if (note.action_url) {
+      try {
+        const url = new URL(note.action_url, window.location.origin);
+        const tab = url.searchParams.get('tab');
+        const sub = url.searchParams.get('sub');
+        if (tab === 'appointments' || tab === 'customers' || tab === 'rewards' || tab === 'promotions' || tab === 'settings') {
+          setActiveTab(tab);
+        } else if (tab === 'my_shop') {
+          setActiveTab('my_shop');
+          if (sub === 'schedule' || sub === 'repair_orders' || sub === 'inspections' || sub === 'inventory' || sub === 'messages' || sub === 'insights') {
+            setMyShopTab(sub);
+          }
+        }
+      } catch (error) {
+        console.warn('Invalid notification URL:', error);
+      }
+    } else if (note.entity_type === 'repair_order') {
+      setActiveTab('my_shop');
+      setMyShopTab('repair_orders');
+    } else if (note.entity_type === 'appointment') {
+      setActiveTab('appointments');
+    } else if (note.entity_type === 'chat') {
+      setActiveTab('my_shop');
+      setMyShopTab('messages');
+    }
+    setShowNotifications(false);
+  };
+
+  useEffect(() => {
+    if (!admin?.shop_id) return;
+
+    const channel = supabase
+      .channel(`admin-repair-orders-${admin.shop_id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'repair_orders',
+        filter: `shop_id=eq.${admin.shop_id}`,
+      }, () => {
+        loadData();
+        loadPendingAppointments();
+      });
+
+    channel.subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [admin?.shop_id, loadData, loadPendingAppointments]);
+
+  useEffect(() => {
+    if (!admin?.shop_id) return;
+    const channel = supabase
+      .channel(`admin-appointments-${admin.shop_id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'appointments',
+        filter: `shop_id=eq.${admin.shop_id}`,
+      }, () => {
+        loadPendingAppointments();
+      });
+    channel.subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [admin?.shop_id, loadPendingAppointments]);
+
+  useEffect(() => {
+    let filtered = customers;
+
+    if (dateFilter) {
+      filtered = filtered.filter((cust) => {
+        const createdDate = new Date(cust.created_at).toISOString().split('T')[0];
+        return createdDate === dateFilter;
+      });
+      setFilteredCustomers(filtered);
+      return;
+    }
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter((cust) => {
+        const fullName = cust.full_name?.toLowerCase() || '';
+        const email = cust.email?.toLowerCase() || '';
+        const phone = cust.phone?.toLowerCase() || '';
+        return fullName.includes(query) || email.includes(query) || phone.includes(query);
+      });
+      setFilteredCustomers(filtered);
+      return;
+    }
+
+    if (!showAllCustomers) {
+      filtered = filtered.slice(0, 10);
+    }
+
+    setFilteredCustomers(filtered);
+  }, [searchQuery, dateFilter, showAllCustomers, customers]);
 
   const handleAddService = (customer: Customer) => {
     setSelectedCustomer(customer);
@@ -196,13 +358,60 @@ export function AdminDashboard() {
                 <p className="text-xs sm:text-sm text-slate-300 truncate">{admin?.full_name}</p>
               </div>
             </div>
-            <button
-              onClick={signOut}
-              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 text-slate-300 hover:text-white transition-colors flex-shrink-0"
-            >
-              <LogOut className="w-5 h-5" />
-              <span className="hidden sm:inline">Sign Out</span>
-            </button>
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+              <div className="relative">
+                <button
+                  onClick={() => setShowNotifications((prev) => !prev)}
+                  className="relative flex items-center justify-center w-10 h-10 rounded-full bg-slate-800 text-slate-200 hover:text-white"
+                  title="Notifications"
+                >
+                  <Bell className="w-5 h-5" />
+                  {unreadNotifications > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                      {unreadNotifications}
+                    </span>
+                  )}
+                </button>
+                {showNotifications && (
+                  <div className="absolute right-0 mt-3 w-80 max-h-96 overflow-auto rounded-xl border border-slate-200 bg-white text-slate-900 shadow-lg z-50">
+                    <div className="p-3 border-b border-slate-100 flex items-center justify-between">
+                      <div className="text-sm font-semibold">Notifications</div>
+                      <button
+                        onClick={markAllNotificationsRead}
+                        className="text-xs text-slate-500 hover:text-slate-700"
+                      >
+                        Mark all read
+                      </button>
+                    </div>
+                    {notifications.length === 0 && (
+                      <div className="p-4 text-sm text-slate-500">No notifications yet.</div>
+                    )}
+                    {notifications.map((note) => (
+                      <button
+                        key={note.id}
+                        onClick={() => handleNotificationOpen(note)}
+                        className={`w-full text-left px-4 py-3 border-b border-slate-100 hover:bg-slate-50 ${
+                          note.is_read ? 'bg-white' : 'bg-slate-50'
+                        }`}
+                      >
+                        <div className="text-sm font-semibold text-slate-900">{note.title}</div>
+                        {note.body && <div className="text-xs text-slate-500 mt-1">{note.body}</div>}
+                        <div className="text-[11px] text-slate-400 mt-1">
+                          {new Date(note.created_at).toLocaleString()}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={signOut}
+                className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 text-slate-300 hover:text-white transition-colors"
+              >
+                <LogOut className="w-5 h-5" />
+                <span className="hidden sm:inline">Sign Out</span>
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -241,6 +450,22 @@ export function AdminDashboard() {
               )}
             </button>
             <button
+              onClick={() => setActiveTab('my_shop')}
+              className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-3 font-medium transition-colors border-b-2 whitespace-nowrap flex-shrink-0"
+              style={activeTab === 'my_shop' ? {
+                borderBottomColor: brandSettings.primary_color,
+                color: brandSettings.primary_color
+              } : { borderBottomColor: 'transparent', color: '#475569' }}
+            >
+              <Briefcase className="w-5 h-5" />
+              <span className="text-sm sm:text-base">My Shop</span>
+              {unreadNotifications > 0 && (
+                <span className="ml-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                  {unreadNotifications}
+                </span>
+              )}
+            </button>
+            <button
               onClick={() => setActiveTab('rewards')}
               className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-3 font-medium transition-colors border-b-2 whitespace-nowrap flex-shrink-0"
               style={activeTab === 'rewards' ? {
@@ -261,17 +486,6 @@ export function AdminDashboard() {
             >
               <Tag className="w-5 h-5" />
               <span className="text-sm sm:text-base">Promotions</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('insights')}
-              className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-3 font-medium transition-colors border-b-2 whitespace-nowrap flex-shrink-0"
-              style={activeTab === 'insights' ? {
-                borderBottomColor: brandSettings.primary_color,
-                color: brandSettings.primary_color
-              } : { borderBottomColor: 'transparent', color: '#475569' }}
-            >
-              <TrendingUp className="w-5 h-5" />
-              <span className="text-sm sm:text-base">Insights</span>
             </button>
             <button
               onClick={() => setActiveTab('users')}
@@ -444,7 +658,7 @@ export function AdminDashboard() {
                       <div>
                         <p className="text-sm text-slate-600">Lifetime Spending</p>
                         <p className="text-xl font-semibold text-slate-900">
-                          ${Number(cust.lifetime_spending).toFixed(2)}
+                          ${Number(getLifetimeSpending(cust)).toFixed(2)}
                         </p>
                       </div>
                       {(() => {
@@ -588,11 +802,53 @@ export function AdminDashboard() {
 
         {activeTab === 'appointments' && <AppointmentsManagement />}
 
+        {activeTab === 'my_shop' && (
+          <div className="space-y-6">
+            <div className="flex gap-2 flex-wrap">
+              {(['schedule', 'repair_orders', 'inspections', 'inventory', 'messages', 'insights'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setMyShopTab(tab)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                    myShopTab === tab
+                      ? 'text-white'
+                      : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
+                  style={myShopTab === tab ? { backgroundColor: brandSettings.primary_color } : undefined}
+                >
+                  {tab === 'schedule' && <Clock className="w-4 h-4" />}
+                  {tab === 'repair_orders' && <ClipboardList className="w-4 h-4" />}
+                  {tab === 'inspections' && <ClipboardCheck className="w-4 h-4" />}
+                  {tab === 'inventory' && <Boxes className="w-4 h-4" />}
+                  {tab === 'messages' && <MessageSquare className="w-4 h-4" />}
+                  {tab === 'insights' && <TrendingUp className="w-4 h-4" />}
+                  {tab === 'schedule'
+                    ? 'Schedule'
+                    : tab === 'repair_orders'
+                      ? 'Repair Orders'
+                      : tab === 'inspections'
+                        ? 'DVI'
+                        : tab === 'inventory'
+                          ? 'Inventory'
+                          : tab === 'messages'
+                            ? 'Messages'
+                            : 'Insights'}
+                </button>
+              ))}
+            </div>
+
+            {myShopTab === 'schedule' && <ScheduleBoard />}
+            {myShopTab === 'repair_orders' && <RepairOrdersManagement />}
+            {myShopTab === 'inspections' && <DviManagement />}
+            {myShopTab === 'inventory' && <InventoryManagement />}
+            {myShopTab === 'messages' && <MessagesCenter mode="admin" />}
+            {myShopTab === 'insights' && <Insights />}
+          </div>
+        )}
+
         {activeTab === 'rewards' && <RewardsManagement />}
 
         {activeTab === 'promotions' && <PromotionsManagement />}
-
-        {activeTab === 'insights' && <Insights />}
 
         {activeTab === 'users' && <UserManagement />}
 

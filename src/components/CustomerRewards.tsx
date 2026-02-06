@@ -23,11 +23,29 @@ export function CustomerRewards() {
     }
 
     loadData();
-    const interval = setInterval(() => {
-      loadData();
-    }, 5000);
+    const channel = supabase
+      .channel(`customer-rewards-${customer.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'reward_items',
+        filter: `shop_id=eq.${customer.shop_id}`,
+      }, () => {
+        loadData();
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'reward_redemptions',
+        filter: `customer_id=eq.${customer.id}`,
+      }, () => {
+        loadData();
+      })
+      .subscribe();
 
-    return () => clearInterval(interval);
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [customer?.id]);
 
   const loadData = async () => {
@@ -38,13 +56,17 @@ export function CustomerRewards() {
         .from('reward_items')
         .select('*')
         .eq('shop_id', customer.shop_id)
-        .eq('is_active', true)
-        .order('points_required', { ascending: true });
+        .eq('is_active', true);
 
       if (rewardsResult.error) {
         console.error('Error loading rewards:', rewardsResult.error);
       } else {
-        setRewards(rewardsResult.data || []);
+        const sorted = (rewardsResult.data || []).sort((a: any, b: any) => {
+          const costA = a.points_required ?? a.points_cost ?? 0;
+          const costB = b.points_required ?? b.points_cost ?? 0;
+          return costA - costB;
+        });
+        setRewards(sorted as RewardItem[]);
       }
 
       const redemptionsResult = await supabase
@@ -138,7 +160,8 @@ export function CustomerRewards() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {rewards.map((reward) => {
-              const affordable = canAfford(reward.points_required);
+              const pointsCost = (reward as any).points_required ?? (reward as any).points_cost ?? 0;
+              const affordable = canAfford(pointsCost);
               return (
                 <div
                   key={reward.id}
@@ -159,7 +182,7 @@ export function CustomerRewards() {
                     <div className="flex items-center justify-between pt-4 border-t border-slate-200">
                       <div className="flex items-center gap-1.5 font-semibold text-emerald-600">
                         <Award className="w-5 h-5" />
-                        <span>{reward.points_required} pts</span>
+                        <span>{pointsCost} pts</span>
                       </div>
                       {affordable ? (
                         <div className="px-3 py-1.5 bg-emerald-100 text-emerald-700 text-sm font-medium rounded-full">
@@ -167,7 +190,7 @@ export function CustomerRewards() {
                         </div>
                       ) : (
                         <div className="px-3 py-1.5 bg-slate-100 text-slate-600 text-sm font-medium rounded-full">
-                          {reward.points_required - (customer?.reward_points || 0)} more pts
+                          {pointsCost - (customer?.reward_points || 0)} more pts
                         </div>
                       )}
                     </div>

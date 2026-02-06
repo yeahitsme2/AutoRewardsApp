@@ -122,93 +122,226 @@ CREATE POLICY "Shop admins can manage their settings"
 -- VEHICLES TABLE ADMIN POLICIES
 -- ============================================================================
 
-DROP POLICY IF EXISTS "Shop admins can manage their shop vehicles" ON vehicles;
-CREATE POLICY "Shop admins can manage their shop vehicles"
-  ON vehicles FOR ALL
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM admins
-      WHERE admins.auth_user_id = (SELECT auth.uid())
-      AND admins.shop_id = vehicles.shop_id
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM admins
-      WHERE admins.auth_user_id = (SELECT auth.uid())
-      AND admins.shop_id = vehicles.shop_id
-    )
-  );
+DO $do$
+BEGIN
+  DROP POLICY IF EXISTS "Shop admins can manage their shop vehicles" ON vehicles;
+
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 'vehicles' AND column_name = 'shop_id'
+  ) THEN
+    CREATE POLICY "Shop admins can manage their shop vehicles"
+      ON vehicles FOR ALL
+      TO authenticated
+      USING (
+        EXISTS (
+          SELECT 1 FROM admins
+          WHERE admins.auth_user_id = (SELECT auth.uid())
+          AND admins.shop_id = vehicles.shop_id
+        )
+      )
+      WITH CHECK (
+        EXISTS (
+          SELECT 1 FROM admins
+          WHERE admins.auth_user_id = (SELECT auth.uid())
+          AND admins.shop_id = vehicles.shop_id
+        )
+      );
+  ELSE
+    CREATE POLICY "Shop admins can manage their shop vehicles"
+      ON vehicles FOR ALL
+      TO authenticated
+      USING (
+        EXISTS (
+          SELECT 1
+          FROM admins
+          JOIN customers ON customers.id = vehicles.customer_id
+          WHERE admins.auth_user_id = (SELECT auth.uid())
+          AND admins.shop_id = customers.shop_id
+        )
+      )
+      WITH CHECK (
+        EXISTS (
+          SELECT 1
+          FROM admins
+          JOIN customers ON customers.id = vehicles.customer_id
+          WHERE admins.auth_user_id = (SELECT auth.uid())
+          AND admins.shop_id = customers.shop_id
+        )
+      );
+  END IF;
+END
+$do$;
 
 -- ============================================================================
 -- SERVICES TABLE ADMIN POLICIES
 -- ============================================================================
 
-DROP POLICY IF EXISTS "Shop admins can manage their shop services" ON services;
-CREATE POLICY "Shop admins can manage their shop services"
-  ON services FOR ALL
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM admins
-      WHERE admins.auth_user_id = (SELECT auth.uid())
-      AND admins.shop_id = services.shop_id
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM admins
-      WHERE admins.auth_user_id = (SELECT auth.uid())
-      AND admins.shop_id = services.shop_id
-    )
-  );
+DO $do$
+BEGIN
+  DROP POLICY IF EXISTS "Shop admins can manage their shop services" ON services;
+
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 'services' AND column_name = 'shop_id'
+  ) THEN
+    CREATE POLICY "Shop admins can manage their shop services"
+      ON services FOR ALL
+      TO authenticated
+      USING (
+        EXISTS (
+          SELECT 1 FROM admins
+          WHERE admins.auth_user_id = (SELECT auth.uid())
+          AND admins.shop_id = services.shop_id
+        )
+      )
+      WITH CHECK (
+        EXISTS (
+          SELECT 1 FROM admins
+          WHERE admins.auth_user_id = (SELECT auth.uid())
+          AND admins.shop_id = services.shop_id
+        )
+      );
+  ELSE
+    CREATE POLICY "Shop admins can manage their shop services"
+      ON services FOR ALL
+      TO authenticated
+      USING (
+        EXISTS (
+          SELECT 1
+          FROM admins
+          JOIN customers ON customers.id = services.customer_id
+          WHERE admins.auth_user_id = (SELECT auth.uid())
+          AND admins.shop_id = customers.shop_id
+        )
+      )
+      WITH CHECK (
+        EXISTS (
+          SELECT 1
+          FROM admins
+          JOIN customers ON customers.id = services.customer_id
+          WHERE admins.auth_user_id = (SELECT auth.uid())
+          AND admins.shop_id = customers.shop_id
+        )
+      );
+  END IF;
+END
+$do$;
 
 -- ============================================================================
 -- APPOINTMENTS TABLE ADMIN POLICIES
 -- ============================================================================
 
-DROP POLICY IF EXISTS "Shop admins can manage their shop appointments" ON appointments;
-CREATE POLICY "Shop admins can manage their shop appointments"
-  ON appointments FOR ALL
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM admins
-      WHERE admins.auth_user_id = (SELECT auth.uid())
-      AND admins.shop_id = appointments.shop_id
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM admins
-      WHERE admins.auth_user_id = (SELECT auth.uid())
-      AND admins.shop_id = appointments.shop_id
-    )
-  );
+DO $do$
+BEGIN
+  DROP POLICY IF EXISTS "Shop admins can manage their shop appointments" ON appointments;
+
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 'appointments' AND column_name = 'shop_id'
+  ) THEN
+    CREATE POLICY "Shop admins can manage their shop appointments"
+      ON appointments FOR ALL
+      TO authenticated
+      USING (
+        EXISTS (
+          SELECT 1 FROM admins
+          WHERE admins.auth_user_id = (SELECT auth.uid())
+          AND admins.shop_id = appointments.shop_id
+        )
+      )
+      WITH CHECK (
+        EXISTS (
+          SELECT 1 FROM admins
+          WHERE admins.auth_user_id = (SELECT auth.uid())
+          AND admins.shop_id = appointments.shop_id
+        )
+      );
+  ELSE
+    CREATE POLICY "Shop admins can manage their shop appointments"
+      ON appointments FOR ALL
+      TO authenticated
+      USING (
+        EXISTS (
+          SELECT 1
+          FROM admins
+          JOIN customers ON customers.id = appointments.customer_id
+          WHERE admins.auth_user_id = (SELECT auth.uid())
+          AND admins.shop_id = customers.shop_id
+        )
+      )
+      WITH CHECK (
+        EXISTS (
+          SELECT 1
+          FROM admins
+          JOIN customers ON customers.id = appointments.customer_id
+          WHERE admins.auth_user_id = (SELECT auth.uid())
+          AND admins.shop_id = customers.shop_id
+        )
+      );
+  END IF;
+END
+$do$;
 
 -- ============================================================================
 -- REWARD_REDEMPTIONS TABLE ADMIN POLICIES
 -- ============================================================================
 
 DROP POLICY IF EXISTS "Shop admins can manage their shop redemptions" ON reward_redemptions;
-CREATE POLICY "Shop admins can manage their shop redemptions"
-  ON reward_redemptions FOR ALL
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM admins
-      WHERE admins.auth_user_id = (SELECT auth.uid())
-      AND admins.shop_id = reward_redemptions.shop_id
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM admins
-      WHERE admins.auth_user_id = (SELECT auth.uid())
-      AND admins.shop_id = reward_redemptions.shop_id
-    )
-  );
+DO $do$
+BEGIN
+  DROP POLICY IF EXISTS "Shop admins can manage their shop redemptions" ON reward_redemptions;
+
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 'reward_redemptions' AND column_name = 'shop_id'
+  ) THEN
+    CREATE POLICY "Shop admins can manage their shop redemptions"
+      ON reward_redemptions FOR ALL
+      TO authenticated
+      USING (
+        EXISTS (
+          SELECT 1 FROM admins
+          WHERE admins.auth_user_id = (SELECT auth.uid())
+          AND admins.shop_id = reward_redemptions.shop_id
+        )
+      )
+      WITH CHECK (
+        EXISTS (
+          SELECT 1 FROM admins
+          WHERE admins.auth_user_id = (SELECT auth.uid())
+          AND admins.shop_id = reward_redemptions.shop_id
+        )
+      );
+  ELSE
+    CREATE POLICY "Shop admins can manage their shop redemptions"
+      ON reward_redemptions FOR ALL
+      TO authenticated
+      USING (
+        EXISTS (
+          SELECT 1
+          FROM admins
+          JOIN customers ON customers.id = reward_redemptions.customer_id
+          WHERE admins.auth_user_id = (SELECT auth.uid())
+          AND admins.shop_id = customers.shop_id
+        )
+      )
+      WITH CHECK (
+        EXISTS (
+          SELECT 1
+          FROM admins
+          JOIN customers ON customers.id = reward_redemptions.customer_id
+          WHERE admins.auth_user_id = (SELECT auth.uid())
+          AND admins.shop_id = customers.shop_id
+        )
+      );
+  END IF;
+END
+$do$;
 
 -- ============================================================================
 -- PROMOTIONS TABLE ADMIN POLICIES
@@ -261,23 +394,57 @@ CREATE POLICY "Shop admins can manage their shop reward items"
 -- ============================================================================
 
 DROP POLICY IF EXISTS "Shop admins can manage their shop customer promotions" ON customer_promotions;
-CREATE POLICY "Shop admins can manage their shop customer promotions"
-  ON customer_promotions FOR ALL
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM admins
-      WHERE admins.auth_user_id = (SELECT auth.uid())
-      AND admins.shop_id = customer_promotions.shop_id
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM admins
-      WHERE admins.auth_user_id = (SELECT auth.uid())
-      AND admins.shop_id = customer_promotions.shop_id
-    )
-  );
+DO $do$
+BEGIN
+  DROP POLICY IF EXISTS "Shop admins can manage their shop customer promotions" ON customer_promotions;
+
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 'customer_promotions' AND column_name = 'shop_id'
+  ) THEN
+    CREATE POLICY "Shop admins can manage their shop customer promotions"
+      ON customer_promotions FOR ALL
+      TO authenticated
+      USING (
+        EXISTS (
+          SELECT 1 FROM admins
+          WHERE admins.auth_user_id = (SELECT auth.uid())
+          AND admins.shop_id = customer_promotions.shop_id
+        )
+      )
+      WITH CHECK (
+        EXISTS (
+          SELECT 1 FROM admins
+          WHERE admins.auth_user_id = (SELECT auth.uid())
+          AND admins.shop_id = customer_promotions.shop_id
+        )
+      );
+  ELSE
+    CREATE POLICY "Shop admins can manage their shop customer promotions"
+      ON customer_promotions FOR ALL
+      TO authenticated
+      USING (
+        EXISTS (
+          SELECT 1
+          FROM admins
+          JOIN customers ON customers.id = customer_promotions.customer_id
+          WHERE admins.auth_user_id = (SELECT auth.uid())
+          AND admins.shop_id = customers.shop_id
+        )
+      )
+      WITH CHECK (
+        EXISTS (
+          SELECT 1
+          FROM admins
+          JOIN customers ON customers.id = customer_promotions.customer_id
+          WHERE admins.auth_user_id = (SELECT auth.uid())
+          AND admins.shop_id = customers.shop_id
+        )
+      );
+  END IF;
+END
+$do$;
 
 -- ============================================================================
 -- CUSTOMERS TABLE ADMIN POLICIES
