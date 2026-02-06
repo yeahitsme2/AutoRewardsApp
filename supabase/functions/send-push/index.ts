@@ -95,7 +95,7 @@ serve(async (req) => {
     let sent = 0;
     let failed = 0;
 
-    const { sendNotification } = await import('https://esm.sh/@negrel/webpush@0.5.0');
+    const { sendNotification } = await import('https://esm.sh/web-push@3.6.7?target=denonext');
     for (const sub of subscriptions) {
       const subscription = {
         endpoint: sub.endpoint,
