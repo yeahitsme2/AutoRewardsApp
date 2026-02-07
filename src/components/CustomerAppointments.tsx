@@ -4,6 +4,7 @@ import { useAuth } from '../lib/AuthContext';
 import { Calendar, Clock, Car, Plus, X, CheckCircle, XCircle, AlertCircle, MapPin, Layers } from 'lucide-react';
 import { logAuditEvent } from '../lib/audit';
 import { scheduleAppointmentReminders } from '../lib/appointments';
+import { notifyAdmins } from '../lib/notifications';
 import type { Appointment, AppointmentCapacityRule, AppointmentType, ShopLocation, Vehicle } from '../types/database';
 
 interface AppointmentWithVehicle extends Appointment {
@@ -357,25 +358,13 @@ export function CustomerAppointments() {
         metadata: { scheduled_date: formData.scheduled_date, scheduled_time: formData.scheduled_time },
       });
 
-      await supabase.functions.invoke('send-push', {
-        body: {
-          target: 'admin',
-          shop_id: customer!.shop_id,
-          title: 'New Appointment Request',
-          message: `${formData.service_type} on ${formData.scheduled_date} at ${formData.scheduled_time}`,
-          url: '/?tab=appointments',
-        },
-      });
-
-      await supabase.from('notifications').insert({
-        shop_id: customer!.shop_id,
-        recipient_role: 'admin',
-        recipient_id: null,
+      await notifyAdmins({
+        shopId: customer!.shop_id,
         title: 'New Appointment Request',
         body: `${formData.service_type} on ${formData.scheduled_date} at ${formData.scheduled_time}`,
-        entity_type: 'appointment',
-        entity_id: inserted?.id || null,
-        action_url: '/?tab=appointments',
+        entityType: 'appointment',
+        entityId: inserted?.id || null,
+        actionUrl: '/?tab=appointments',
       });
 
       showMessage('success', 'Appointment request submitted successfully');

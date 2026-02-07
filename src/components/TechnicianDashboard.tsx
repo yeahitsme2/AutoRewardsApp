@@ -5,6 +5,7 @@ import { useBrand } from '../lib/BrandContext';
 import { logAuditEvent } from '../lib/audit';
 import { logOutboundMessage } from '../lib/messaging';
 import { buildCustomReportItem, buildReportItems } from '../lib/dvi';
+import { notifyCustomer } from '../lib/notifications';
 import { CheckCircle, ListChecks, Loader2, Plus, Save, Send, SlidersHorizontal } from 'lucide-react';
 import { TechnicianRoQueue } from './technician/TechnicianRoQueue';
 import { ItemDetailDrawer, MediaAttachment } from './technician/ItemDetailDrawer';
@@ -664,24 +665,14 @@ export function TechnicianDashboard() {
           body: 'Your digital vehicle inspection report is now available in the app.',
           status: 'queued',
         });
-        await supabase.functions.invoke('send-push', {
-          body: {
-            target: 'customer',
-            customer_id: selectedReport.customer_id,
-            title: 'Inspection Ready',
-            message: 'Your digital vehicle inspection is now available.',
-            url: '/?tab=repair_orders',
-          },
-        });
-        await supabase.from('notifications').insert({
-          shop_id: admin.shop_id,
-          recipient_role: 'customer',
-          recipient_id: selectedReport.customer_id,
+        await notifyCustomer({
+          shopId: admin.shop_id,
+          customerId: selectedReport.customer_id,
           title: 'Inspection Ready',
           body: 'Your digital vehicle inspection is now available.',
-          entity_type: 'dvi_report',
-          entity_id: selectedReportId,
-          action_url: '/?tab=repair_orders',
+          entityType: 'dvi_report',
+          entityId: selectedReportId,
+          actionUrl: '/?tab=repair_orders',
         });
       }
 

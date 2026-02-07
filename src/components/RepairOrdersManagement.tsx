@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
 import { calculateTotalsWithSupplies } from '../lib/repairOrderTotals';
+import { notifyCustomer } from '../lib/notifications';
 import { AlertCircle, CheckCircle, ClipboardList, ClipboardCheck, DollarSign, Plus, Save, User, Car, X, MessageSquare, Boxes, AlertTriangle, Camera, Mic, Video } from 'lucide-react';
 import { ChatThread } from './ChatThread';
 import { logAuditEvent } from '../lib/audit';
@@ -974,27 +975,15 @@ export function RepairOrdersManagement() {
       if (error) throw error;
 
       if (status === 'awaiting_approval' && order?.customer_id) {
-        await supabase.functions.invoke('send-push', {
-          body: {
-            target: 'customer',
-            customer_id: order.customer_id,
-            title: 'Repair Order Ready',
-            message: `${order.ro_number} is ready for your approval`,
-            url: '/',
-          },
+        await notifyCustomer({
+          shopId: admin?.shop_id || null,
+          customerId: order.customer_id,
+          title: 'Repair Order Ready',
+          body: `${order.ro_number} is ready for your approval`,
+          entityType: 'repair_order',
+          entityId: orderId,
+          actionUrl: '/?tab=repair_orders',
         });
-        if (admin?.shop_id) {
-          await supabase.from('notifications').insert({
-            shop_id: admin.shop_id,
-            recipient_role: 'customer',
-            recipient_id: order.customer_id,
-            title: 'Repair Order Ready',
-            body: `${order.ro_number} is ready for your approval`,
-            entity_type: 'repair_order',
-            entity_id: orderId,
-            action_url: '/?tab=repair_orders',
-          });
-        }
         if (admin?.shop_id) {
           await logOutboundMessage({
             shopId: admin.shop_id,

@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
 import { Paperclip, Send } from 'lucide-react';
+import { notifyAdmins, notifyCustomer } from '../lib/notifications';
 import type { ChatAttachment, ChatMessage, ChatThread as ChatThreadRow } from '../types/database';
 
 type ChatThreadProps = {
@@ -152,45 +153,24 @@ export function ChatThread({ shopId, customerId, repairOrderId, threadType, titl
 
       const notificationBody = messageText.trim() || (fileQueue ? `Attachment: ${fileQueue.name}` : 'New message');
       if (admin && customerId) {
-        await supabase.functions.invoke('send-push', {
-          body: {
-            target: 'customer',
-            customer_id: customerId,
-            title: 'New message from the shop',
-            message: notificationBody,
-            url: '/?tab=messages',
-          },
-        });
-        await supabase.from('notifications').insert({
-          shop_id: shopId,
-          recipient_role: 'customer',
-          recipient_id: customerId,
+        await notifyCustomer({
+          shopId,
+          customerId,
           title: 'New message from the shop',
           body: notificationBody,
-          entity_type: threadType === 'ro' ? 'repair_order' : 'chat',
-          entity_id: repairOrderId || thread.id,
-          action_url: '/?tab=messages',
+          entityType: threadType === 'ro' ? 'repair_order' : 'chat',
+          entityId: repairOrderId || thread.id,
+          actionUrl: '/?tab=messages',
         });
       }
       if (customer) {
-        await supabase.functions.invoke('send-push', {
-          body: {
-            target: 'admin',
-            shop_id: shopId,
-            title: 'New message from customer',
-            message: notificationBody,
-            url: '/?tab=my_shop&sub=messages',
-          },
-        });
-        await supabase.from('notifications').insert({
-          shop_id: shopId,
-          recipient_role: 'admin',
-          recipient_id: null,
+        await notifyAdmins({
+          shopId,
           title: 'New message from customer',
           body: notificationBody,
-          entity_type: threadType === 'ro' ? 'repair_order' : 'chat',
-          entity_id: repairOrderId || thread.id,
-          action_url: '/?tab=my_shop&sub=messages',
+          entityType: threadType === 'ro' ? 'repair_order' : 'chat',
+          entityId: repairOrderId || thread.id,
+          actionUrl: '/?tab=my_shop&sub=messages',
         });
       }
 
