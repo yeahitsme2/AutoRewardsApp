@@ -67,6 +67,7 @@ export function TechnicianDashboard() {
   const pendingUpdatesRef = useRef<Record<string, Partial<DviReportItem>>>({});
   const updateTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const mileageSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSelectionKey = admin?.shop_id ? `tech-dvi-selection-${admin.shop_id}` : 'tech-dvi-selection';
 
   const selectedReport = useMemo(
     () => reports.find((report) => report.id === selectedReportId) || null,
@@ -182,6 +183,32 @@ export function TechnicianDashboard() {
     loadRepairOrders();
     loadReports();
   }, [admin?.shop_id]);
+
+  useEffect(() => {
+    if (!admin?.shop_id) return;
+    if (selectedRoId || selectedReportId) {
+      localStorage.setItem(lastSelectionKey, JSON.stringify({
+        roId: selectedRoId,
+        reportId: selectedReportId,
+      }));
+    }
+  }, [selectedRoId, selectedReportId, admin?.shop_id, lastSelectionKey]);
+
+  useEffect(() => {
+    if (!admin?.shop_id) return;
+    if (selectedRoId || selectedReportId) return;
+    const raw = localStorage.getItem(lastSelectionKey);
+    if (!raw) return;
+    try {
+      const stored = JSON.parse(raw) as { roId?: string | null; reportId?: string | null };
+      const roExists = stored.roId && repairOrders.some((ro) => ro.id === stored.roId);
+      const reportExists = stored.reportId && reports.some((report) => report.id === stored.reportId);
+      if (roExists) setSelectedRoId(stored.roId || null);
+      if (reportExists) setSelectedReportId(stored.reportId || null);
+    } catch (error) {
+      console.warn('Failed to restore technician DVI selection:', error);
+    }
+  }, [admin?.shop_id, repairOrders, reports, selectedRoId, selectedReportId, lastSelectionKey]);
 
   useEffect(() => {
     if (!selectedReportId) return;
@@ -726,20 +753,25 @@ export function TechnicianDashboard() {
 
   const compressImage = async (file: File) => {
     if (!file.type.startsWith('image/')) return file;
-    const imageBitmap = await createImageBitmap(file);
-    const maxSize = 1600;
-    const scale = Math.min(1, maxSize / Math.max(imageBitmap.width, imageBitmap.height));
-    const width = Math.round(imageBitmap.width * scale);
-    const height = Math.round(imageBitmap.height * scale);
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return file;
-    ctx.drawImage(imageBitmap, 0, 0, width, height);
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
-    if (!blob) return file;
-    return new File([blob], file.name.replace(/\.[^/.]+$/, '.jpg'), { type: 'image/jpeg' });
+    try {
+      const imageBitmap = await createImageBitmap(file);
+      const maxSize = 1600;
+      const scale = Math.min(1, maxSize / Math.max(imageBitmap.width, imageBitmap.height));
+      const width = Math.round(imageBitmap.width * scale);
+      const height = Math.round(imageBitmap.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return file;
+      ctx.drawImage(imageBitmap, 0, 0, width, height);
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+      if (!blob) return file;
+      return new File([blob], file.name.replace(/\.[^/.]+$/, '.jpg'), { type: 'image/jpeg' });
+    } catch (error) {
+      console.warn('Image compression failed, using original file.', error);
+      return file;
+    }
   };
   const uploadItemMedia = async (itemId: string, file: File, mediaType: 'photo' | 'video' | 'audio') => {
     if (!selectedReportId) return;
