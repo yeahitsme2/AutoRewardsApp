@@ -19,21 +19,25 @@ export function MediaCaptureWidget({ onFileSelected, disabled }: MediaCaptureWid
       audioInputRef.current?.click();
       return;
     }
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const recorder = new MediaRecorder(stream);
-    audioChunksRef.current = [];
-    recorder.ondataavailable = (event) => {
-      if (event.data.size > 0) audioChunksRef.current.push(event.data);
-    };
-    recorder.onstop = () => {
-      const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-      const file = new File([blob], `voice-note-${Date.now()}.webm`, { type: 'audio/webm' });
-      onFileSelected(file, 'audio');
-      stream.getTracks().forEach((track) => track.stop());
-    };
-    mediaRecorderRef.current = recorder;
-    recorder.start();
-    setRecording(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) audioChunksRef.current.push(event.data);
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const file = new File([blob], `voice-note-${Date.now()}.webm`, { type: 'audio/webm' });
+        onFileSelected(file, 'audio');
+        stream.getTracks().forEach((track) => track.stop());
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setRecording(true);
+    } catch (_error) {
+      audioInputRef.current?.click();
+    }
   };
 
   const stopAudioRecording = () => {

@@ -333,8 +333,6 @@ export function TechnicianDashboard() {
         .order('created_at', { ascending: false });
       if (error) throw error;
       const nextOrders = (data || []) as RepairOrder[];
-      setRepairOrders(nextOrders);
-
       const customerIds = Array.from(
         new Set(nextOrders.map((order) => order.customer_id).filter(Boolean))
       ) as string[];
@@ -349,14 +347,13 @@ export function TechnicianDashboard() {
           nextMap[row.id] = row.full_name || row.email;
         });
         setCustomerNameById(nextMap);
-        setRepairOrders(
-          nextOrders.map((order) => {
-            if (!order.temp_customer_name && order.customer_id && nextMap[order.customer_id]) {
-              return { ...order, temp_customer_name: nextMap[order.customer_id] };
-            }
-            return order;
-          })
-        );
+        const mergedOrders = nextOrders.map((order) => {
+          if (!order.temp_customer_name && order.customer_id && nextMap[order.customer_id]) {
+            return { ...order, temp_customer_name: nextMap[order.customer_id] };
+          }
+          return order;
+        });
+        setRepairOrders(mergedOrders);
       } else {
         setCustomerNameById({});
         setRepairOrders(nextOrders);
@@ -377,9 +374,10 @@ export function TechnicianDashboard() {
         .eq('shop_id', admin.shop_id)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      setReports((data || []) as DviReport[]);
-      await loadReportItemCounts((data || []) as DviReport[]);
-      if (!selectedReportId && data && data.length > 0) {
+      const nextReports = (data || []) as DviReport[];
+      setReports(nextReports);
+      await loadReportItemCounts(nextReports);
+      if (selectedReportId && !nextReports.some((report) => report.id === selectedReportId)) {
         setSelectedReportId(null);
         setSelectedRoId(null);
       }
