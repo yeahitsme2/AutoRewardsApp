@@ -976,7 +976,7 @@ export function RepairOrdersManagement() {
 
       if (status === 'awaiting_approval' && order?.customer_id) {
         await notifyCustomer({
-          shopId: admin?.shop_id || null,
+          shopId: order.shop_id,
           customerId: order.customer_id,
           title: 'Repair Order Ready',
           body: `${order.ro_number} is ready for your approval`,

@@ -4,7 +4,7 @@ import type { Database } from '../types/database';
 type NotificationInsert = Database['public']['Tables']['notifications']['Insert'];
 
 type NotifyPayload = {
-  shopId?: string | null;
+  shopId: string;
   recipientRole: 'admin' | 'customer';
   recipientId?: string | null;
   title: string;
@@ -12,7 +12,6 @@ type NotifyPayload = {
   entityType?: string | null;
   entityId?: string | null;
   actionUrl?: string | null;
-  metadata?: Record<string, unknown> | null;
   push?: boolean;
 };
 
@@ -47,11 +46,10 @@ export const notify = async ({
   entityType,
   entityId,
   actionUrl,
-  metadata,
   push = true,
 }: NotifyPayload) => {
   const payload: NotificationInsert = {
-    shop_id: shopId || null,
+    shop_id: shopId,
     recipient_role: recipientRole,
     recipient_id: recipientId || null,
     title,
@@ -59,14 +57,12 @@ export const notify = async ({
     entity_type: entityType || null,
     entity_id: entityId || null,
     action_url: actionUrl || null,
-    metadata: metadata || null,
   };
 
   await safeInsertNotification(payload);
 
   if (!push) return;
   if (recipientRole === 'admin') {
-    if (!shopId) return;
     await safeSendPush({
       target: 'admin',
       shop_id: shopId,
@@ -93,9 +89,8 @@ export const notifyAdmins = async ({
   entityType,
   entityId,
   actionUrl,
-  metadata,
   push = true,
-}: Omit<NotifyPayload, 'recipientRole' | 'recipientId'> & { shopId: string }) => (
+}: Omit<NotifyPayload, 'recipientRole' | 'recipientId'>) => (
   notify({
     shopId,
     recipientRole: 'admin',
@@ -105,7 +100,6 @@ export const notifyAdmins = async ({
     entityType,
     entityId,
     actionUrl,
-    metadata,
     push,
   })
 );
@@ -118,17 +112,15 @@ export const notifyCustomer = async ({
   entityType,
   entityId,
   actionUrl,
-  metadata,
   push = true,
 }: {
-  shopId?: string | null;
+  shopId: string;
   customerId: string;
   title: string;
   body: string;
   entityType?: string | null;
   entityId?: string | null;
   actionUrl?: string | null;
-  metadata?: Record<string, unknown> | null;
   push?: boolean;
 }) => (
   notify({
@@ -140,7 +132,6 @@ export const notifyCustomer = async ({
     entityType,
     entityId,
     actionUrl,
-    metadata,
     push,
   })
 );
