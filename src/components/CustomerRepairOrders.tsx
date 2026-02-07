@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
 import { calculateTotalsWithSupplies } from '../lib/repairOrderTotals';
+import { notifyAdmins } from '../lib/notifications';
 import { AlertCircle, CheckCircle, ChevronDown, ChevronRight, ClipboardList, ClipboardCheck, MessageSquare } from 'lucide-react';
 import { ChatThread } from './ChatThread';
 import type { DviItemMedia, DviReport, DviReportItem, RepairOrder, RepairOrderItem } from '../types/database';
@@ -377,24 +378,13 @@ export function CustomerRepairOrders() {
       if (error) throw error;
 
       if (customer?.shop_id && order.ro_number) {
-        await supabase.functions.invoke('send-push', {
-          body: {
-            target: 'admin',
-            shop_id: customer.shop_id,
-            title: 'Repair Order Approved',
-            message: `${order.ro_number} was approved by the customer`,
-            url: '/',
-          },
-        });
-        await supabase.from('notifications').insert({
-          shop_id: customer.shop_id,
-          recipient_role: 'admin',
-          recipient_id: null,
+        await notifyAdmins({
+          shopId: customer.shop_id,
           title: 'Repair Order Approved',
           body: `${order.ro_number} was approved by the customer`,
-          entity_type: 'repair_order',
-          entity_id: orderId,
-          action_url: '/?tab=my_shop&sub=repair_orders',
+          entityType: 'repair_order',
+          entityId: orderId,
+          actionUrl: '/?tab=my_shop&sub=repair_orders',
         });
       }
       showMessage('success', 'Sent to the shop');
@@ -433,24 +423,13 @@ export function CustomerRepairOrders() {
       if (error) throw error;
 
       if (customer?.shop_id && order?.ro_number) {
-        await supabase.functions.invoke('send-push', {
-          body: {
-            target: 'admin',
-            shop_id: customer.shop_id,
-            title: 'Repair Order Declined',
-            message: `${order.ro_number} was declined by the customer`,
-            url: '/',
-          },
-        });
-        await supabase.from('notifications').insert({
-          shop_id: customer.shop_id,
-          recipient_role: 'admin',
-          recipient_id: null,
+        await notifyAdmins({
+          shopId: customer.shop_id,
           title: 'Repair Order Declined',
           body: `${order.ro_number} was declined by the customer`,
-          entity_type: 'repair_order',
-          entity_id: orderId,
-          action_url: '/?tab=my_shop&sub=repair_orders',
+          entityType: 'repair_order',
+          entityId: orderId,
+          actionUrl: '/?tab=my_shop&sub=repair_orders',
         });
       }
       showMessage('success', 'Repair order declined');

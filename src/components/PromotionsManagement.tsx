@@ -4,6 +4,7 @@ import { useBrand } from '../lib/BrandContext';
 import { useShop } from '../lib/ShopContext';
 import { Percent, DollarSign, Sparkles, Gift, Plus, Users, X, Check, Crown, Calendar, Tag, Trash2 } from 'lucide-react';
 import { getTierInfo } from '../lib/rewardsUtils';
+import { notifyCustomer } from '../lib/notifications';
 import type { Promotion, Customer } from '../types/database';
 
 interface PromotionWithRecipients extends Promotion {
@@ -241,29 +242,16 @@ export function PromotionsManagement() {
 
       if (error) throw error;
 
-      await supabase.from('notifications').insert(
-        newCustomerIds.map((customerId) => ({
-          shop_id: shop.id,
-          recipient_role: 'customer',
-          recipient_id: customerId,
-          title: 'New Offer Available',
-          body: selectedPromotion.title,
-          entity_type: 'promotion',
-          entity_id: selectedPromotion.id,
-          action_url: '/?tab=offers',
-        }))
-      );
-
       await Promise.allSettled(
         newCustomerIds.map((customerId) =>
-          supabase.functions.invoke('send-push', {
-            body: {
-              target: 'customer',
-              customer_id: customerId,
-              title: 'New Offer Available',
-              message: selectedPromotion.title,
-              url: '/?tab=offers',
-            },
+          notifyCustomer({
+            shopId: shop.id,
+            customerId,
+            title: 'New Offer Available',
+            body: selectedPromotion.title,
+            entityType: 'promotion',
+            entityId: selectedPromotion.id,
+            actionUrl: '/?tab=offers',
           })
         )
       );
