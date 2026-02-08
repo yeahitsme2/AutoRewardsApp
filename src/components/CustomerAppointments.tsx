@@ -64,6 +64,22 @@ const makeZonedDate = (dateStr: string, timeStr: string, timeZone: string) => {
   return new Date(utc.toLocaleString('en-US', { timeZone }));
 };
 
+const getDayIndexInTimeZone = (dateStr: string, timeZone: string) => {
+  const sampleDate = new Date(`${dateStr}T12:00:00`);
+  const formatter = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short' });
+  const weekday = formatter.format(sampleDate);
+  const map: Record<string, number> = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  };
+  return map[weekday] ?? sampleDate.getDay();
+};
+
 const buildBusinessHoursFromRules = (rules: AppointmentCapacityRule[]) => {
   const base = defaultScheduleSettings.business_hours.map((day) => ({ ...day, is_open: false }));
   const grouped = new Map<number, { start: string; end: string }>();
@@ -220,7 +236,7 @@ export function CustomerAppointments() {
   };
 
   const getCapacityForSlot = (dateStr: string, timeStr: string, typeId?: string) => {
-    const dayOfWeek = new Date(`${dateStr}T00:00:00`).getDay();
+    const dayOfWeek = getDayIndexInTimeZone(dateStr, scheduleSettings.timezone);
     const rule = capacityRules.find((r) => {
       if (r.day_of_week !== dayOfWeek) return false;
       if (r.location_id && formData.location_id && r.location_id !== formData.location_id) return false;
@@ -234,7 +250,7 @@ export function CustomerAppointments() {
   };
 
   const getBusinessHoursForDate = (dateStr: string) => {
-    const dayIndex = makeZonedDate(dateStr, '00:00', scheduleSettings.timezone).getDay();
+    const dayIndex = getDayIndexInTimeZone(dateStr, scheduleSettings.timezone);
     return scheduleSettings.business_hours.find((d: any) => d.day === dayIndex);
   };
 
