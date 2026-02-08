@@ -287,6 +287,14 @@ export function AdminDashboard() {
   }, [admin?.shop_id, loadPendingAppointments]);
 
   useEffect(() => {
+    const handler = () => loadPendingAppointments();
+    window.addEventListener('appointments:refresh', handler);
+    return () => {
+      window.removeEventListener('appointments:refresh', handler);
+    };
+  }, [loadPendingAppointments]);
+
+  useEffect(() => {
     let filtered = customers;
 
     if (dateFilter) {

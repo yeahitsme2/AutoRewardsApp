@@ -202,6 +202,7 @@ export function AppointmentsManagement() {
       setEditingId(null);
       setAdminNotes('');
       loadAppointments();
+      window.dispatchEvent(new CustomEvent('appointments:refresh'));
 
       if (Notification.permission === 'granted') {
         new Notification('Appointment Updated', {
