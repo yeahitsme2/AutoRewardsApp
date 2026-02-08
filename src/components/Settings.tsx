@@ -5,7 +5,7 @@ import { useBrand } from '../lib/BrandContext';
 import { useShop } from '../lib/ShopContext';
 import { Settings as SettingsIcon, Save, DollarSign, Award, Palette, Image, Store, QrCode, Download, Copy, Check, Wrench, MessageSquare, Phone, Mail } from 'lucide-react';
 import QRCodeLib from 'qrcode';
-import type { ShopSettings } from '../types/database';
+import type { AppointmentCapacityRule, AppointmentType, ShopLocation, ShopSettings } from '../types/database';
 
 const dayLabels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const serviceCatalog = [
@@ -29,6 +29,30 @@ const defaultBusinessHours = [
   { day: 5, is_open: true, open_time: '08:00', close_time: '17:00' },
   { day: 6, is_open: true, open_time: '09:00', close_time: '13:00' },
 ];
+
+const buildBusinessHoursFromRules = (rules: AppointmentCapacityRule[]) => {
+  const base = defaultBusinessHours.map((day) => ({ ...day, is_open: false }));
+  const grouped = new Map<number, { start: string; end: string }>();
+  rules.forEach((rule) => {
+    const entry = grouped.get(rule.day_of_week);
+    if (!entry) {
+      grouped.set(rule.day_of_week, { start: rule.start_time, end: rule.end_time });
+      return;
+    }
+    if (rule.start_time < entry.start) entry.start = rule.start_time;
+    if (rule.end_time > entry.end) entry.end = rule.end_time;
+  });
+  return base.map((day) => {
+    const entry = grouped.get(day.day);
+    if (!entry) return day;
+    return {
+      ...day,
+      is_open: true,
+      open_time: entry.start,
+      close_time: entry.end,
+    };
+  });
+};
 
 type SettingsTab = 'shop' | 'brand' | 'scheduling' | 'rewards' | 'repair_orders' | 'communications';
 
@@ -246,7 +270,18 @@ export function Settings() {
             approval_required_services: (data.approval_required_services as string[]) || ['Engine Diagnostic', 'Component Replacement'],
           });
         } else {
-          setScheduleSettings((prev) => ({ ...prev }));
+          const { data: rulesData, error: rulesError } = await supabase
+            .from('appointment_capacity_rules')
+            .select('*')
+            .eq('shop_id', shop.id);
+          if (!rulesError && rulesData && rulesData.length > 0) {
+            setScheduleSettings((prev) => ({
+              ...prev,
+              business_hours: buildBusinessHoursFromRules(rulesData as AppointmentCapacityRule[]),
+            }));
+          } else {
+            setScheduleSettings((prev) => ({ ...prev }));
+          }
         }
         setTaxSettings({
           tax_rate: Number((data as any).tax_rate || 0),
@@ -437,6 +472,8 @@ export function Settings() {
         }
       }
 
+      await syncScheduleRules();
+
       showMessage('success', 'Settings saved successfully');
 
       if (shopName !== shop?.name && shop?.id) {
@@ -456,6 +493,83 @@ export function Settings() {
   const showMessage = (type: 'success' | 'error', text: string) => {
     setMessage({ type, text });
     setTimeout(() => setMessage(null), 3000);
+  };
+
+  const syncScheduleRules = async () => {
+    if (!shop?.id) return;
+    const { data: locationsData, error: locationsError } = await supabase
+      .from('shop_locations')
+      .select('*')
+      .eq('shop_id', shop.id)
+      .eq('is_active', true)
+      .order('created_at', { ascending: true });
+    if (locationsError) throw locationsError;
+    const locations = (locationsData || []) as ShopLocation[];
+    const locationId = locations[0]?.id || null;
+
+    const { data: typesData, error: typesError } = await supabase
+      .from('appointment_types')
+      .select('*')
+      .eq('shop_id', shop.id)
+      .order('created_at', { ascending: true });
+    if (typesError) throw typesError;
+    const types = (typesData || []) as AppointmentType[];
+
+    let typeId = types[0]?.id || null;
+    if (!typeId) {
+      const { data: created, error: createError } = await supabase
+        .from('appointment_types')
+        .insert({
+          shop_id: shop.id,
+          location_id: locationId,
+          name: 'General Service',
+          description: 'Default service type',
+          duration_minutes: scheduleSettings.appointment_duration_minutes,
+          buffer_minutes: 0,
+          capacity_per_slot: Math.max(1, Number(scheduleSettings.bay_count || 1)),
+          is_active: true,
+        })
+        .select('*')
+        .single();
+      if (createError) throw createError;
+      typeId = created?.id || null;
+    }
+
+    if (!typeId) return;
+
+    await supabase
+      .from('appointment_types')
+      .update({
+        duration_minutes: scheduleSettings.appointment_duration_minutes,
+        capacity_per_slot: Math.max(1, Number(scheduleSettings.bay_count || 1)),
+      })
+      .eq('id', typeId);
+
+    await supabase
+      .from('appointment_capacity_rules')
+      .delete()
+      .eq('shop_id', shop.id)
+      .eq('appointment_type_id', typeId)
+      .eq('location_id', locationId);
+
+    const openDays = scheduleSettings.business_hours.filter((day) => day.is_open);
+    if (openDays.length === 0) return;
+
+    const capacity = Math.max(1, Number(scheduleSettings.bay_count || 1));
+    const rules = openDays.map((day) => ({
+      shop_id: shop.id,
+      location_id: locationId,
+      appointment_type_id: typeId,
+      day_of_week: day.day,
+      start_time: day.open_time,
+      end_time: day.close_time,
+      capacity,
+    }));
+
+    const { error: insertError } = await supabase
+      .from('appointment_capacity_rules')
+      .insert(rules);
+    if (insertError) throw insertError;
   };
 
   const handleTestPush = async () => {

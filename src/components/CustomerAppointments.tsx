@@ -64,6 +64,30 @@ const makeZonedDate = (dateStr: string, timeStr: string, timeZone: string) => {
   return new Date(utc.toLocaleString('en-US', { timeZone }));
 };
 
+const buildBusinessHoursFromRules = (rules: AppointmentCapacityRule[]) => {
+  const base = defaultScheduleSettings.business_hours.map((day) => ({ ...day, is_open: false }));
+  const grouped = new Map<number, { start: string; end: string }>();
+  rules.forEach((rule) => {
+    const entry = grouped.get(rule.day_of_week);
+    if (!entry) {
+      grouped.set(rule.day_of_week, { start: rule.start_time, end: rule.end_time });
+      return;
+    }
+    if (rule.start_time < entry.start) entry.start = rule.start_time;
+    if (rule.end_time > entry.end) entry.end = rule.end_time;
+  });
+  return base.map((day) => {
+    const entry = grouped.get(day.day);
+    if (!entry) return day;
+    return {
+      ...day,
+      is_open: true,
+      open_time: entry.start,
+      close_time: entry.end,
+    };
+  });
+};
+
 export function CustomerAppointments() {
   const { customer } = useAuth();
   const [appointments, setAppointments] = useState<AppointmentWithVehicle[]>([]);
@@ -160,7 +184,10 @@ export function CustomerAppointments() {
       setVehicles(vehiclesRes.data || []);
       setLocations((locationsRes.data || []) as ShopLocation[]);
       setAppointmentTypes((typesRes.data || []) as AppointmentType[]);
-      setCapacityRules((rulesRes.data || []) as AppointmentCapacityRule[]);
+      const rules = (rulesRes.data || []) as AppointmentCapacityRule[];
+      setCapacityRules(rules);
+      const derivedHours = buildBusinessHoursFromRules(rules);
+      const hasDerivedHours = derivedHours.some((day) => day.is_open);
       if (settingsRes.data) {
         setScheduleSettings({
           timezone: settingsRes.data.timezone || defaultScheduleSettings.timezone,
@@ -168,10 +195,15 @@ export function CustomerAppointments() {
           lead_time_minutes: Number(settingsRes.data.lead_time_minutes || defaultScheduleSettings.lead_time_minutes),
           bay_count: Number(settingsRes.data.bay_count || defaultScheduleSettings.bay_count),
           tech_count: Number(settingsRes.data.tech_count || defaultScheduleSettings.tech_count),
-          business_hours: settingsRes.data.business_hours || defaultScheduleSettings.business_hours,
+          business_hours: settingsRes.data.business_hours || (hasDerivedHours ? derivedHours : defaultScheduleSettings.business_hours),
           auto_confirm_services: settingsRes.data.auto_confirm_services || defaultScheduleSettings.auto_confirm_services,
           approval_required_services: settingsRes.data.approval_required_services || defaultScheduleSettings.approval_required_services,
         });
+      } else if (hasDerivedHours) {
+        setScheduleSettings((prev) => ({
+          ...prev,
+          business_hours: derivedHours,
+        }));
       }
     } catch (error) {
       console.error('Error loading appointments:', error);
