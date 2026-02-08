@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
@@ -78,6 +78,7 @@ export function ScheduleBoard() {
   });
   const [showTypeForm, setShowTypeForm] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const normalizeAppointment = (apt: Appointment) => ({
     ...apt,
@@ -98,6 +99,71 @@ export function ScheduleBoard() {
   useEffect(() => {
     if (!admin?.shop_id) return;
     loadAppointments();
+  }, [admin?.shop_id, date, viewMode, selectedLocationId]);
+
+  useEffect(() => {
+    if (!admin?.shop_id) return;
+    const scheduleReload = () => {
+      if (reloadTimerRef.current) return;
+      reloadTimerRef.current = setTimeout(() => {
+        reloadTimerRef.current = null;
+        loadAppointments();
+      }, 300);
+    };
+
+    const channel = supabase
+      .channel(`schedule-board-${admin.shop_id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'appointments',
+        filter: `shop_id=eq.${admin.shop_id}`,
+      }, scheduleReload)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'appointment_types',
+        filter: `shop_id=eq.${admin.shop_id}`,
+      }, () => {
+        loadAppointmentTypes();
+        scheduleReload();
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'appointment_capacity_rules',
+        filter: `shop_id=eq.${admin.shop_id}`,
+      }, () => {
+        loadCapacityRules();
+        scheduleReload();
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'appointment_resources',
+        filter: `shop_id=eq.${admin.shop_id}`,
+      }, () => {
+        loadResources();
+        scheduleReload();
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'shop_locations',
+        filter: `shop_id=eq.${admin.shop_id}`,
+      }, () => {
+        loadLocations();
+        scheduleReload();
+      })
+      .subscribe();
+
+    return () => {
+      if (reloadTimerRef.current) {
+        clearTimeout(reloadTimerRef.current);
+        reloadTimerRef.current = null;
+      }
+      supabase.removeChannel(channel);
+    };
   }, [admin?.shop_id, date, viewMode, selectedLocationId]);
 
   const loadAppointments = async () => {

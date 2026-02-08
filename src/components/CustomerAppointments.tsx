@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { Calendar, Clock, Car, Plus, X, CheckCircle, XCircle, AlertCircle, MapPin, Layers } from 'lucide-react';
@@ -128,6 +128,7 @@ export function CustomerAppointments() {
   const [slotMessage, setSlotMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const normalizeAppointment = (apt: Appointment) => ({
     ...apt,
@@ -140,6 +141,54 @@ export function CustomerAppointments() {
       loadData();
     }
   }, [customer]);
+
+  useEffect(() => {
+    if (!customer?.id) return;
+
+    const scheduleReload = () => {
+      if (reloadTimerRef.current) return;
+      reloadTimerRef.current = setTimeout(() => {
+        reloadTimerRef.current = null;
+        loadData();
+      }, 300);
+    };
+
+    const channel = supabase
+      .channel(`customer-appointments-${customer.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'appointments',
+        filter: `customer_id=eq.${customer.id}`,
+      }, scheduleReload)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'appointment_capacity_rules',
+        filter: `shop_id=eq.${customer.shop_id}`,
+      }, scheduleReload)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'appointment_types',
+        filter: `shop_id=eq.${customer.shop_id}`,
+      }, scheduleReload)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'shop_settings',
+        filter: `shop_id=eq.${customer.shop_id}`,
+      }, scheduleReload)
+      .subscribe();
+
+    return () => {
+      if (reloadTimerRef.current) {
+        clearTimeout(reloadTimerRef.current);
+        reloadTimerRef.current = null;
+      }
+      supabase.removeChannel(channel);
+    };
+  }, [customer?.id, customer?.shop_id]);
 
   const loadData = async () => {
     try {
