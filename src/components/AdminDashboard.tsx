@@ -94,10 +94,12 @@ export function AdminDashboard() {
   }, []);
 
   const loadPendingAppointments = useCallback(async () => {
+    if (!admin?.shop_id) return;
     try {
       const { count, error } = await supabase
         .from('appointments')
         .select('*', { count: 'exact', head: true })
+        .eq('shop_id', admin.shop_id)
         .eq('status', 'pending');
 
       if (error) throw error;
@@ -117,7 +119,7 @@ export function AdminDashboard() {
     } catch (error) {
       console.error('Error loading pending appointments:', error);
     }
-  }, []);
+  }, [admin?.shop_id]);
 
   const loadNotifications = useCallback(async () => {
     if (!admin?.shop_id) return;
