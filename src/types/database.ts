@@ -1242,6 +1242,7 @@ export interface Database {
           shop_id: string;
           vendor_id: string | null;
           location_id: string | null;
+          po_number: string | null;
           status: 'draft' | 'sent' | 'received' | 'closed' | 'cancelled';
           notes: string | null;
           created_at: string;
@@ -1252,6 +1253,7 @@ export interface Database {
           shop_id: string;
           vendor_id?: string | null;
           location_id?: string | null;
+          po_number?: string | null;
           status?: 'draft' | 'sent' | 'received' | 'closed' | 'cancelled';
           notes?: string | null;
           created_at?: string;
@@ -1262,6 +1264,7 @@ export interface Database {
           shop_id?: string;
           vendor_id?: string | null;
           location_id?: string | null;
+          po_number?: string | null;
           status?: 'draft' | 'sent' | 'received' | 'closed' | 'cancelled';
           notes?: string | null;
           created_at?: string;

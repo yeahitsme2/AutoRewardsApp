@@ -1195,7 +1195,7 @@ export function InventoryManagement() {
                   <div key={po.id} className="border border-slate-200 rounded-lg p-4">
                     <div className="flex items-center justify-between mb-2">
                       <div>
-                        <p className="font-medium text-slate-900">PO #{po.id.slice(0, 8)}</p>
+                        <p className="font-medium text-slate-900">{po.po_number || `PO-${po.id.slice(0, 8)}`}</p>
                         <p className="text-xs text-slate-500">{vendor?.name || 'No vendor'} • {po.status}</p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1251,7 +1251,7 @@ export function InventoryManagement() {
                   const vendor = vendors.find((v) => v.id === po.vendor_id);
                   return (
                     <option key={po.id} value={po.id}>
-                      PO #{po.id.slice(0, 8)} - {vendor?.name || 'No vendor'}
+                      {po.po_number || `PO-${po.id.slice(0, 8)}`} - {vendor?.name || 'No vendor'}
                     </option>
                   );
                 })}
@@ -1460,58 +1460,87 @@ export function InventoryManagement() {
               </button>
             </div>
             <div className="space-y-3">
-              <input
-                value={newPart.name}
-                onChange={(e) => setNewPart({ ...newPart, name: e.target.value })}
-                placeholder="Part name *"
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-              <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Part Name *</label>
                 <input
-                  value={newPart.sku}
-                  onChange={(e) => setNewPart({ ...newPart, sku: e.target.value })}
-                  placeholder="SKU"
-                  className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                />
-                <input
-                  value={newPart.vendor_sku}
-                  onChange={(e) => setNewPart({ ...newPart, vendor_sku: e.target.value })}
-                  placeholder="Vendor SKU"
-                  className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  value={newPart.name}
+                  onChange={(e) => setNewPart({ ...newPart, name: e.target.value })}
+                  placeholder="e.g., Oil Filter, Brake Pads"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Your SKU</label>
+                  <input
+                    value={newPart.sku}
+                    onChange={(e) => setNewPart({ ...newPart, sku: e.target.value })}
+                    placeholder="e.g., OF-123"
+                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Vendor SKU</label>
+                  <input
+                    value={newPart.vendor_sku}
+                    onChange={(e) => setNewPart({ ...newPart, vendor_sku: e.target.value })}
+                    placeholder="e.g., WIX-51515"
+                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Your Cost (what you pay)</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2 text-slate-500 text-sm">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={newPart.unit_cost}
+                      onChange={(e) => setNewPart({ ...newPart, unit_cost: Number(e.target.value) })}
+                      placeholder="0.00"
+                      className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Sell Price (what you charge)</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2 text-slate-500 text-sm">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={newPart.unit_price}
+                      onChange={(e) => setNewPart({ ...newPart, unit_price: Number(e.target.value) })}
+                      placeholder="0.00"
+                      className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Vendor</label>
+                <select
+                  value={newPart.vendor_id}
+                  onChange={(e) => setNewPart({ ...newPart, vendor_id: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                >
+                  <option value="">Select vendor</option>
+                  {vendors.map((vendor) => (
+                    <option key={vendor.id} value={vendor.id}>{vendor.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Category</label>
                 <input
-                  type="number"
-                  value={newPart.unit_cost}
-                  onChange={(e) => setNewPart({ ...newPart, unit_cost: Number(e.target.value) })}
-                  placeholder="Cost"
-                  className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                />
-                <input
-                  type="number"
-                  value={newPart.unit_price}
-                  onChange={(e) => setNewPart({ ...newPart, unit_price: Number(e.target.value) })}
-                  placeholder="Price"
-                  className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  value={newPart.category}
+                  onChange={(e) => setNewPart({ ...newPart, category: e.target.value })}
+                  placeholder="e.g., Filters, Brakes, Fluids"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
                 />
               </div>
-              <select
-                value={newPart.vendor_id}
-                onChange={(e) => setNewPart({ ...newPart, vendor_id: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              >
-                <option value="">Select vendor</option>
-                {vendors.map((vendor) => (
-                  <option key={vendor.id} value={vendor.id}>{vendor.name}</option>
-                ))}
-              </select>
-              <input
-                value={newPart.category}
-                onChange={(e) => setNewPart({ ...newPart, category: e.target.value })}
-                placeholder="Category"
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
             </div>
             <div className="flex justify-end gap-2">
               <button onClick={() => setShowNewPartModal(false)} className="px-4 py-2 border border-slate-300 rounded-lg text-sm">
