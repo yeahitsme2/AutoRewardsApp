@@ -1326,10 +1326,12 @@ export function RepairOrdersManagement() {
 
       if (error) throw error;
 
+      const currentOrder = orders.find((order) => order.id === orderId);
+      const nextItems = [...(currentOrder?.items || []), data as RepairOrderItem];
+
       setOrders((prev) =>
         prev.map((order) => {
           if (order.id !== orderId) return order;
-          const nextItems = [...(order.items || []), data as RepairOrderItem];
           return { ...order, items: nextItems };
         })
       );
@@ -1337,8 +1339,7 @@ export function RepairOrdersManagement() {
         ...prev,
         [orderId]: { ...emptyItem, taxable: taxableTypes.includes('part'), unit_price: laborRate },
       }));
-      const updatedOrder = orders.find((order) => order.id === orderId);
-      const nextItems = [...(updatedOrder?.items || []), data as RepairOrderItem];
+
       await updateOrderTotals(orderId, nextItems);
       showMessage('success', 'Item added');
     } catch (error) {
