@@ -236,6 +236,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       console.warn('Failed to clear localStorage:', e);
     }
+    window.history.pushState({}, '', '/');
+    window.location.reload();
   };
 
   const refreshCustomer = async () => {

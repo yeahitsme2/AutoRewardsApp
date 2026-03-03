@@ -164,15 +164,12 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
               <a href="#features" className="text-slate-600 hover:text-slate-900">Features</a>
               <a href="#pricing" className="text-slate-600 hover:text-slate-900">Pricing</a>
               <a href="#testimonials" className="text-slate-600 hover:text-slate-900">Testimonials</a>
-              <button
-                onClick={() => {
-                  window.history.pushState({}, '', '/app');
-                  window.location.reload();
-                }}
+              <a
+                href="/app"
                 className="text-slate-600 hover:text-slate-900 font-medium"
               >
                 Sign In
-              </button>
+              </a>
               <button
                 onClick={onGetStarted}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"

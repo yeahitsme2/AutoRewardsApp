@@ -42,23 +42,18 @@ function App() {
   useEffect(() => {
     const pathname = window.location.pathname;
 
+    if (pathname === '/') {
+      setView('landing');
+      return;
+    }
+
     if (pathname === '/signup') {
       setView('signup');
       return;
     }
 
-    if (pathname.startsWith('/app') || pathname.startsWith('/shop/')) {
-      setView('app');
-      return;
-    }
-
-    const slug = getShopSlugFromUrl();
-    if (user || slug) {
-      setView('app');
-    } else {
-      setView('landing');
-    }
-  }, [user]);
+    setView('app');
+  }, []);
 
   useEffect(() => {
     if (loading || view !== 'app') return;
