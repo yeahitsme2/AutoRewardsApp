@@ -256,10 +256,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       console.warn('Failed to clear localStorage:', e);
     }
-
-    setTimeout(() => {
-      window.location.href = '/';
-    }, 100);
   };
 
   const refreshCustomer = async () => {
