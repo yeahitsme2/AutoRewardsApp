@@ -691,46 +691,63 @@ export function InventoryManagement() {
 
   const savePartEdits = async () => {
     if (!selectedPartId) return;
+
+    if (!editPartDraft.name || editPartDraft.name.trim() === '') {
+      showMessage('error', 'Part name is required');
+      return;
+    }
+
     try {
-      const { error: partError } = await supabase
+      console.log('Updating part:', selectedPartId, editPartDraft);
+
+      const { data: partData, error: partError } = await supabase
         .from('parts')
         .update({
-          name: editPartDraft.name,
-          sku: editPartDraft.sku || null,
+          name: editPartDraft.name.trim(),
+          sku: editPartDraft.sku?.trim() || null,
           vendor_id: editPartDraft.vendor_id || null,
-          vendor_sku: editPartDraft.vendor_sku || null,
-          category: editPartDraft.category || null,
+          vendor_sku: editPartDraft.vendor_sku?.trim() || null,
+          category: editPartDraft.category?.trim() || null,
           unit_cost: Number(editPartDraft.unit_cost || 0),
           unit_price: Number(editPartDraft.unit_price || 0),
           taxable: Boolean(editPartDraft.taxable),
           updated_at: new Date().toISOString(),
         })
-        .eq('id', selectedPartId);
+        .eq('id', selectedPartId)
+        .select();
+
       if (partError) {
         console.error('Part update error:', partError);
-        throw partError;
+        const errorMsg = partError.message || partError.hint || partError.details || 'Database error';
+        throw new Error(errorMsg);
       }
+
+      console.log('Part updated successfully:', partData);
 
       if (editLocationDraft.location_id) {
         const existing = partLocations.find((loc) => loc.part_id === selectedPartId && loc.location_id === editLocationDraft.location_id);
         if (existing) {
-          const { error: locationError } = await supabase
+          const { data: locData, error: locationError } = await supabase
             .from('part_locations')
             .update({
               on_hand: Number(editLocationDraft.on_hand || 0),
               reserved: Number(editLocationDraft.reserved || 0),
               reorder_min: Number(editLocationDraft.reorder_min || 0),
               reorder_max: Number(editLocationDraft.reorder_max || 0),
-              bin: editLocationDraft.bin || null,
+              bin: editLocationDraft.bin?.trim() || null,
               updated_at: new Date().toISOString(),
             })
-            .eq('id', existing.id);
+            .eq('id', existing.id)
+            .select();
+
           if (locationError) {
             console.error('Location update error:', locationError);
-            throw locationError;
+            const errorMsg = locationError.message || locationError.hint || locationError.details || 'Database error';
+            throw new Error(`Location update failed: ${errorMsg}`);
           }
+          console.log('Location updated successfully:', locData);
         } else {
-          const { error: insertError } = await supabase
+          const { data: newLoc, error: insertError } = await supabase
             .from('part_locations')
             .insert({
               part_id: selectedPartId,
@@ -739,23 +756,28 @@ export function InventoryManagement() {
               reserved: Number(editLocationDraft.reserved || 0),
               reorder_min: Number(editLocationDraft.reorder_min || 0),
               reorder_max: Number(editLocationDraft.reorder_max || 0),
-              bin: editLocationDraft.bin || null,
+              bin: editLocationDraft.bin?.trim() || null,
               reorder_threshold: 0,
-            });
+            })
+            .select();
+
           if (insertError) {
             console.error('Location insert error:', insertError);
-            throw insertError;
+            const errorMsg = insertError.message || insertError.hint || insertError.details || 'Database error';
+            throw new Error(`Location create failed: ${errorMsg}`);
           }
+          console.log('Location created successfully:', newLoc);
         }
       }
 
-      showMessage('success', 'Part updated');
+      showMessage('success', 'Part updated successfully');
       await loadParts();
       await loadPartLocations();
       closePartDrawer();
     } catch (error: any) {
-      console.error('Failed to update part:', error);
-      showMessage('error', `Failed to update part: ${error?.message || 'Unknown error'}`);
+      console.error('Failed to update part - full error:', error);
+      const displayMessage = error?.message || error?.hint || error?.details || JSON.stringify(error) || 'Unknown error occurred';
+      showMessage('error', `Failed to update part: ${displayMessage}`);
     }
   };
 
