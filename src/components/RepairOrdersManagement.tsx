@@ -931,15 +931,18 @@ export function RepairOrdersManagement() {
   const updateOrderTotals = async (orderId: string, items: RepairOrderItem[]) => {
     try {
       const totals = computeTotals(items);
+
+      // Update state immediately for real-time UI feedback
+      setOrders((prev) =>
+        prev.map((order) => (order.id === orderId ? { ...order, ...totals } : order))
+      );
+
+      // Then persist to database
       const { error } = await supabase
         .from('repair_orders')
         .update({ ...totals, updated_at: new Date().toISOString() })
         .eq('id', orderId);
       if (error) throw error;
-      setOrders((prev) =>
-        prev.map((order) => (order.id === orderId ? { ...order, ...totals } : order))
-      );
-      await refreshOrderTotals(orderId);
     } catch (error) {
       console.error('Failed to update order totals:', error);
     }
@@ -1328,11 +1331,13 @@ export function RepairOrdersManagement() {
 
       const currentOrder = orders.find((order) => order.id === orderId);
       const nextItems = [...(currentOrder?.items || []), data as RepairOrderItem];
+      const totals = computeTotals(nextItems);
 
+      // Update state with both items and totals in one update
       setOrders((prev) =>
         prev.map((order) => {
           if (order.id !== orderId) return order;
-          return { ...order, items: nextItems };
+          return { ...order, items: nextItems, ...totals };
         })
       );
       setItemDrafts((prev) => ({
@@ -1340,7 +1345,17 @@ export function RepairOrdersManagement() {
         [orderId]: { ...emptyItem, taxable: taxableTypes.includes('part'), unit_price: laborRate },
       }));
 
-      await updateOrderTotals(orderId, nextItems);
+      // Persist totals to database
+      try {
+        const { error: updateError } = await supabase
+          .from('repair_orders')
+          .update({ ...totals, updated_at: new Date().toISOString() })
+          .eq('id', orderId);
+        if (updateError) console.error('Failed to persist totals:', updateError);
+      } catch (err) {
+        console.error('Failed to persist totals:', err);
+      }
+
       showMessage('success', 'Item added');
     } catch (error) {
       console.error('Error adding item:', error);
