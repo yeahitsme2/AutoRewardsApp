@@ -73,30 +73,31 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
   const pricingPlans = [
     {
       name: 'Starter',
-      price: billingInterval === 'monthly' ? 99 : 990,
-      description: 'Perfect for small shops getting started',
+      price: billingInterval === 'monthly' ? 49.99 : 499,
+      description: 'Perfect for single-location shops',
       features: [
-        'Up to 3 service bays',
-        '500 repair orders/month',
+        'Single location',
+        'Unlimited repair orders',
         'Digital vehicle inspections',
         'Appointment scheduling',
         'Customer messaging',
-        'Basic inventory management',
-        'Loyalty program',
-        'Mobile apps'
+        'Inventory management',
+        'Loyalty & rewards program',
+        'Mobile apps',
+        'Email support'
       ],
       highlighted: false
     },
     {
       name: 'Professional',
-      price: billingInterval === 'monthly' ? 199 : 1990,
-      description: 'For growing shops that need more power',
+      price: billingInterval === 'monthly' ? 99.99 : 999,
+      description: 'For growing shops with multiple locations',
       features: [
-        'Up to 10 service bays',
+        'Up to 2 locations',
         'Unlimited repair orders',
         'Advanced DVI with video',
-        'Multi-location support',
-        'Advanced analytics',
+        'Multi-location analytics',
+        'Advanced reporting',
         'Full inventory suite',
         'Custom markup rules',
         'Priority support',
@@ -109,7 +110,7 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
       price: null,
       description: 'Custom solutions for large operations',
       features: [
-        'Unlimited bays & locations',
+        'Unlimited locations',
         'Unlimited everything',
         'API access',
         'Custom integrations',
