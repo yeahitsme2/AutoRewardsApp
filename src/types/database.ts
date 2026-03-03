@@ -1110,7 +1110,6 @@ export interface Database {
           name: string;
           description: string | null;
           unit_cost: number;
-          unit_price: number;
           taxable: boolean;
           reorder_threshold: number;
           is_active: boolean;
@@ -1131,7 +1130,6 @@ export interface Database {
           name: string;
           description?: string | null;
           unit_cost?: number;
-          unit_price?: number;
           taxable?: boolean;
           reorder_threshold?: number;
           is_active?: boolean;
@@ -1152,7 +1150,6 @@ export interface Database {
           name?: string;
           description?: string | null;
           unit_cost?: number;
-          unit_price?: number;
           taxable?: boolean;
           reorder_threshold?: number;
           is_active?: boolean;

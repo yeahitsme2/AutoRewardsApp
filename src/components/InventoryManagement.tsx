@@ -33,6 +33,7 @@ export function InventoryManagement() {
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [purchaseLines, setPurchaseLines] = useState<PurchaseOrderLine[]>([]);
   const [transactions, setTransactions] = useState<InventoryTransaction[]>([]);
+  const [markupRules, setMarkupRules] = useState<Array<{ id: string; min_cost: number; max_cost: number | null; markup_percent: number; is_active: boolean }>>([]);
   const [partsNeeded, setPartsNeeded] = useState<PartsNeededRow[]>([]);
   const [selectedNeededIds, setSelectedNeededIds] = useState<Record<string, boolean>>({});
   const [receivingPoId, setReceivingPoId] = useState<string>('');
@@ -60,7 +61,6 @@ export function InventoryManagement() {
     vendor_sku: '',
     category: '',
     unit_cost: 0,
-    unit_price: 0,
     taxable: true,
   });
   const [newVendor, setNewVendor] = useState({ name: '', phone: '', email: '', address: '' });
@@ -110,8 +110,37 @@ export function InventoryManagement() {
       loadPartLocations(),
       loadPurchaseOrders(),
       loadTransactions(),
+      loadMarkupRules(),
     ]);
     await loadPartsNeeded();
+  };
+
+  const loadMarkupRules = async () => {
+    if (!admin?.shop_id) return;
+    const { data, error } = await supabase
+      .from('repair_order_markup_rules')
+      .select('*')
+      .eq('shop_id', admin.shop_id)
+      .eq('is_active', true)
+      .order('min_cost', { ascending: false });
+    if (error) {
+      console.error('Failed to load markup rules:', error);
+      setMarkupRules([]);
+      return;
+    }
+    setMarkupRules(data || []);
+  };
+
+  const calculateSalePrice = (unitCost: number): number => {
+    if (!unitCost || unitCost <= 0) return 0;
+
+    const rule = markupRules.find(
+      (r) => unitCost >= r.min_cost && (r.max_cost === null || unitCost < r.max_cost)
+    );
+
+    if (!rule) return unitCost;
+
+    return Number((unitCost * (1 + rule.markup_percent / 100)).toFixed(2));
   };
 
   const loadLocations = async () => {
@@ -536,7 +565,6 @@ export function InventoryManagement() {
         vendor_sku: newPart.vendor_sku || null,
         category: newPart.category || null,
         unit_cost: Number(newPart.unit_cost || 0),
-        unit_price: Number(newPart.unit_price || 0),
         taxable: Boolean(newPart.taxable),
       });
       if (error) throw error;
@@ -548,7 +576,6 @@ export function InventoryManagement() {
         vendor_sku: '',
         category: '',
         unit_cost: 0,
-        unit_price: 0,
         taxable: true,
       });
       setShowNewPartModal(false);
@@ -673,7 +700,6 @@ export function InventoryManagement() {
       vendor_sku: part.vendor_sku || '',
       category: part.category || '',
       unit_cost: part.unit_cost,
-      unit_price: part.unit_price,
       taxable: part.taxable,
     });
     const preferredLocationId = locationFilter || locations[0]?.id || '';
@@ -709,7 +735,6 @@ export function InventoryManagement() {
           vendor_sku: editPartDraft.vendor_sku?.trim() || null,
           category: editPartDraft.category?.trim() || null,
           unit_cost: Number(editPartDraft.unit_cost || 0),
-          unit_price: Number(editPartDraft.unit_price || 0),
           taxable: Boolean(editPartDraft.taxable),
           updated_at: new Date().toISOString(),
         })
@@ -1076,8 +1101,8 @@ export function InventoryManagement() {
                           <span className="font-semibold text-slate-900">{summary?.onHand ?? 0}</span>
                         </div>
                         <div className="text-sm">
-                          <span className="text-slate-500">Price: </span>
-                          <span className="font-semibold text-slate-900">${Number(part.unit_price || 0).toFixed(2)}</span>
+                          <span className="text-slate-500">Sale Price: </span>
+                          <span className="font-semibold text-slate-900">${calculateSalePrice(Number(part.unit_cost || 0)).toFixed(2)}</span>
                         </div>
                         <button
                           onClick={() => openPartDrawer(part)}
@@ -1453,19 +1478,15 @@ export function InventoryManagement() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Sell Price <span className="text-slate-500">(what you charge)</span>
+                      Sell Price <span className="text-slate-500">(auto-calculated)</span>
                     </label>
                     <div className="relative">
                       <span className="absolute left-3 top-2 text-slate-500 text-sm">$</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={Number(editPartDraft.unit_price || 0)}
-                        onChange={(e) => setEditPartDraft((prev) => ({ ...prev, unit_price: Number(e.target.value) }))}
-                        placeholder="0.00"
-                        className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-lg text-sm"
-                      />
+                      <div className="w-full pl-7 pr-3 py-2 border border-slate-200 bg-slate-50 rounded-lg text-sm text-slate-700">
+                        {calculateSalePrice(Number(editPartDraft.unit_cost || 0)).toFixed(2)}
+                      </div>
                     </div>
+                    <p className="text-xs text-slate-500 mt-1">Based on markup rules in settings</p>
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-xs font-medium text-slate-700 mb-1">Vendor</label>
@@ -1609,18 +1630,14 @@ export function InventoryManagement() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Sell Price (what you charge)</label>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Sell Price (auto-calculated)</label>
                   <div className="relative">
                     <span className="absolute left-3 top-2 text-slate-500 text-sm">$</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={newPart.unit_price}
-                      onChange={(e) => setNewPart({ ...newPart, unit_price: Number(e.target.value) })}
-                      placeholder="0.00"
-                      className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-lg text-sm"
-                    />
+                    <div className="w-full pl-7 pr-3 py-2 border border-slate-200 bg-slate-50 rounded-lg text-sm text-slate-700">
+                      {calculateSalePrice(Number(newPart.unit_cost || 0)).toFixed(2)}
+                    </div>
                   </div>
+                  <p className="text-xs text-slate-500 mt-1">Based on markup rules</p>
                 </div>
               </div>
               <div>
