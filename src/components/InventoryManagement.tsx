@@ -3,12 +3,10 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
 import { logAuditEvent } from '../lib/audit';
-import { Boxes, Plus, ShoppingCart, Truck, AlertTriangle, ClipboardList, Package, Search, CheckCircle, RefreshCcw, Layers } from 'lucide-react';
+import { Boxes, Plus, ShoppingCart, Truck, AlertTriangle, Package, Search, CheckCircle, RefreshCcw, Edit2, X, Eye, ArrowRight } from 'lucide-react';
 import type { InventoryTransaction, Part, PartLocation, PurchaseOrder, PurchaseOrderLine, RepairOrder, RepairOrderPartReservation, ShopLocation, Vendor } from '../types/database';
 
-type InventoryTab = 'parts' | 'parts_needed' | 'purchase_orders' | 'receiving' | 'returns' | 'counts';
-
-type InventoryMode = 'job' | 'stock';
+type MainView = 'overview' | 'parts' | 'orders' | 'receiving';
 
 type LineDraft = {
   part_id: string;
@@ -27,8 +25,7 @@ type PartsNeededRow = {
 export function InventoryManagement() {
   const { admin } = useAuth();
   const { brandSettings } = useBrand();
-  const [mode, setMode] = useState<InventoryMode>('job');
-  const [activeTab, setActiveTab] = useState<InventoryTab>('parts_needed');
+  const [mainView, setMainView] = useState<MainView>('overview');
   const [locations, setLocations] = useState<ShopLocation[]>([]);
   const [parts, setParts] = useState<Part[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -43,15 +40,17 @@ export function InventoryManagement() {
   const [partsSearch, setPartsSearch] = useState('');
   const [partsQuery, setPartsQuery] = useState('');
   const [vendorFilter, setVendorFilter] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [stockFilter, setStockFilter] = useState<'all' | 'in' | 'out' | 'reorder'>('all');
   const [locationFilter, setLocationFilter] = useState('');
+  const [stockFilter, setStockFilter] = useState<'all' | 'in' | 'out' | 'low'>('all');
   const [page, setPage] = useState(0);
   const [pageSize] = useState(25);
   const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
   const [editPartDraft, setEditPartDraft] = useState<Partial<Part>>({});
   const [editLocationDraft, setEditLocationDraft] = useState<Partial<PartLocation>>({});
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [showNewPartModal, setShowNewPartModal] = useState(false);
+  const [showNewVendorModal, setShowNewVendorModal] = useState(false);
+  const [showNewPOModal, setShowNewPOModal] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [newPart, setNewPart] = useState({
@@ -59,12 +58,10 @@ export function InventoryManagement() {
     sku: '',
     vendor_id: '',
     vendor_sku: '',
-    internal_sku: '',
     category: '',
     unit_cost: 0,
     unit_price: 0,
     taxable: true,
-    reorder_threshold: 0,
   });
   const [newVendor, setNewVendor] = useState({ name: '', phone: '', email: '', address: '' });
   const [stockAdjustment, setStockAdjustment] = useState({
@@ -87,7 +84,7 @@ export function InventoryManagement() {
   useEffect(() => {
     if (!admin?.shop_id) return;
     loadParts();
-  }, [admin?.shop_id, partsQuery, vendorFilter, categoryFilter, page, pageSize]);
+  }, [admin?.shop_id, partsQuery, vendorFilter, page, pageSize]);
 
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
@@ -99,15 +96,6 @@ export function InventoryManagement() {
       if (searchTimer.current) clearTimeout(searchTimer.current);
     };
   }, [partsSearch]);
-
-  useEffect(() => {
-    if (mode === 'job' && activeTab === 'parts') {
-      setActiveTab('parts_needed');
-    }
-    if (mode === 'stock' && activeTab === 'parts_needed') {
-      setActiveTab('parts');
-    }
-  }, [mode, activeTab]);
 
   const showMessage = (type: 'success' | 'error', text: string) => {
     setMessage({ type, text });
@@ -170,14 +158,11 @@ export function InventoryManagement() {
 
     if (partsQuery) {
       query = query.or(
-        `name.ilike.%${partsQuery}%,sku.ilike.%${partsQuery}%,vendor_sku.ilike.%${partsQuery}%,internal_sku.ilike.%${partsQuery}%`
+        `name.ilike.%${partsQuery}%,sku.ilike.%${partsQuery}%,vendor_sku.ilike.%${partsQuery}%`
       );
     }
     if (vendorFilter) {
       query = query.eq('vendor_id', vendorFilter);
-    }
-    if (categoryFilter) {
-      query = query.eq('category', categoryFilter);
     }
 
     const from = page * pageSize;
@@ -257,93 +242,6 @@ export function InventoryManagement() {
       return;
     }
     setTransactions((data || []) as InventoryTransaction[]);
-  };
-
-  const openPartDrawer = (part: Part) => {
-    setSelectedPartId(part.id);
-    setEditPartDraft({
-      name: part.name,
-      sku: part.sku || '',
-      vendor_id: part.vendor_id || '',
-      vendor_sku: part.vendor_sku || '',
-      internal_sku: part.internal_sku || '',
-      category: part.category || '',
-      unit_cost: part.unit_cost,
-      unit_price: part.unit_price,
-      taxable: part.taxable,
-    });
-    const preferredLocationId = locationFilter || locations[0]?.id || '';
-    const locationRow = partLocations.find((loc) => loc.part_id === part.id && loc.location_id === preferredLocationId)
-      || partLocations.find((loc) => loc.part_id === part.id)
-      || null;
-    setEditLocationDraft(locationRow || { location_id: preferredLocationId, part_id: part.id, on_hand: 0, reserved: 0, reorder_min: 0, reorder_max: 0, bin: '' });
-  };
-
-  const closePartDrawer = () => {
-    setSelectedPartId(null);
-    setEditPartDraft({});
-    setEditLocationDraft({});
-  };
-
-  const savePartEdits = async () => {
-    if (!selectedPartId) return;
-    try {
-      const { error: partError } = await supabase
-        .from('parts')
-        .update({
-          name: editPartDraft.name,
-          sku: editPartDraft.sku || null,
-          vendor_id: editPartDraft.vendor_id || null,
-          vendor_sku: editPartDraft.vendor_sku || null,
-          internal_sku: editPartDraft.internal_sku || null,
-          category: editPartDraft.category || null,
-          unit_cost: Number(editPartDraft.unit_cost || 0),
-          unit_price: Number(editPartDraft.unit_price || 0),
-          taxable: Boolean(editPartDraft.taxable),
-        })
-        .eq('id', selectedPartId);
-      if (partError) throw partError;
-
-      if (editLocationDraft.location_id) {
-        const existing = partLocations.find((loc) => loc.part_id === selectedPartId && loc.location_id === editLocationDraft.location_id);
-        if (existing) {
-          const { error: locationError } = await supabase
-            .from('part_locations')
-            .update({
-              on_hand: Number(editLocationDraft.on_hand || 0),
-              reserved: Number(editLocationDraft.reserved || 0),
-              reorder_min: Number(editLocationDraft.reorder_min || 0),
-              reorder_max: Number(editLocationDraft.reorder_max || 0),
-              bin: editLocationDraft.bin || null,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', existing.id);
-          if (locationError) throw locationError;
-        } else {
-          const { error: insertError } = await supabase
-            .from('part_locations')
-            .insert({
-              part_id: selectedPartId,
-              location_id: editLocationDraft.location_id,
-              on_hand: Number(editLocationDraft.on_hand || 0),
-              reserved: Number(editLocationDraft.reserved || 0),
-              reorder_min: Number(editLocationDraft.reorder_min || 0),
-              reorder_max: Number(editLocationDraft.reorder_max || 0),
-              bin: editLocationDraft.bin || null,
-              reorder_threshold: 0,
-            });
-          if (insertError) throw insertError;
-        }
-      }
-
-      showMessage('success', 'Part updated');
-      await loadParts();
-      await loadPartLocations();
-      closePartDrawer();
-    } catch (error) {
-      console.error('Failed to update part:', error);
-      showMessage('error', 'Failed to update part');
-    }
   };
 
   const loadPartsNeeded = async () => {
@@ -428,7 +326,7 @@ export function InventoryManagement() {
     if (!admin?.shop_id) return;
     const selected = partsNeeded.filter((row) => selectedNeededIds[row.reservation.id]);
     if (selected.length === 0) {
-      showMessage('error', 'Select parts to add to a PO');
+      showMessage('error', 'Select parts to create a purchase order');
       return;
     }
     try {
@@ -492,7 +390,7 @@ export function InventoryManagement() {
 
       setSelectedNeededIds({});
       await loadPurchaseOrders();
-      showMessage('success', 'Purchase order draft created');
+      showMessage('success', 'Purchase order created');
     } catch (error) {
       console.error('Failed to create PO from needed:', error);
       showMessage('error', 'Failed to create purchase order');
@@ -602,7 +500,7 @@ export function InventoryManagement() {
     const term = scanInput.trim().toLowerCase();
     if (!term) return;
     const partMatch = parts.find((part) =>
-      [part.sku, part.vendor_sku, part.internal_sku, part.name].filter(Boolean).some((value) =>
+      [part.sku, part.vendor_sku, part.name].filter(Boolean).some((value) =>
         String(value).toLowerCase() === term || String(value).toLowerCase().includes(term)
       )
     );
@@ -612,12 +510,12 @@ export function InventoryManagement() {
     }
     const line = purchaseLines.find((item) => item.purchase_order_id === po.id && item.part_id === partMatch.id);
     if (!line) {
-      showMessage('error', 'Part not found on this PO');
+      showMessage('error', 'Part not on this purchase order');
       return;
     }
     const remaining = Number(line.quantity) - Number(line.received_qty || 0);
     if (remaining <= 0) {
-      showMessage('error', 'Line already fully received');
+      showMessage('error', 'Already fully received');
       return;
     }
     await handleReceiveLine(po, line, 1);
@@ -626,7 +524,7 @@ export function InventoryManagement() {
 
   const handleCreatePart = async () => {
     if (!admin?.shop_id || !newPart.name.trim()) {
-      showMessage('error', 'Enter a part name');
+      showMessage('error', 'Part name is required');
       return;
     }
     try {
@@ -636,12 +534,10 @@ export function InventoryManagement() {
         sku: newPart.sku || null,
         vendor_id: newPart.vendor_id || null,
         vendor_sku: newPart.vendor_sku || null,
-        internal_sku: newPart.internal_sku || null,
         category: newPart.category || null,
         unit_cost: Number(newPart.unit_cost || 0),
         unit_price: Number(newPart.unit_price || 0),
         taxable: Boolean(newPart.taxable),
-        reorder_threshold: Number(newPart.reorder_threshold || 0),
       });
       if (error) throw error;
       showMessage('success', 'Part created');
@@ -650,13 +546,12 @@ export function InventoryManagement() {
         sku: '',
         vendor_id: '',
         vendor_sku: '',
-        internal_sku: '',
         category: '',
         unit_cost: 0,
         unit_price: 0,
         taxable: true,
-        reorder_threshold: 0,
       });
+      setShowNewPartModal(false);
       loadParts();
     } catch (error) {
       console.error('Failed to create part:', error);
@@ -666,7 +561,7 @@ export function InventoryManagement() {
 
   const handleCreateVendor = async () => {
     if (!admin?.shop_id || !newVendor.name.trim()) {
-      showMessage('error', 'Enter a vendor name');
+      showMessage('error', 'Vendor name is required');
       return;
     }
     try {
@@ -680,6 +575,7 @@ export function InventoryManagement() {
       if (error) throw error;
       showMessage('success', 'Vendor created');
       setNewVendor({ name: '', phone: '', email: '', address: '' });
+      setShowNewVendorModal(false);
       loadVendors();
     } catch (error) {
       console.error('Failed to create vendor:', error);
@@ -731,7 +627,7 @@ export function InventoryManagement() {
     }
     const validLines = poLines.filter((line) => line.part_id && line.quantity > 0);
     if (validLines.length === 0) {
-      showMessage('error', 'Add at least one line item');
+      showMessage('error', 'Add at least one part');
       return;
     }
     try {
@@ -759,11 +655,97 @@ export function InventoryManagement() {
       if (lineError) throw lineError;
       setPoDraft({ vendor_id: '', location_id: '', notes: '' });
       setPoLines([{ part_id: '', quantity: 1, unit_cost: 0 }]);
+      setShowNewPOModal(false);
       showMessage('success', 'Purchase order created');
       loadPurchaseOrders();
     } catch (error) {
       console.error('Failed to create PO:', error);
       showMessage('error', 'Failed to create purchase order');
+    }
+  };
+
+  const openPartDrawer = (part: Part) => {
+    setSelectedPartId(part.id);
+    setEditPartDraft({
+      name: part.name,
+      sku: part.sku || '',
+      vendor_id: part.vendor_id || '',
+      vendor_sku: part.vendor_sku || '',
+      category: part.category || '',
+      unit_cost: part.unit_cost,
+      unit_price: part.unit_price,
+      taxable: part.taxable,
+    });
+    const preferredLocationId = locationFilter || locations[0]?.id || '';
+    const locationRow = partLocations.find((loc) => loc.part_id === part.id && loc.location_id === preferredLocationId)
+      || partLocations.find((loc) => loc.part_id === part.id)
+      || null;
+    setEditLocationDraft(locationRow || { location_id: preferredLocationId, part_id: part.id, on_hand: 0, reserved: 0, reorder_min: 0, reorder_max: 0, bin: '' });
+  };
+
+  const closePartDrawer = () => {
+    setSelectedPartId(null);
+    setEditPartDraft({});
+    setEditLocationDraft({});
+  };
+
+  const savePartEdits = async () => {
+    if (!selectedPartId) return;
+    try {
+      const { error: partError } = await supabase
+        .from('parts')
+        .update({
+          name: editPartDraft.name,
+          sku: editPartDraft.sku || null,
+          vendor_id: editPartDraft.vendor_id || null,
+          vendor_sku: editPartDraft.vendor_sku || null,
+          category: editPartDraft.category || null,
+          unit_cost: Number(editPartDraft.unit_cost || 0),
+          unit_price: Number(editPartDraft.unit_price || 0),
+          taxable: Boolean(editPartDraft.taxable),
+        })
+        .eq('id', selectedPartId);
+      if (partError) throw partError;
+
+      if (editLocationDraft.location_id) {
+        const existing = partLocations.find((loc) => loc.part_id === selectedPartId && loc.location_id === editLocationDraft.location_id);
+        if (existing) {
+          const { error: locationError } = await supabase
+            .from('part_locations')
+            .update({
+              on_hand: Number(editLocationDraft.on_hand || 0),
+              reserved: Number(editLocationDraft.reserved || 0),
+              reorder_min: Number(editLocationDraft.reorder_min || 0),
+              reorder_max: Number(editLocationDraft.reorder_max || 0),
+              bin: editLocationDraft.bin || null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existing.id);
+          if (locationError) throw locationError;
+        } else {
+          const { error: insertError } = await supabase
+            .from('part_locations')
+            .insert({
+              part_id: selectedPartId,
+              location_id: editLocationDraft.location_id,
+              on_hand: Number(editLocationDraft.on_hand || 0),
+              reserved: Number(editLocationDraft.reserved || 0),
+              reorder_min: Number(editLocationDraft.reorder_min || 0),
+              reorder_max: Number(editLocationDraft.reorder_max || 0),
+              bin: editLocationDraft.bin || null,
+              reorder_threshold: 0,
+            });
+          if (insertError) throw insertError;
+        }
+      }
+
+      showMessage('success', 'Part updated');
+      await loadParts();
+      await loadPartLocations();
+      closePartDrawer();
+    } catch (error) {
+      console.error('Failed to update part:', error);
+      showMessage('error', 'Failed to update part');
     }
   };
 
@@ -795,13 +777,16 @@ export function InventoryManagement() {
     return parts.filter((part) => {
       const summary = partLocationSummary.get(part.id);
       const onHand = summary?.onHand || 0;
-      const reorderMin = summary?.reorderMin || part.reorder_threshold || 0;
+      const reorderMin = summary?.reorderMin || 0;
       if (stockFilter === 'in') return onHand > 0;
       if (stockFilter === 'out') return onHand <= 0;
-      if (stockFilter === 'reorder') return onHand <= reorderMin;
+      if (stockFilter === 'low') return onHand <= reorderMin;
       return true;
     });
   }, [parts, partLocationSummary, stockFilter]);
+
+  const pendingPOs = purchaseOrders.filter((po) => po.status !== 'received' && po.status !== 'closed');
+  const needsOrderingCount = partsNeeded.filter((row) => row.reservation.job_status === 'needed').length;
 
   return (
     <div className="space-y-6">
@@ -819,65 +804,185 @@ export function InventoryManagement() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Inventory</h2>
-          <p className="text-slate-600">Track parts, vendors, purchasing, and stock movement.</p>
-        </div>
-        <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white p-1">
-          <button
-            onClick={() => setMode('job')}
-            className={`px-3 py-1 text-sm rounded-full ${mode === 'job' ? 'text-white' : 'text-slate-600'}`}
-            style={mode === 'job' ? { backgroundColor: brandSettings.primary_color } : undefined}
-          >
-            Job Mode
-          </button>
-          <button
-            onClick={() => setMode('stock')}
-            className={`px-3 py-1 text-sm rounded-full ${mode === 'stock' ? 'text-white' : 'text-slate-600'}`}
-            style={mode === 'stock' ? { backgroundColor: brandSettings.primary_color } : undefined}
-          >
-            Stock Mode
-          </button>
+          <h2 className="text-2xl font-bold text-slate-900">Inventory Management</h2>
+          <p className="text-slate-600">Manage parts, vendors, and purchase orders</p>
         </div>
         {locations.length === 0 && (
           <button
             onClick={ensureDefaultLocation}
-            className="px-4 py-2 border border-slate-300 rounded-lg text-sm"
+            className="px-4 py-2 border border-slate-300 rounded-lg text-sm hover:bg-slate-50"
           >
             Create Main Location
           </button>
         )}
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {(['parts', 'parts_needed', 'purchase_orders', 'receiving', 'returns', 'counts'] as InventoryTab[]).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              activeTab === tab ? 'text-white' : 'bg-white border border-slate-200 text-slate-700'
-            }`}
-            style={activeTab === tab ? { backgroundColor: brandSettings.primary_color } : undefined}
-          >
-            {tab === 'parts' && 'Parts'}
-            {tab === 'parts_needed' && 'Parts Needed'}
-            {tab === 'purchase_orders' && 'Purchase Orders'}
-            {tab === 'receiving' && 'Receiving'}
-            {tab === 'returns' && 'Returns & Cores'}
-            {tab === 'counts' && 'Counts/Adjustments'}
-          </button>
-        ))}
-      </div>
+      {mainView === 'overview' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-lg" style={{ backgroundColor: `${brandSettings.primary_color}15` }}>
+                    <Boxes className="w-6 h-6" style={{ color: brandSettings.primary_color }} />
+                  </div>
+                  <div>
+                    <p className="text-sm text-slate-600">Total Parts</p>
+                    <p className="text-2xl font-bold text-slate-900">{parts.length}</p>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setMainView('parts')}
+                className="w-full py-2 px-4 border border-slate-200 rounded-lg text-sm hover:bg-slate-50 flex items-center justify-center gap-2"
+              >
+                View Parts <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
 
-      {activeTab === 'parts' && (
+            <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-lg bg-orange-50">
+                    <AlertTriangle className="w-6 h-6 text-orange-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-slate-600">Parts Needed</p>
+                    <p className="text-2xl font-bold text-slate-900">{needsOrderingCount}</p>
+                  </div>
+                </div>
+              </div>
+              {needsOrderingCount > 0 && (
+                <button
+                  onClick={() => setMainView('orders')}
+                  className="w-full py-2 px-4 text-white rounded-lg text-sm flex items-center justify-center gap-2"
+                  style={{ backgroundColor: brandSettings.primary_color }}
+                >
+                  Create Order <ArrowRight className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-lg bg-blue-50">
+                    <ShoppingCart className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-slate-600">Active Orders</p>
+                    <p className="text-2xl font-bold text-slate-900">{pendingPOs.length}</p>
+                  </div>
+                </div>
+              </div>
+              {pendingPOs.length > 0 && (
+                <button
+                  onClick={() => setMainView('receiving')}
+                  className="w-full py-2 px-4 border border-slate-200 rounded-lg text-sm hover:bg-slate-50 flex items-center justify-center gap-2"
+                >
+                  Receive Items <ArrowRight className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {lowStockParts.length > 0 && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 text-yellow-800 mb-2">
+                <AlertTriangle className="w-5 h-5" />
+                <h3 className="font-semibold">Low Stock Alert</h3>
+              </div>
+              <p className="text-sm text-yellow-700 mb-3">
+                {lowStockParts.length} part(s) are at or below reorder threshold
+              </p>
+              <button
+                onClick={() => setMainView('parts')}
+                className="px-4 py-2 bg-yellow-600 text-white rounded-lg text-sm hover:bg-yellow-700"
+              >
+                Review Parts
+              </button>
+            </div>
+          )}
+
+          <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
+            <h3 className="font-semibold text-slate-900">Quick Actions</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <button
+                onClick={() => setShowNewPartModal(true)}
+                className="p-4 border border-slate-200 rounded-lg hover:bg-slate-50 flex items-center gap-3"
+              >
+                <Plus className="w-5 h-5 text-slate-600" />
+                <span className="text-sm font-medium">Add New Part</span>
+              </button>
+              <button
+                onClick={() => setShowNewPOModal(true)}
+                className="p-4 border border-slate-200 rounded-lg hover:bg-slate-50 flex items-center gap-3"
+              >
+                <ShoppingCart className="w-5 h-5 text-slate-600" />
+                <span className="text-sm font-medium">Create Purchase Order</span>
+              </button>
+              <button
+                onClick={() => setShowNewVendorModal(true)}
+                className="p-4 border border-slate-200 rounded-lg hover:bg-slate-50 flex items-center gap-3"
+              >
+                <Truck className="w-5 h-5 text-slate-600" />
+                <span className="text-sm font-medium">Add Vendor</span>
+              </button>
+            </div>
+          </div>
+
+          {transactions.length > 0 && (
+            <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-3">
+              <h3 className="font-semibold text-slate-900">Recent Activity</h3>
+              <div className="space-y-2">
+                {transactions.slice(0, 5).map((tx) => {
+                  const part = parts.find((p) => p.id === tx.part_id);
+                  return (
+                    <div key={tx.id} className="flex items-center justify-between text-sm py-2 border-b border-slate-100">
+                      <div>
+                        <p className="font-medium text-slate-900 capitalize">{tx.transaction_type}</p>
+                        <p className="text-xs text-slate-500">{part?.name || 'Unknown part'}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold text-slate-900">{tx.quantity > 0 ? '+' : ''}{tx.quantity}</p>
+                        <p className="text-xs text-slate-500">{new Date(tx.created_at).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {mainView === 'parts' && (
         <div className="space-y-4">
-          <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-4">
-            <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => setMainView('overview')}
+              className="text-sm text-slate-600 hover:text-slate-900 flex items-center gap-1"
+            >
+              ← Back to Overview
+            </button>
+            <button
+              onClick={() => setShowNewPartModal(true)}
+              className="px-4 py-2 text-white rounded-lg text-sm flex items-center gap-2"
+              style={{ backgroundColor: brandSettings.primary_color }}
+            >
+              <Plus className="w-4 h-4" />
+              Add Part
+            </button>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+            <div className="flex flex-wrap gap-3">
               <div className="flex items-center gap-2 border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 flex-1 min-w-[220px]">
                 <Search className="w-4 h-4 text-slate-500" />
                 <input
                   value={partsSearch}
                   onChange={(e) => setPartsSearch(e.target.value)}
-                  placeholder="Search parts by name, SKU, vendor SKU"
+                  placeholder="Search parts by name or SKU"
                   className="bg-transparent outline-none text-sm w-full"
                 />
               </div>
@@ -891,12 +996,6 @@ export function InventoryManagement() {
                   <option key={vendor.id} value={vendor.id}>{vendor.name}</option>
                 ))}
               </select>
-              <input
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                placeholder="Category"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
               <select
                 value={locationFilter}
                 onChange={(e) => setLocationFilter(e.target.value)}
@@ -915,672 +1014,76 @@ export function InventoryManagement() {
                 <option value="all">All stock</option>
                 <option value="in">In stock</option>
                 <option value="out">Out of stock</option>
-                <option value="reorder">Needs reorder</option>
+                <option value="low">Low stock</option>
               </select>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
-              <input
-                value={newPart.name}
-                onChange={(e) => setNewPart({ ...newPart, name: e.target.value })}
-                placeholder="Part name"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm md:col-span-2"
-              />
-              <input
-                value={newPart.sku}
-                onChange={(e) => setNewPart({ ...newPart, sku: e.target.value })}
-                placeholder="SKU"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-              <input
-                type="number"
-                value={newPart.unit_cost}
-                onChange={(e) => setNewPart({ ...newPart, unit_cost: Number(e.target.value) })}
-                placeholder="Unit cost"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-              <input
-                type="number"
-                value={newPart.unit_price}
-                onChange={(e) => setNewPart({ ...newPart, unit_price: Number(e.target.value) })}
-                placeholder="Unit price"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-              <select
-                value={newPart.vendor_id}
-                onChange={(e) => setNewPart({ ...newPart, vendor_id: e.target.value })}
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              >
-                <option value="">Primary vendor</option>
-                {vendors.map((vendor) => (
-                  <option key={vendor.id} value={vendor.id}>{vendor.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-              <input
-                value={newPart.vendor_sku}
-                onChange={(e) => setNewPart({ ...newPart, vendor_sku: e.target.value })}
-                placeholder="Vendor SKU"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-              <input
-                value={newPart.internal_sku}
-                onChange={(e) => setNewPart({ ...newPart, internal_sku: e.target.value })}
-                placeholder="Internal SKU"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-              <input
-                value={newPart.category}
-                onChange={(e) => setNewPart({ ...newPart, category: e.target.value })}
-                placeholder="Category"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-              <label className="flex items-center gap-2 text-sm text-slate-600 px-3 py-2 border border-slate-200 rounded-lg">
-                <input
-                  type="checkbox"
-                  checked={newPart.taxable}
-                  onChange={(e) => setNewPart({ ...newPart, taxable: e.target.checked })}
-                />
-                Taxable
-              </label>
-              <button
-                onClick={handleCreatePart}
-                className="flex items-center justify-center gap-2 px-4 py-2 text-white rounded-lg"
-                style={{ backgroundColor: brandSettings.primary_color }}
-              >
-                <Plus className="w-4 h-4" />
-                Add Part
-              </button>
             </div>
           </div>
 
           <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-slate-900">Parts Catalog</h3>
-              <div className="text-xs text-slate-500">Showing {filteredParts.length} parts</div>
+              <div className="text-xs text-slate-500">{filteredParts.length} parts</div>
             </div>
             <div className="space-y-2">
               {filteredParts.map((part) => {
                 const summary = partLocationSummary.get(part.id);
+                const isLowStock = (summary?.onHand || 0) <= (summary?.reorderMin || 0);
                 return (
-                  <div key={part.id} className="border border-slate-200 rounded-lg p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                    <div>
-                      <p className="font-medium text-slate-900">{part.name}</p>
-                      <p className="text-xs text-slate-500">{part.sku || 'No SKU'} • {part.category || 'Uncategorized'}</p>
-                      <p className="text-xs text-slate-500">Vendor: {vendors.find((v) => v.id === part.vendor_id)?.name || '—'}</p>
+                  <div key={part.id} className="border border-slate-200 rounded-lg p-3 hover:bg-slate-50">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-slate-900">{part.name}</p>
+                          {isLowStock && <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded">Low</span>}
+                        </div>
+                        <p className="text-xs text-slate-500">{part.sku || 'No SKU'} • {part.category || 'Uncategorized'}</p>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-sm">
+                          <span className="text-slate-500">Stock: </span>
+                          <span className="font-semibold text-slate-900">{summary?.onHand ?? 0}</span>
+                        </div>
+                        <div className="text-sm">
+                          <span className="text-slate-500">Price: </span>
+                          <span className="font-semibold text-slate-900">${Number(part.unit_price || 0).toFixed(2)}</span>
+                        </div>
+                        <button
+                          onClick={() => openPartDrawer(part)}
+                          className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm hover:bg-white flex items-center gap-1"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                          Edit
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-4 text-xs text-slate-600">
-                      <div>
-                        <div className="text-slate-400">On hand</div>
-                        <div className="font-semibold text-slate-900">{summary?.onHand ?? 0}</div>
-                      </div>
-                      <div>
-                        <div className="text-slate-400">Reserved</div>
-                        <div className="font-semibold text-slate-900">{summary?.reserved ?? 0}</div>
-                      </div>
-                      <div>
-                        <div className="text-slate-400">Bin</div>
-                        <div className="font-semibold text-slate-900">{summary?.bin || '—'}</div>
-                      </div>
-                      <div>
-                        <div className="text-slate-400">Price</div>
-                        <div className="font-semibold text-slate-900">${Number(part.unit_price || 0).toFixed(2)}</div>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => openPartDrawer(part)}
-                      className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                    >
-                      Quick Edit
-                    </button>
                   </div>
                 );
               })}
-              {filteredParts.length === 0 && <p className="text-sm text-slate-500">No parts match the filters.</p>}
+              {filteredParts.length === 0 && <p className="text-sm text-slate-500 text-center py-8">No parts found</p>}
             </div>
-            <div className="flex items-center justify-between pt-2 text-sm">
-              <button
-                onClick={() => setPage((prev) => Math.max(0, prev - 1))}
-                className="px-3 py-1 border border-slate-300 rounded-lg"
-                disabled={page === 0}
-              >
-                Prev
-              </button>
-              <span className="text-slate-500">Page {page + 1}</span>
-              <button
-                onClick={() => setPage((prev) => prev + 1)}
-                className="px-3 py-1 border border-slate-300 rounded-lg"
-                disabled={filteredParts.length < pageSize}
-              >
-                Next
-              </button>
-            </div>
+            {filteredParts.length >= pageSize && (
+              <div className="flex items-center justify-between pt-2">
+                <button
+                  onClick={() => setPage((prev) => Math.max(0, prev - 1))}
+                  className="px-3 py-1 border border-slate-300 rounded-lg text-sm"
+                  disabled={page === 0}
+                >
+                  Previous
+                </button>
+                <span className="text-sm text-slate-500">Page {page + 1}</span>
+                <button
+                  onClick={() => setPage((prev) => prev + 1)}
+                  className="px-3 py-1 border border-slate-300 rounded-lg text-sm"
+                  disabled={filteredParts.length < pageSize}
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
-            <div className="flex items-center gap-2 text-slate-700">
-              <Truck className="w-5 h-5" />
-              <h3 className="font-semibold text-slate-900">Vendors</h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              <input
-                value={newVendor.name}
-                onChange={(e) => setNewVendor({ ...newVendor, name: e.target.value })}
-                placeholder="Vendor name"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-              <input
-                value={newVendor.phone}
-                onChange={(e) => setNewVendor({ ...newVendor, phone: e.target.value })}
-                placeholder="Phone"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-              <input
-                value={newVendor.email}
-                onChange={(e) => setNewVendor({ ...newVendor, email: e.target.value })}
-                placeholder="Email"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-              <input
-                value={newVendor.address}
-                onChange={(e) => setNewVendor({ ...newVendor, address: e.target.value })}
-                placeholder="Address"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-            </div>
-            <button
-              onClick={handleCreateVendor}
-              className="flex items-center gap-2 px-4 py-2 text-white rounded-lg"
-              style={{ backgroundColor: brandSettings.primary_color }}
-            >
-              <Plus className="w-4 h-4" />
-              Add Vendor
-            </button>
-            <div className="space-y-2">
-              {vendors.map((vendor) => (
-                <div key={vendor.id} className="border border-slate-200 rounded-lg p-3 text-sm">
-                  <p className="font-medium text-slate-900">{vendor.name}</p>
-                  <p className="text-xs text-slate-500">{vendor.email || vendor.phone || 'No contact info'}</p>
-                </div>
-              ))}
-              {vendors.length === 0 && <p className="text-sm text-slate-500">No vendors yet.</p>}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'parts_needed' && (
-        <div className="space-y-4">
-          <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-slate-700">
-              <ClipboardList className="w-5 h-5" />
-              <div>
-                <h3 className="font-semibold text-slate-900">Parts Needed (Jobs)</h3>
-                <p className="text-xs text-slate-500">Track parts required for open repair orders.</p>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={loadPartsNeeded}
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm flex items-center gap-2"
-              >
-                <RefreshCcw className="w-4 h-4" />
-                Refresh
-              </button>
-              <button
-                onClick={handleCreatePoFromNeeded}
-                className="px-4 py-2 text-white rounded-lg text-sm flex items-center gap-2"
-                style={{ backgroundColor: brandSettings.primary_color }}
-              >
-                <ShoppingCart className="w-4 h-4" />
-                Create PO from selected
-              </button>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
-            {partsNeeded.map((row) => (
-              <div key={row.reservation.id} className="border border-slate-200 rounded-lg p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(selectedNeededIds[row.reservation.id])}
-                    onChange={(e) =>
-                      setSelectedNeededIds((prev) => ({ ...prev, [row.reservation.id]: e.target.checked }))
-                    }
-                  />
-                  <div>
-                    <p className="font-medium text-slate-900">{row.part.name}</p>
-                    <p className="text-xs text-slate-500">
-                      RO {row.order.ro_number} • Qty {row.reservation.quantity} • {row.location?.name || 'No location'}
-                    </p>
-                    <p className="text-xs text-slate-500">Vendor: {row.vendor?.name || 'Unassigned'}</p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className="px-2 py-1 rounded-full bg-slate-100 text-slate-700 capitalize">
-                    {row.reservation.job_status || 'needed'}
-                  </span>
-                  <button
-                    onClick={() => updateReservationStatus(row.reservation.id, 'ordered')}
-                    className="px-2 py-1 border border-slate-300 rounded-lg"
-                  >
-                    Mark ordered
-                  </button>
-                  <button
-                    onClick={() => updateReservationStatus(row.reservation.id, 'received')}
-                    className="px-2 py-1 border border-slate-300 rounded-lg"
-                  >
-                    Mark received
-                  </button>
-                  <button
-                    onClick={() => updateReservationStatus(row.reservation.id, 'assigned')}
-                    className="px-2 py-1 border border-slate-300 rounded-lg"
-                  >
-                    Assign to RO
-                  </button>
-                </div>
-              </div>
-            ))}
-            {partsNeeded.length === 0 && (
-              <p className="text-sm text-slate-500">No parts needed right now.</p>
-            )}
-          </div>
-        </div>
-      )}
-      {selectedPartId && (
-        <div className="fixed inset-0 z-40 bg-black/40 flex items-center justify-center p-4" onClick={closePartDrawer}>
-          <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-slate-700">
-                <Boxes className="w-5 h-5" />
-                <h3 className="font-semibold text-slate-900">Quick Edit</h3>
-              </div>
-              <button onClick={closePartDrawer} className="text-slate-500">✕</button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <input
-                value={editPartDraft.name || ''}
-                onChange={(e) => setEditPartDraft((prev) => ({ ...prev, name: e.target.value }))}
-                placeholder="Part name"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-              <input
-                value={editPartDraft.sku || ''}
-                onChange={(e) => setEditPartDraft((prev) => ({ ...prev, sku: e.target.value }))}
-                placeholder="SKU"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-              <input
-                value={editPartDraft.vendor_sku || ''}
-                onChange={(e) => setEditPartDraft((prev) => ({ ...prev, vendor_sku: e.target.value }))}
-                placeholder="Vendor SKU"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-              <input
-                value={editPartDraft.internal_sku || ''}
-                onChange={(e) => setEditPartDraft((prev) => ({ ...prev, internal_sku: e.target.value }))}
-                placeholder="Internal SKU"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-              <input
-                value={editPartDraft.category || ''}
-                onChange={(e) => setEditPartDraft((prev) => ({ ...prev, category: e.target.value }))}
-                placeholder="Category"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-              <select
-                value={editPartDraft.vendor_id || ''}
-                onChange={(e) => setEditPartDraft((prev) => ({ ...prev, vendor_id: e.target.value }))}
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              >
-                <option value="">Primary vendor</option>
-                {vendors.map((vendor) => (
-                  <option key={vendor.id} value={vendor.id}>{vendor.name}</option>
-                ))}
-              </select>
-              <input
-                type="number"
-                value={Number(editPartDraft.unit_cost || 0)}
-                onChange={(e) => setEditPartDraft((prev) => ({ ...prev, unit_cost: Number(e.target.value) }))}
-                placeholder="Unit cost"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-              <input
-                type="number"
-                value={Number(editPartDraft.unit_price || 0)}
-                onChange={(e) => setEditPartDraft((prev) => ({ ...prev, unit_price: Number(e.target.value) }))}
-                placeholder="Unit price"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <select
-                value={editLocationDraft.location_id || ''}
-                onChange={(e) => setEditLocationDraft((prev) => ({ ...prev, location_id: e.target.value }))}
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              >
-                <option value="">Location</option>
-                {locations.map((loc) => (
-                  <option key={loc.id} value={loc.id}>{loc.name}</option>
-                ))}
-              </select>
-              <input
-                type="number"
-                value={Number(editLocationDraft.on_hand || 0)}
-                onChange={(e) => setEditLocationDraft((prev) => ({ ...prev, on_hand: Number(e.target.value) }))}
-                placeholder="On hand"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-              <input
-                value={editLocationDraft.bin || ''}
-                onChange={(e) => setEditLocationDraft((prev) => ({ ...prev, bin: e.target.value }))}
-                placeholder="Bin"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-              <input
-                type="number"
-                value={Number(editLocationDraft.reorder_min || 0)}
-                onChange={(e) => setEditLocationDraft((prev) => ({ ...prev, reorder_min: Number(e.target.value) }))}
-                placeholder="Reorder min"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-              <input
-                type="number"
-                value={Number(editLocationDraft.reorder_max || 0)}
-                onChange={(e) => setEditLocationDraft((prev) => ({ ...prev, reorder_max: Number(e.target.value) }))}
-                placeholder="Reorder max"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <button onClick={closePartDrawer} className="px-4 py-2 border border-slate-300 rounded-lg text-sm">
-                Cancel
-              </button>
-              <button
-                onClick={savePartEdits}
-                className="px-4 py-2 text-white rounded-lg text-sm"
-                style={{ backgroundColor: brandSettings.primary_color }}
-              >
-                Save changes
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'purchase_orders' && (
-        <div className="space-y-4">
-          <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
-            <div className="flex items-center gap-2 text-slate-700">
-              <ShoppingCart className="w-5 h-5" />
-              <h3 className="font-semibold text-slate-900">Create Purchase Order</h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <select
-                value={poDraft.vendor_id}
-                onChange={(e) => setPoDraft({ ...poDraft, vendor_id: e.target.value })}
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              >
-                <option value="">Select vendor</option>
-                {vendors.map((vendor) => (
-                  <option key={vendor.id} value={vendor.id}>{vendor.name}</option>
-                ))}
-              </select>
-              <select
-                value={poDraft.location_id}
-                onChange={(e) => setPoDraft({ ...poDraft, location_id: e.target.value })}
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              >
-                <option value="">Select location</option>
-                {locations.map((loc) => (
-                  <option key={loc.id} value={loc.id}>{loc.name}</option>
-                ))}
-              </select>
-              <input
-                value={poDraft.notes}
-                onChange={(e) => setPoDraft({ ...poDraft, notes: e.target.value })}
-                placeholder="Notes"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-            </div>
-            {poLines.map((line, idx) => (
-              <div key={idx} className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <select
-                  value={line.part_id}
-                  onChange={(e) => {
-                    const next = [...poLines];
-                    next[idx] = { ...line, part_id: e.target.value };
-                    setPoLines(next);
-                  }}
-                  className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                >
-                  <option value="">Select part</option>
-                  {parts.map((part) => (
-                    <option key={part.id} value={part.id}>{part.name}</option>
-                  ))}
-                </select>
-                <div className="space-y-1">
-                  <label className="text-xs text-slate-500">Quantity</label>
-                  <input
-                    type="number"
-                    value={line.quantity}
-                    onChange={(e) => {
-                      const next = [...poLines];
-                      next[idx] = { ...line, quantity: Number(e.target.value) };
-                      setPoLines(next);
-                    }}
-                    placeholder="0"
-                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm w-full"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-slate-500">Unit Cost</label>
-                  <input
-                    type="number"
-                    value={line.unit_cost}
-                    onChange={(e) => {
-                      const next = [...poLines];
-                      next[idx] = { ...line, unit_cost: Number(e.target.value) };
-                      setPoLines(next);
-                    }}
-                    placeholder="0.00"
-                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm w-full"
-                  />
-                </div>
-                <button
-                  onClick={() => setPoLines(poLines.filter((_, lineIdx) => lineIdx !== idx))}
-                  className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => setPoLines([...poLines, { part_id: '', quantity: 1, unit_cost: 0 }])}
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              >
-                Add Line
-              </button>
-              <button
-                onClick={handleCreatePurchaseOrder}
-                className="flex items-center gap-2 px-4 py-2 text-white rounded-lg"
-                style={{ backgroundColor: brandSettings.primary_color }}
-              >
-                Create PO
-              </button>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-3">
-            <h3 className="font-semibold text-slate-900">Purchase Orders</h3>
-            {purchaseOrders.map((po) => (
-              <div key={po.id} className="border border-slate-200 rounded-lg p-4 space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <div>
-                    <p className="font-medium text-slate-900">{po.id.slice(0, 8)}...</p>
-                    <p className="text-xs text-slate-500">Status: {po.status}</p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setReceivingPoId(po.id);
-                      setActiveTab('receiving');
-                    }}
-                    disabled={po.status === 'closed'}
-                    className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg disabled:opacity-50"
-                  >
-                    Open Receiving
-                  </button>
-                </div>
-                <div className="text-xs text-slate-500">
-                  Lines: {purchaseLines.filter((line) => line.purchase_order_id === po.id).length}
-                </div>
-              </div>
-            ))}
-            {purchaseOrders.length === 0 && <p className="text-sm text-slate-500">No purchase orders yet.</p>}
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'receiving' && (
-        <div className="space-y-4">
-          <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
-            <div className="flex items-center gap-2 text-slate-700">
-              <Package className="w-5 h-5" />
-              <div>
-                <h3 className="font-semibold text-slate-900">Receiving</h3>
-                <p className="text-xs text-slate-500">Scan or enter part number to receive.</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <select
-                value={receivingPoId}
-                onChange={(e) => setReceivingPoId(e.target.value)}
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              >
-                <option value="">Select purchase order</option>
-                {purchaseOrders.map((po) => (
-                  <option key={po.id} value={po.id}>{po.id.slice(0, 8)}... ({po.status})</option>
-                ))}
-              </select>
-              <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-3 py-2 text-sm">
-                <Search className="w-4 h-4 text-slate-500" />
-                <input
-                  value={scanInput}
-                  onChange={(e) => setScanInput(e.target.value)}
-                  placeholder="Scan or type part number"
-                  className="outline-none w-full"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleScanSubmit();
-                    }
-                  }}
-                />
-              </div>
-              <button
-                onClick={handleReceiveAll}
-                className="px-4 py-2 text-white rounded-lg text-sm flex items-center justify-center gap-2"
-                style={{ backgroundColor: brandSettings.primary_color }}
-                disabled={!receivingPoId}
-              >
-                <CheckCircle className="w-4 h-4" />
-                Receive all
-              </button>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-3">
-            <h3 className="font-semibold text-slate-900">Receiving Lines</h3>
-            {receivingPoId ? (
-              purchaseLines
-                .filter((line) => line.purchase_order_id === receivingPoId)
-                .map((line) => {
-                  const part = parts.find((p) => p.id === line.part_id);
-                  const remaining = Number(line.quantity) - Number(line.received_qty || 0);
-                  return (
-                    <div key={line.id} className="border border-slate-200 rounded-lg p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                      <div>
-                        <p className="font-medium text-slate-900">{part?.name || 'Part'}</p>
-                        <p className="text-xs text-slate-500">SKU {part?.sku || '—'}</p>
-                      </div>
-                      <div className="text-xs text-slate-600">
-                        Ordered {line.quantity} • Received {line.received_qty || 0}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-slate-500">Remaining {Math.max(0, remaining)}</span>
-                        <button
-                          onClick={() => {
-                            const po = purchaseOrders.find((item) => item.id === receivingPoId);
-                            if (!po) return;
-                            handleReceiveLine(po, line, remaining > 0 ? 1 : 0);
-                          }}
-                          className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg"
-                          disabled={remaining <= 0}
-                        >
-                          Receive 1
-                        </button>
-                        <button
-                          onClick={() => {
-                            const po = purchaseOrders.find((item) => item.id === receivingPoId);
-                            if (!po) return;
-                            handleReceiveLine(po, line, remaining);
-                          }}
-                          className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg"
-                          disabled={remaining <= 0}
-                        >
-                          Receive remaining
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })
-            ) : (
-              <p className="text-sm text-slate-500">Select a purchase order to start receiving.</p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'returns' && (
-        <div className="space-y-4">
-          <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-3">
-            <div className="flex items-center gap-2 text-slate-700">
-              <Layers className="w-5 h-5" />
-              <h3 className="font-semibold text-slate-900">Returns & Cores</h3>
-            </div>
-            {partsNeeded.filter((row) => row.reservation.core_due).length === 0 && (
-              <p className="text-sm text-slate-500">No core returns due.</p>
-            )}
-            {partsNeeded.filter((row) => row.reservation.core_due).map((row) => (
-              <div key={row.reservation.id} className="border border-slate-200 rounded-lg p-3 flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-slate-900">{row.part.name}</p>
-                  <p className="text-xs text-slate-500">RO {row.order.ro_number}</p>
-                </div>
-                <button
-                  onClick={() => updateReservationStatus(row.reservation.id, row.reservation.job_status || 'returned', {
-                    core_due: false,
-                    core_returned_at: new Date().toISOString(),
-                  })}
-                  className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg"
-                >
-                  Mark core returned
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'counts' && (
-        <div className="space-y-4">
-          {lowStockParts.length > 0 && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-center gap-2 text-sm text-yellow-800">
-              <AlertTriangle className="w-4 h-4" />
-              {lowStockParts.length} part(s) are at or below reorder threshold.
-            </div>
-          )}
-          <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
-            <h3 className="font-semibold text-slate-900">Adjust Stock</h3>
+            <h3 className="font-semibold text-slate-900">Stock Adjustment</h3>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <select
                 value={stockAdjustment.part_id}
@@ -1602,44 +1105,591 @@ export function InventoryManagement() {
                   <option key={loc.id} value={loc.id}>{loc.name}</option>
                 ))}
               </select>
-              <div className="space-y-1">
-                <label className="text-xs text-slate-500">Adjustment Qty</label>
-                <input
-                  type="number"
-                  value={stockAdjustment.quantity}
-                  onChange={(e) => setStockAdjustment({ ...stockAdjustment, quantity: e.target.value })}
-                  className="px-3 py-2 border border-slate-300 rounded-lg text-sm w-full"
-                  placeholder="+/- qty"
-                />
-              </div>
+              <input
+                type="number"
+                value={stockAdjustment.quantity}
+                onChange={(e) => setStockAdjustment({ ...stockAdjustment, quantity: e.target.value })}
+                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                placeholder="Quantity (+/-)"
+              />
               <button
                 onClick={handleAdjustStock}
-                className="flex items-center gap-2 px-4 py-2 text-white rounded-lg"
+                className="px-4 py-2 text-white rounded-lg text-sm"
                 style={{ backgroundColor: brandSettings.primary_color }}
               >
-                Adjust
+                Adjust Stock
               </button>
             </div>
-          </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-3">
-            <h3 className="font-semibold text-slate-900">Recent Transactions</h3>
-            {transactions.map((tx) => (
-              <div key={tx.id} className="border border-slate-200 rounded-lg p-3 text-sm flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-slate-900">{tx.transaction_type.toUpperCase()}</p>
-                  <p className="text-xs text-slate-500">{new Date(tx.created_at).toLocaleString()}</p>
-                </div>
-                <div className="text-right text-xs text-slate-600">
-                  <div>Qty {tx.quantity}</div>
-                  <div>{tx.reference_type || 'manual'}</div>
-                </div>
-              </div>
-            ))}
-            {transactions.length === 0 && <p className="text-sm text-slate-500">No transactions yet.</p>}
           </div>
         </div>
       )}
 
+      {mainView === 'orders' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => setMainView('overview')}
+              className="text-sm text-slate-600 hover:text-slate-900 flex items-center gap-1"
+            >
+              ← Back to Overview
+            </button>
+            <button
+              onClick={() => setShowNewPOModal(true)}
+              className="px-4 py-2 text-white rounded-lg text-sm flex items-center gap-2"
+              style={{ backgroundColor: brandSettings.primary_color }}
+            >
+              <Plus className="w-4 h-4" />
+              New Purchase Order
+            </button>
+          </div>
+
+          {needsOrderingCount > 0 && (
+            <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-slate-900">Parts Needed for Jobs</h3>
+                  <p className="text-xs text-slate-500">{needsOrderingCount} parts waiting to be ordered</p>
+                </div>
+                <button
+                  onClick={handleCreatePoFromNeeded}
+                  disabled={Object.keys(selectedNeededIds).length === 0}
+                  className="px-4 py-2 text-white rounded-lg text-sm flex items-center gap-2 disabled:opacity-50"
+                  style={{ backgroundColor: brandSettings.primary_color }}
+                >
+                  <ShoppingCart className="w-4 h-4" />
+                  Create Order
+                </button>
+              </div>
+              <div className="space-y-2">
+                {partsNeeded.filter((row) => row.reservation.job_status === 'needed').map((row) => (
+                  <div key={row.reservation.id} className="border border-slate-200 rounded-lg p-3 flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(selectedNeededIds[row.reservation.id])}
+                      onChange={(e) =>
+                        setSelectedNeededIds((prev) => ({ ...prev, [row.reservation.id]: e.target.checked }))
+                      }
+                      className="h-4 w-4"
+                    />
+                    <div className="flex-1">
+                      <p className="font-medium text-slate-900">{row.part.name}</p>
+                      <p className="text-xs text-slate-500">
+                        RO {row.order.ro_number} • Qty: {row.reservation.quantity} • {row.vendor?.name || 'No vendor'}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+            <h3 className="font-semibold text-slate-900">All Purchase Orders</h3>
+            <div className="space-y-2">
+              {purchaseOrders.map((po) => {
+                const vendor = vendors.find((v) => v.id === po.vendor_id);
+                const lines = purchaseLines.filter((line) => line.purchase_order_id === po.id);
+                const totalItems = lines.reduce((sum, line) => sum + line.quantity, 0);
+                const receivedItems = lines.reduce((sum, line) => sum + (line.received_qty || 0), 0);
+                return (
+                  <div key={po.id} className="border border-slate-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <p className="font-medium text-slate-900">PO #{po.id.slice(0, 8)}</p>
+                        <p className="text-xs text-slate-500">{vendor?.name || 'No vendor'} • {po.status}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {po.status !== 'received' && po.status !== 'closed' && (
+                          <button
+                            onClick={() => {
+                              setReceivingPoId(po.id);
+                              setMainView('receiving');
+                            }}
+                            className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg hover:bg-slate-50"
+                          >
+                            Receive
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-xs text-slate-600">
+                      {lines.length} line items • {receivedItems}/{totalItems} received
+                    </div>
+                  </div>
+                );
+              })}
+              {purchaseOrders.length === 0 && <p className="text-sm text-slate-500 text-center py-8">No purchase orders yet</p>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {mainView === 'receiving' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => setMainView('overview')}
+              className="text-sm text-slate-600 hover:text-slate-900 flex items-center gap-1"
+            >
+              ← Back to Overview
+            </button>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-4">
+            <div className="flex items-center gap-2">
+              <Package className="w-5 h-5 text-slate-600" />
+              <h3 className="font-semibold text-slate-900">Receive Purchase Order</h3>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <select
+                value={receivingPoId}
+                onChange={(e) => setReceivingPoId(e.target.value)}
+                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              >
+                <option value="">Select purchase order</option>
+                {pendingPOs.map((po) => {
+                  const vendor = vendors.find((v) => v.id === po.vendor_id);
+                  return (
+                    <option key={po.id} value={po.id}>
+                      PO #{po.id.slice(0, 8)} - {vendor?.name || 'No vendor'}
+                    </option>
+                  );
+                })}
+              </select>
+              <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-3 py-2">
+                <Search className="w-4 h-4 text-slate-500" />
+                <input
+                  value={scanInput}
+                  onChange={(e) => setScanInput(e.target.value)}
+                  placeholder="Scan part SKU"
+                  className="outline-none text-sm w-full"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleScanSubmit();
+                    }
+                  }}
+                />
+              </div>
+              <button
+                onClick={handleReceiveAll}
+                className="px-4 py-2 text-white rounded-lg text-sm flex items-center justify-center gap-2"
+                style={{ backgroundColor: brandSettings.primary_color }}
+                disabled={!receivingPoId}
+              >
+                <CheckCircle className="w-4 h-4" />
+                Receive All
+              </button>
+            </div>
+          </div>
+
+          {receivingPoId && (
+            <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+              <h3 className="font-semibold text-slate-900">Items to Receive</h3>
+              <div className="space-y-2">
+                {purchaseLines
+                  .filter((line) => line.purchase_order_id === receivingPoId)
+                  .map((line) => {
+                    const part = parts.find((p) => p.id === line.part_id);
+                    const remaining = Number(line.quantity) - Number(line.received_qty || 0);
+                    const po = purchaseOrders.find((item) => item.id === receivingPoId);
+                    return (
+                      <div key={line.id} className="border border-slate-200 rounded-lg p-3">
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                          <div className="flex-1">
+                            <p className="font-medium text-slate-900">{part?.name || 'Part'}</p>
+                            <p className="text-xs text-slate-500">SKU: {part?.sku || '—'}</p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="text-sm">
+                              <span className="text-slate-500">Ordered: </span>
+                              <span className="font-semibold">{line.quantity}</span>
+                            </div>
+                            <div className="text-sm">
+                              <span className="text-slate-500">Received: </span>
+                              <span className="font-semibold">{line.received_qty || 0}</span>
+                            </div>
+                            <div className="text-sm">
+                              <span className="text-slate-500">Remaining: </span>
+                              <span className="font-semibold">{remaining}</span>
+                            </div>
+                            <button
+                              onClick={() => {
+                                if (!po) return;
+                                handleReceiveLine(po, line, Math.min(1, remaining));
+                              }}
+                              className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg disabled:opacity-50"
+                              disabled={remaining <= 0}
+                            >
+                              +1
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (!po) return;
+                                handleReceiveLine(po, line, remaining);
+                              }}
+                              className="px-3 py-1.5 text-sm text-white rounded-lg disabled:opacity-50"
+                              style={{ backgroundColor: brandSettings.primary_color }}
+                              disabled={remaining <= 0}
+                            >
+                              All
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {selectedPartId && (
+        <div className="fixed inset-0 z-40 bg-black/40 flex items-center justify-center p-4" onClick={closePartDrawer}>
+          <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-slate-900">Edit Part</h3>
+              <button onClick={closePartDrawer} className="text-slate-500 hover:text-slate-900">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <input
+                value={editPartDraft.name || ''}
+                onChange={(e) => setEditPartDraft((prev) => ({ ...prev, name: e.target.value }))}
+                placeholder="Part name"
+                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+              <input
+                value={editPartDraft.sku || ''}
+                onChange={(e) => setEditPartDraft((prev) => ({ ...prev, sku: e.target.value }))}
+                placeholder="SKU"
+                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+              <input
+                value={editPartDraft.vendor_sku || ''}
+                onChange={(e) => setEditPartDraft((prev) => ({ ...prev, vendor_sku: e.target.value }))}
+                placeholder="Vendor SKU"
+                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+              <input
+                value={editPartDraft.category || ''}
+                onChange={(e) => setEditPartDraft((prev) => ({ ...prev, category: e.target.value }))}
+                placeholder="Category"
+                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+              <select
+                value={editPartDraft.vendor_id || ''}
+                onChange={(e) => setEditPartDraft((prev) => ({ ...prev, vendor_id: e.target.value }))}
+                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              >
+                <option value="">Vendor</option>
+                {vendors.map((vendor) => (
+                  <option key={vendor.id} value={vendor.id}>{vendor.name}</option>
+                ))}
+              </select>
+              <input
+                type="number"
+                value={Number(editPartDraft.unit_cost || 0)}
+                onChange={(e) => setEditPartDraft((prev) => ({ ...prev, unit_cost: Number(e.target.value) }))}
+                placeholder="Cost"
+                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+              <input
+                type="number"
+                value={Number(editPartDraft.unit_price || 0)}
+                onChange={(e) => setEditPartDraft((prev) => ({ ...prev, unit_price: Number(e.target.value) }))}
+                placeholder="Price"
+                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+              <select
+                value={editLocationDraft.location_id || ''}
+                onChange={(e) => setEditLocationDraft((prev) => ({ ...prev, location_id: e.target.value }))}
+                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              >
+                <option value="">Location</option>
+                {locations.map((loc) => (
+                  <option key={loc.id} value={loc.id}>{loc.name}</option>
+                ))}
+              </select>
+              <input
+                type="number"
+                value={Number(editLocationDraft.on_hand || 0)}
+                onChange={(e) => setEditLocationDraft((prev) => ({ ...prev, on_hand: Number(e.target.value) }))}
+                placeholder="On hand"
+                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+              <input
+                value={editLocationDraft.bin || ''}
+                onChange={(e) => setEditLocationDraft((prev) => ({ ...prev, bin: e.target.value }))}
+                placeholder="Bin location"
+                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+              <input
+                type="number"
+                value={Number(editLocationDraft.reorder_min || 0)}
+                onChange={(e) => setEditLocationDraft((prev) => ({ ...prev, reorder_min: Number(e.target.value) }))}
+                placeholder="Reorder min"
+                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={closePartDrawer} className="px-4 py-2 border border-slate-300 rounded-lg text-sm">
+                Cancel
+              </button>
+              <button
+                onClick={savePartEdits}
+                className="px-4 py-2 text-white rounded-lg text-sm"
+                style={{ backgroundColor: brandSettings.primary_color }}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showNewPartModal && (
+        <div className="fixed inset-0 z-40 bg-black/40 flex items-center justify-center p-4" onClick={() => setShowNewPartModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-lg p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-slate-900">Add New Part</h3>
+              <button onClick={() => setShowNewPartModal(false)} className="text-slate-500">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <input
+                value={newPart.name}
+                onChange={(e) => setNewPart({ ...newPart, name: e.target.value })}
+                placeholder="Part name *"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  value={newPart.sku}
+                  onChange={(e) => setNewPart({ ...newPart, sku: e.target.value })}
+                  placeholder="SKU"
+                  className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                />
+                <input
+                  value={newPart.vendor_sku}
+                  onChange={(e) => setNewPart({ ...newPart, vendor_sku: e.target.value })}
+                  placeholder="Vendor SKU"
+                  className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  type="number"
+                  value={newPart.unit_cost}
+                  onChange={(e) => setNewPart({ ...newPart, unit_cost: Number(e.target.value) })}
+                  placeholder="Cost"
+                  className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                />
+                <input
+                  type="number"
+                  value={newPart.unit_price}
+                  onChange={(e) => setNewPart({ ...newPart, unit_price: Number(e.target.value) })}
+                  placeholder="Price"
+                  className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                />
+              </div>
+              <select
+                value={newPart.vendor_id}
+                onChange={(e) => setNewPart({ ...newPart, vendor_id: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              >
+                <option value="">Select vendor</option>
+                {vendors.map((vendor) => (
+                  <option key={vendor.id} value={vendor.id}>{vendor.name}</option>
+                ))}
+              </select>
+              <input
+                value={newPart.category}
+                onChange={(e) => setNewPart({ ...newPart, category: e.target.value })}
+                placeholder="Category"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setShowNewPartModal(false)} className="px-4 py-2 border border-slate-300 rounded-lg text-sm">
+                Cancel
+              </button>
+              <button
+                onClick={handleCreatePart}
+                className="px-4 py-2 text-white rounded-lg text-sm"
+                style={{ backgroundColor: brandSettings.primary_color }}
+              >
+                Add Part
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showNewVendorModal && (
+        <div className="fixed inset-0 z-40 bg-black/40 flex items-center justify-center p-4" onClick={() => setShowNewVendorModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-lg p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-slate-900">Add New Vendor</h3>
+              <button onClick={() => setShowNewVendorModal(false)} className="text-slate-500">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <input
+                value={newVendor.name}
+                onChange={(e) => setNewVendor({ ...newVendor, name: e.target.value })}
+                placeholder="Vendor name *"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+              <input
+                value={newVendor.phone}
+                onChange={(e) => setNewVendor({ ...newVendor, phone: e.target.value })}
+                placeholder="Phone"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+              <input
+                value={newVendor.email}
+                onChange={(e) => setNewVendor({ ...newVendor, email: e.target.value })}
+                placeholder="Email"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+              <input
+                value={newVendor.address}
+                onChange={(e) => setNewVendor({ ...newVendor, address: e.target.value })}
+                placeholder="Address"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setShowNewVendorModal(false)} className="px-4 py-2 border border-slate-300 rounded-lg text-sm">
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateVendor}
+                className="px-4 py-2 text-white rounded-lg text-sm"
+                style={{ backgroundColor: brandSettings.primary_color }}
+              >
+                Add Vendor
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showNewPOModal && (
+        <div className="fixed inset-0 z-40 bg-black/40 flex items-center justify-center p-4" onClick={() => setShowNewPOModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-slate-900">Create Purchase Order</h3>
+              <button onClick={() => setShowNewPOModal(false)} className="text-slate-500">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <select
+                value={poDraft.vendor_id}
+                onChange={(e) => setPoDraft({ ...poDraft, vendor_id: e.target.value })}
+                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              >
+                <option value="">Select vendor *</option>
+                {vendors.map((vendor) => (
+                  <option key={vendor.id} value={vendor.id}>{vendor.name}</option>
+                ))}
+              </select>
+              <select
+                value={poDraft.location_id}
+                onChange={(e) => setPoDraft({ ...poDraft, location_id: e.target.value })}
+                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              >
+                <option value="">Select location *</option>
+                {locations.map((loc) => (
+                  <option key={loc.id} value={loc.id}>{loc.name}</option>
+                ))}
+              </select>
+            </div>
+            <textarea
+              value={poDraft.notes}
+              onChange={(e) => setPoDraft({ ...poDraft, notes: e.target.value })}
+              placeholder="Notes (optional)"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              rows={2}
+            />
+            <div className="space-y-2">
+              <h4 className="font-medium text-slate-900 text-sm">Line Items</h4>
+              {poLines.map((line, idx) => (
+                <div key={idx} className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                  <select
+                    value={line.part_id}
+                    onChange={(e) => {
+                      const next = [...poLines];
+                      const part = parts.find((p) => p.id === e.target.value);
+                      next[idx] = { ...line, part_id: e.target.value, unit_cost: part?.unit_cost || 0 };
+                      setPoLines(next);
+                    }}
+                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  >
+                    <option value="">Select part</option>
+                    {parts.map((part) => (
+                      <option key={part.id} value={part.id}>{part.name}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    value={line.quantity}
+                    onChange={(e) => {
+                      const next = [...poLines];
+                      next[idx] = { ...line, quantity: Number(e.target.value) };
+                      setPoLines(next);
+                    }}
+                    placeholder="Qty"
+                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  />
+                  <input
+                    type="number"
+                    value={line.unit_cost}
+                    onChange={(e) => {
+                      const next = [...poLines];
+                      next[idx] = { ...line, unit_cost: Number(e.target.value) };
+                      setPoLines(next);
+                    }}
+                    placeholder="Cost"
+                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  />
+                  <button
+                    onClick={() => setPoLines(poLines.filter((_, lineIdx) => lineIdx !== idx))}
+                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm hover:bg-red-50 hover:border-red-300 hover:text-red-600"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+              <button
+                onClick={() => setPoLines([...poLines, { part_id: '', quantity: 1, unit_cost: 0 }])}
+                className="px-3 py-2 border border-slate-300 rounded-lg text-sm flex items-center gap-1"
+              >
+                <Plus className="w-4 h-4" />
+                Add Line
+              </button>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setShowNewPOModal(false)} className="px-4 py-2 border border-slate-300 rounded-lg text-sm">
+                Cancel
+              </button>
+              <button
+                onClick={handleCreatePurchaseOrder}
+                className="px-4 py-2 text-white rounded-lg text-sm"
+                style={{ backgroundColor: brandSettings.primary_color }}
+              >
+                Create Order
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
