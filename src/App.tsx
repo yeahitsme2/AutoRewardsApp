@@ -47,6 +47,11 @@ function App() {
       return;
     }
 
+    if (pathname.startsWith('/app') || pathname.startsWith('/shop/')) {
+      setView('app');
+      return;
+    }
+
     const slug = getShopSlugFromUrl();
     if (user || slug) {
       setView('app');

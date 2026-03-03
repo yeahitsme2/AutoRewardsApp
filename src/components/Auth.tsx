@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useBrand } from '../lib/BrandContext';
 import { useShop } from '../lib/ShopContext';
+import { ArrowLeft } from 'lucide-react';
 
 export function Auth() {
   const { brandSettings } = useBrand();
@@ -48,9 +49,23 @@ export function Auth() {
     }
   };
 
+  const handleBackToHome = () => {
+    window.history.pushState({}, '', '/');
+    window.location.reload();
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full">
+        {!shop && (
+          <button
+            onClick={handleBackToHome}
+            className="mb-4 text-slate-600 hover:text-slate-900 inline-flex items-center gap-2 text-sm"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Home
+          </button>
+        )}
         <div className="text-center mb-8">
           {shop?.name && (
             <h1 className="text-2xl font-bold text-slate-900 mb-2">{shop.name}</h1>
