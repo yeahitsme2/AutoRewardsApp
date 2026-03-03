@@ -845,34 +845,46 @@ export function RepairOrdersManagement() {
   };
 
   const handleDeleteLineItem = async (orderId: string, itemId: string) => {
+    const currentOrder = orders.find((order) => order.id === orderId);
+    if (!currentOrder) return;
+
+    // Filter out the deleted item AND any child items (CASCADE delete handles DB, we handle state)
+    const nextItems = currentOrder.items.filter((item) =>
+      item.id !== itemId && item.parent_item_id !== itemId
+    );
+    const totals = computeTotals(nextItems);
+
+    // Optimistically update state immediately for instant UI feedback
+    setOrders((prev) =>
+      prev.map((order) => {
+        if (order.id !== orderId) return order;
+        return { ...order, items: nextItems, ...totals };
+      })
+    );
+
+    // Then sync with database
     try {
       const { error } = await supabase.from('repair_order_items').delete().eq('id', itemId);
-      if (error) throw error;
+      if (error) {
+        console.error('Delete error:', error);
+        // Rollback on error
+        setOrders((prev) =>
+          prev.map((order) => {
+            if (order.id !== orderId) return order;
+            return currentOrder;
+          })
+        );
+        throw error;
+      }
 
-      const currentOrder = orders.find((order) => order.id === orderId);
-      // Filter out the deleted item AND any child items (CASCADE delete handles DB, we handle state)
-      const nextItems = (currentOrder?.items || []).filter((item) =>
-        item.id !== itemId && item.parent_item_id !== itemId
-      );
-      const totals = computeTotals(nextItems);
+      // Persist updated totals to database
+      const { error: updateError } = await supabase
+        .from('repair_orders')
+        .update({ ...totals, updated_at: new Date().toISOString() })
+        .eq('id', orderId);
 
-      // Update state with both items and totals in one update
-      setOrders((prev) =>
-        prev.map((order) => {
-          if (order.id !== orderId) return order;
-          return { ...order, items: nextItems, ...totals };
-        })
-      );
-
-      // Persist totals to database
-      try {
-        const { error: updateError } = await supabase
-          .from('repair_orders')
-          .update({ ...totals, updated_at: new Date().toISOString() })
-          .eq('id', orderId);
-        if (updateError) console.error('Failed to persist totals:', updateError);
-      } catch (err) {
-        console.error('Failed to persist totals:', err);
+      if (updateError) {
+        console.error('Failed to update totals:', updateError);
       }
 
       showMessage('success', 'Line item deleted');
