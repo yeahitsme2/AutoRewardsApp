@@ -703,9 +703,13 @@ export function InventoryManagement() {
           unit_cost: Number(editPartDraft.unit_cost || 0),
           unit_price: Number(editPartDraft.unit_price || 0),
           taxable: Boolean(editPartDraft.taxable),
+          updated_at: new Date().toISOString(),
         })
         .eq('id', selectedPartId);
-      if (partError) throw partError;
+      if (partError) {
+        console.error('Part update error:', partError);
+        throw partError;
+      }
 
       if (editLocationDraft.location_id) {
         const existing = partLocations.find((loc) => loc.part_id === selectedPartId && loc.location_id === editLocationDraft.location_id);
@@ -721,7 +725,10 @@ export function InventoryManagement() {
               updated_at: new Date().toISOString(),
             })
             .eq('id', existing.id);
-          if (locationError) throw locationError;
+          if (locationError) {
+            console.error('Location update error:', locationError);
+            throw locationError;
+          }
         } else {
           const { error: insertError } = await supabase
             .from('part_locations')
@@ -735,7 +742,10 @@ export function InventoryManagement() {
               bin: editLocationDraft.bin || null,
               reorder_threshold: 0,
             });
-          if (insertError) throw insertError;
+          if (insertError) {
+            console.error('Location insert error:', insertError);
+            throw insertError;
+          }
         }
       }
 
@@ -743,9 +753,9 @@ export function InventoryManagement() {
       await loadParts();
       await loadPartLocations();
       closePartDrawer();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update part:', error);
-      showMessage('error', 'Failed to update part');
+      showMessage('error', `Failed to update part: ${error?.message || 'Unknown error'}`);
     }
   };
 
@@ -1347,92 +1357,164 @@ export function InventoryManagement() {
 
       {selectedPartId && (
         <div className="fixed inset-0 z-40 bg-black/40 flex items-center justify-center p-4" onClick={closePartDrawer}>
-          <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-slate-900">Edit Part</h3>
               <button onClick={closePartDrawer} className="text-slate-500 hover:text-slate-900">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <input
-                value={editPartDraft.name || ''}
-                onChange={(e) => setEditPartDraft((prev) => ({ ...prev, name: e.target.value }))}
-                placeholder="Part name"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-              <input
-                value={editPartDraft.sku || ''}
-                onChange={(e) => setEditPartDraft((prev) => ({ ...prev, sku: e.target.value }))}
-                placeholder="SKU"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-              <input
-                value={editPartDraft.vendor_sku || ''}
-                onChange={(e) => setEditPartDraft((prev) => ({ ...prev, vendor_sku: e.target.value }))}
-                placeholder="Vendor SKU"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-              <input
-                value={editPartDraft.category || ''}
-                onChange={(e) => setEditPartDraft((prev) => ({ ...prev, category: e.target.value }))}
-                placeholder="Category"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-              <select
-                value={editPartDraft.vendor_id || ''}
-                onChange={(e) => setEditPartDraft((prev) => ({ ...prev, vendor_id: e.target.value }))}
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              >
-                <option value="">Vendor</option>
-                {vendors.map((vendor) => (
-                  <option key={vendor.id} value={vendor.id}>{vendor.name}</option>
-                ))}
-              </select>
-              <input
-                type="number"
-                value={Number(editPartDraft.unit_cost || 0)}
-                onChange={(e) => setEditPartDraft((prev) => ({ ...prev, unit_cost: Number(e.target.value) }))}
-                placeholder="Cost"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-              <input
-                type="number"
-                value={Number(editPartDraft.unit_price || 0)}
-                onChange={(e) => setEditPartDraft((prev) => ({ ...prev, unit_price: Number(e.target.value) }))}
-                placeholder="Price"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-              <select
-                value={editLocationDraft.location_id || ''}
-                onChange={(e) => setEditLocationDraft((prev) => ({ ...prev, location_id: e.target.value }))}
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              >
-                <option value="">Location</option>
-                {locations.map((loc) => (
-                  <option key={loc.id} value={loc.id}>{loc.name}</option>
-                ))}
-              </select>
-              <input
-                type="number"
-                value={Number(editLocationDraft.on_hand || 0)}
-                onChange={(e) => setEditLocationDraft((prev) => ({ ...prev, on_hand: Number(e.target.value) }))}
-                placeholder="On hand"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-              <input
-                value={editLocationDraft.bin || ''}
-                onChange={(e) => setEditLocationDraft((prev) => ({ ...prev, bin: e.target.value }))}
-                placeholder="Bin location"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-              <input
-                type="number"
-                value={Number(editLocationDraft.reorder_min || 0)}
-                onChange={(e) => setEditLocationDraft((prev) => ({ ...prev, reorder_min: Number(e.target.value) }))}
-                placeholder="Reorder min"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
+
+            <div className="space-y-4">
+              {/* Part Information Section */}
+              <div className="border-b border-slate-200 pb-3">
+                <h4 className="text-sm font-semibold text-slate-700 mb-3">Part Information</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Part Name *</label>
+                    <input
+                      value={editPartDraft.name || ''}
+                      onChange={(e) => setEditPartDraft((prev) => ({ ...prev, name: e.target.value }))}
+                      placeholder="e.g., Oil Filter"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Category</label>
+                    <input
+                      value={editPartDraft.category || ''}
+                      onChange={(e) => setEditPartDraft((prev) => ({ ...prev, category: e.target.value }))}
+                      placeholder="e.g., Filters, Brakes"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Your SKU</label>
+                    <input
+                      value={editPartDraft.sku || ''}
+                      onChange={(e) => setEditPartDraft((prev) => ({ ...prev, sku: e.target.value }))}
+                      placeholder="Your internal part number"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Vendor SKU</label>
+                    <input
+                      value={editPartDraft.vendor_sku || ''}
+                      onChange={(e) => setEditPartDraft((prev) => ({ ...prev, vendor_sku: e.target.value }))}
+                      placeholder="Manufacturer part number"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Pricing Section */}
+              <div className="border-b border-slate-200 pb-3">
+                <h4 className="text-sm font-semibold text-slate-700 mb-3">Pricing</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">
+                      Your Cost <span className="text-slate-500">(what you pay)</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-slate-500 text-sm">$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={Number(editPartDraft.unit_cost || 0)}
+                        onChange={(e) => setEditPartDraft((prev) => ({ ...prev, unit_cost: Number(e.target.value) }))}
+                        placeholder="0.00"
+                        className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-lg text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">
+                      Sell Price <span className="text-slate-500">(what you charge)</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-slate-500 text-sm">$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={Number(editPartDraft.unit_price || 0)}
+                        onChange={(e) => setEditPartDraft((prev) => ({ ...prev, unit_price: Number(e.target.value) }))}
+                        placeholder="0.00"
+                        className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-lg text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Vendor</label>
+                    <select
+                      value={editPartDraft.vendor_id || ''}
+                      onChange={(e) => setEditPartDraft((prev) => ({ ...prev, vendor_id: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    >
+                      <option value="">Select vendor</option>
+                      {vendors.map((vendor) => (
+                        <option key={vendor.id} value={vendor.id}>{vendor.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Inventory Section */}
+              <div>
+                <h4 className="text-sm font-semibold text-slate-700 mb-3">Inventory</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Location</label>
+                    <select
+                      value={editLocationDraft.location_id || ''}
+                      onChange={(e) => setEditLocationDraft((prev) => ({ ...prev, location_id: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    >
+                      <option value="">Select location</option>
+                      {locations.map((loc) => (
+                        <option key={loc.id} value={loc.id}>{loc.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">
+                      Bin Location <span className="text-slate-500">(shelf/bin number)</span>
+                    </label>
+                    <input
+                      value={editLocationDraft.bin || ''}
+                      onChange={(e) => setEditLocationDraft((prev) => ({ ...prev, bin: e.target.value }))}
+                      placeholder="e.g., A-12, Shelf 3"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">
+                      Qty On Hand <span className="text-slate-500">(available now)</span>
+                    </label>
+                    <input
+                      type="number"
+                      value={Number(editLocationDraft.on_hand || 0)}
+                      onChange={(e) => setEditLocationDraft((prev) => ({ ...prev, on_hand: Number(e.target.value) }))}
+                      placeholder="0"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">
+                      Reorder Point <span className="text-slate-500">(auto-alert when below)</span>
+                    </label>
+                    <input
+                      type="number"
+                      value={Number(editLocationDraft.reorder_min || 0)}
+                      onChange={(e) => setEditLocationDraft((prev) => ({ ...prev, reorder_min: Number(e.target.value) }))}
+                      placeholder="0"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
             <div className="flex justify-end gap-2">
               <button onClick={closePartDrawer} className="px-4 py-2 border border-slate-300 rounded-lg text-sm">
