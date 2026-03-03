@@ -1,4 +1,4 @@
-import { Calendar, Clock, Car, User, CheckCircle, XCircle, AlertCircle, Edit2, MapPin, Mail, MessageSquare, ClipboardList } from 'lucide-react';
+import { Calendar, Clock, Car, User, CheckCircle, XCircle, AlertCircle, CreditCard as Edit2, MapPin, Mail, MessageSquare, ClipboardList } from 'lucide-react';
 import type { Appointment, AppointmentType, Customer, ShopLocation, Vehicle } from '../../types/database';
 
 interface AppointmentWithDetails extends Appointment {
