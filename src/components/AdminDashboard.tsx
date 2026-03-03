@@ -530,28 +530,24 @@ export function AdminDashboard() {
 
         {activeTab === 'customers' && (
           <>
-            <div className="space-y-4 mb-6">
+            <div className="space-y-3 mb-6">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Users className="w-6 h-6 text-slate-700" />
-                  <h2 className="text-2xl font-bold text-slate-900">Customers</h2>
-                  <span className="text-slate-500 text-lg">({customers.length})</span>
-                </div>
+                <h2 className="text-2xl font-bold text-slate-900">Customers ({customers.length})</h2>
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
                   <input
                     type="text"
-                    placeholder="Search by name, email, or phone..."
+                    placeholder="Search by name, email, phone..."
                     value={searchQuery}
                     onChange={(e) => {
                       setSearchQuery(e.target.value);
                       setDateFilter('');
                       if (e.target.value) setShowAllCustomers(true);
                     }}
-                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                    className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-sm"
                   />
                 </div>
 
@@ -565,7 +561,7 @@ export function AdminDashboard() {
                       setSearchQuery('');
                       if (e.target.value) setShowAllCustomers(true);
                     }}
-                    className="w-full sm:w-48 pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                    className="w-full sm:w-44 pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-sm"
                   />
                 </div>
 
@@ -576,40 +572,27 @@ export function AdminDashboard() {
                       setDateFilter('');
                       setShowAllCustomers(false);
                     }}
-                    className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:text-slate-900 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+                    className="px-3 py-2 text-slate-600 hover:text-slate-900 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors text-sm"
                   >
                     <X className="w-4 h-4" />
-                    Clear
                   </button>
                 )}
               </div>
 
-              {!searchQuery && !dateFilter && (
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-slate-600">
-                    {showAllCustomers ? `Showing all ${customers.length} customers` : `Showing last 10 customers`}
-                  </p>
+              <div className="flex items-center justify-between text-xs text-slate-600">
+                <span>
+                  {searchQuery ? `${filteredCustomers.length} result${filteredCustomers.length !== 1 ? 's' : ''}` : dateFilter ? `${filteredCustomers.length} customer${filteredCustomers.length !== 1 ? 's' : ''}` : showAllCustomers ? `All ${customers.length} customers` : `Last 10 customers`}
+                </span>
+                {!searchQuery && !dateFilter && (
                   <button
                     onClick={() => setShowAllCustomers(!showAllCustomers)}
-                    className="text-sm font-medium transition-colors"
+                    className="text-xs font-medium transition-colors"
                     style={{ color: brandSettings.primary_color }}
                   >
-                    {showAllCustomers ? 'Show Last 10' : `Show All (${customers.length})`}
+                    {showAllCustomers ? 'Show Last 10' : `Show All`}
                   </button>
-                </div>
-              )}
-
-              {dateFilter && (
-                <p className="text-sm text-slate-600">
-                  Showing {filteredCustomers.length} customer{filteredCustomers.length !== 1 ? 's' : ''} from {new Date(dateFilter + 'T00:00:00').toLocaleDateString()}
-                </p>
-              )}
-
-              {searchQuery && (
-                <p className="text-sm text-slate-600">
-                  Found {filteredCustomers.length} customer{filteredCustomers.length !== 1 ? 's' : ''} matching "{searchQuery}"
-                </p>
-              )}
+                )}
+              </div>
             </div>
 
         {customers.length === 0 ? (
@@ -622,192 +605,122 @@ export function AdminDashboard() {
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
             <Search className="w-16 h-16 text-slate-300 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-slate-900 mb-2">No Results Found</h3>
-            <p className="text-slate-600">No customers match your search for "{searchQuery}"</p>
+            <p className="text-slate-600">No customers match your search</p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {filteredCustomers.map((cust) => (
-              <div key={cust.id} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-xl font-semibold text-slate-900">{cust.full_name}</h3>
+              <div key={cust.id} className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow">
+                <div className="p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <h3 className="text-lg font-semibold text-slate-900">{cust.full_name}</h3>
                         {(() => {
                           const tierInfo = getTierInfo(cust.tier, brandSettings);
                           return (
-                            <span className={`inline-flex items-center gap-1 px-2 py-1 bg-gradient-to-r ${tierInfo.gradient} text-white text-xs font-medium rounded-full`}>
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 bg-gradient-to-r ${tierInfo.gradient} text-white text-xs font-medium rounded-full`}>
                               <Crown className="w-3 h-3" />
                               {tierInfo.displayName}
                             </span>
                           );
                         })()}
-                        {cust.has_account ? (
+                        {cust.has_account && (
                           <span
-                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full"
                             style={{
                               backgroundColor: `${brandSettings.primary_color}20`,
                               color: brandSettings.primary_color
                             }}
                           >
                             <UserCheck className="w-3 h-3" />
-                            Has Account
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 text-slate-600 text-xs font-medium rounded-full">
-                            <UserX className="w-3 h-3" />
-                            Walk-in
                           </span>
                         )}
                       </div>
-                      <p className="text-slate-600">{cust.email}</p>
-                      {cust.phone && <p className="text-slate-600">{cust.phone}</p>}
+                      <div className="text-sm text-slate-600 space-y-0.5">
+                        <p>{cust.email}</p>
+                        {cust.phone && <p>{cust.phone}</p>}
+                      </div>
                     </div>
-                    <div className="text-right space-y-3">
-                      <div>
-                        <p className="text-sm text-slate-600">Reward Points</p>
-                        <p className="text-2xl font-bold" style={{ color: brandSettings.primary_color }}>
-                          {cust.reward_points} points
-                        </p>
-                        <p className="text-xs text-slate-500">{getTierInfo(cust.tier, brandSettings).multiplier}x multiplier</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-slate-600">Lifetime Spending</p>
-                        <p className="text-xl font-semibold text-slate-900">
-                          ${Number(getLifetimeSpending(cust)).toFixed(2)}
-                        </p>
-                      </div>
-                      {(() => {
-                        const tierProgress = calculateSpendingToNextTier(cust, brandSettings);
-                        if (tierProgress.nextTier) {
-                          return (
-                            <div className="bg-slate-50 rounded-lg p-2">
-                              <p className="text-xs text-slate-600">To reach {tierProgress.nextTier.displayName}</p>
-                              <p className="text-sm font-semibold text-slate-900">
-                                Spend ${tierProgress.cashNeeded.toFixed(2)} more
-                              </p>
-                            </div>
-                          );
-                        }
-                        return null;
-                      })()}
+                    <div className="text-right whitespace-nowrap">
+                      <p className="font-semibold text-slate-900">{cust.reward_points} pts</p>
+                      <p className="text-xs text-slate-500">${Number(getLifetimeSpending(cust)).toFixed(2)} lifetime</p>
                     </div>
                   </div>
 
-                  <div className="border-t border-slate-200 pt-4 mt-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-semibold text-slate-900">Vehicles ({cust.vehicles.length})</h4>
-                      <button
-                        onClick={() => handleAddVehicle(cust)}
-                        className="text-sm font-medium transition-colors"
-                        style={{ color: brandSettings.primary_color }}
-                        onMouseEnter={(e) => e.currentTarget.style.color = brandSettings.secondary_color}
-                        onMouseLeave={(e) => e.currentTarget.style.color = brandSettings.primary_color}
-                      >
-                        + Add Vehicle
-                      </button>
-                    </div>
-
-                    {cust.vehicles.length === 0 ? (
-                      <p className="text-slate-600 text-sm">No vehicles registered yet.</p>
-                    ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {cust.vehicles.map((vehicle) => (
-                          <div key={vehicle.id} className="bg-slate-50 rounded-lg overflow-hidden">
+                  {cust.vehicles.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-slate-100">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-medium text-slate-600">Vehicles ({cust.vehicles.length})</p>
+                        <button
+                          onClick={() => handleAddVehicle(cust)}
+                          className="text-xs font-medium transition-colors"
+                          style={{ color: brandSettings.primary_color }}
+                        >
+                          + Add
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {cust.vehicles.slice(0, 3).map((vehicle) => (
+                          <div key={vehicle.id} className="bg-slate-50 rounded border border-slate-200 overflow-hidden text-xs">
                             {vehicle.picture_url && (
                               <img
                                 src={vehicle.picture_url}
                                 alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
-                                className="w-full h-32 object-cover"
+                                className="w-full h-16 object-cover"
                                 onError={(e) => {
                                   (e.target as HTMLImageElement).style.display = 'none';
                                 }}
                               />
                             )}
-                            <div className="p-3">
-                              <p className="font-medium text-slate-900">
-                                {vehicle.year} {vehicle.make} {vehicle.model}
+                            <div className="p-2">
+                              <p className="font-medium text-slate-900 line-clamp-1">
+                                {vehicle.year} {vehicle.make}
                               </p>
-                              <div className="text-sm text-slate-600 mt-1 space-y-1">
-                                {vehicle.color && <p>Color: {vehicle.color}</p>}
-                                {vehicle.license_plate && <p>Plate: {vehicle.license_plate}</p>}
-                                {vehicle.vin && <p>VIN: {vehicle.vin}</p>}
-                                {vehicle.current_mileage && <p>Mileage: {vehicle.current_mileage.toLocaleString()}</p>}
-                              </div>
+                              {vehicle.license_plate && <p className="text-slate-600">{vehicle.license_plate}</p>}
+                            </div>
+                          </div>
+                        ))}
+                        {cust.vehicles.length > 3 && (
+                          <div className="bg-slate-100 rounded border border-slate-200 flex items-center justify-center text-xs font-medium text-slate-600">
+                            +{cust.vehicles.length - 3}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {cust.services.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-slate-100">
+                      <p className="text-xs font-medium text-slate-600 mb-2">Last {Math.min(cust.services.length, 2)} services</p>
+                      <div className="space-y-1">
+                        {cust.services.slice(0, 2).map((service) => (
+                          <div key={service.id} className="flex items-center justify-between text-xs bg-slate-50 rounded p-2">
+                            <div>
+                              <p className="font-medium text-slate-900">{service.service_type}</p>
+                              <p className="text-slate-500">{new Date(service.service_date).toLocaleDateString()}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-semibold text-slate-900">${Number(service.amount).toFixed(2)}</p>
                             </div>
                           </div>
                         ))}
                       </div>
-                    )}
-                  </div>
-
-                  <div className="border-t border-slate-200 pt-4 mt-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-semibold text-slate-900">Service History ({cust.services.length})</h4>
                     </div>
+                  )}
 
-                    {cust.services.length === 0 ? (
-                      <p className="text-slate-600 text-sm">No service records yet.</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {cust.services.slice(0, 5).map((service) => {
-                          const vehicle = cust.vehicles.find(v => v.id === service.vehicle_id);
-                          return (
-                            <div key={service.id} className="bg-slate-50 rounded-lg p-3">
-                              <div className="flex items-start justify-between">
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <Wrench className="w-4 h-4 text-slate-600" />
-                                    <p className="font-medium text-slate-900">{service.service_type}</p>
-                                  </div>
-                                  {service.description && (
-                                    <p className="text-sm text-slate-600 ml-6">{service.description}</p>
-                                  )}
-                                  {vehicle && (
-                                    <div className="flex items-center gap-1 text-xs text-slate-500 mt-1 ml-6">
-                                      <Car className="w-3 h-3" />
-                                      {vehicle.year} {vehicle.make} {vehicle.model}
-                                    </div>
-                                  )}
-                                  <div className="flex items-center gap-1 text-xs text-slate-500 mt-1 ml-6">
-                                    <Calendar className="w-3 h-3" />
-                                    {new Date(service.service_date).toLocaleDateString()}
-                                  </div>
-                                </div>
-                                <div className="text-right">
-                                  <p className="font-semibold text-slate-900">${Number(service.amount).toFixed(2)}</p>
-                                  <div className="flex items-center gap-1 text-xs mt-1" style={{ color: brandSettings.primary_color }}>
-                                    <Award className="w-3 h-3" />
-                                    +{service.points_earned} pts
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                        {cust.services.length > 5 && (
-                          <p className="text-xs text-slate-500 text-center">
-                            Showing 5 of {cust.services.length} services
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="border-t border-slate-200 pt-4 mt-4">
-                    <button
-                      onClick={() => handleAddService(cust)}
-                      disabled={cust.vehicles.length === 0}
-                      className="w-full text-white font-medium py-2 rounded-lg transition-colors disabled:cursor-not-allowed"
-                      style={{
-                        backgroundColor: cust.vehicles.length === 0 ? '#cbd5e1' : brandSettings.primary_color
-                      }}
-                      onMouseEnter={(e) => cust.vehicles.length > 0 && (e.currentTarget.style.backgroundColor = brandSettings.secondary_color)}
-                      onMouseLeave={(e) => cust.vehicles.length > 0 && (e.currentTarget.style.backgroundColor = brandSettings.primary_color)}
-                    >
-                      {cust.vehicles.length === 0 ? 'Add a vehicle first' : 'Add Service Record'}
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => handleAddService(cust)}
+                    disabled={cust.vehicles.length === 0}
+                    className="w-full mt-3 text-white text-sm font-medium py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{
+                      backgroundColor: cust.vehicles.length === 0 ? '#cbd5e1' : brandSettings.primary_color
+                    }}
+                    onMouseEnter={(e) => cust.vehicles.length > 0 && (e.currentTarget.style.backgroundColor = brandSettings.secondary_color)}
+                    onMouseLeave={(e) => cust.vehicles.length > 0 && (e.currentTarget.style.backgroundColor = brandSettings.primary_color)}
+                  >
+                    Add Service
+                  </button>
                 </div>
               </div>
             ))}
