@@ -61,15 +61,13 @@ export function Auth() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full">
-        {!shop && (
-          <a
-            href="/"
-            className="mb-4 text-slate-600 hover:text-slate-900 inline-flex items-center gap-2 text-sm"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Home
-          </a>
-        )}
+        <a
+          href="/"
+          className="mb-6 text-slate-600 hover:text-slate-900 inline-flex items-center gap-2 text-sm font-medium transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Website
+        </a>
         <div className="text-center mb-8">
           {shop?.name && (
             <h1 className="text-2xl font-bold text-slate-900 mb-2">{shop.name}</h1>
