@@ -1213,6 +1213,10 @@ export function RepairOrdersManagement() {
     if (!confirmed) return;
 
     try {
+      if (selectedOrderId === orderId) {
+        setSelectedOrderId(null);
+      }
+
       const { error } = await supabase
         .from('repair_orders')
         .delete()
@@ -1220,9 +1224,13 @@ export function RepairOrdersManagement() {
       if (error) throw error;
 
       setOrders((prev) => prev.filter((order) => order.id !== orderId));
-      if (selectedOrderId === orderId) {
-        setSelectedOrderId(null);
+
+      try {
+        localStorage.removeItem(getDraftStorageKey(orderId));
+      } catch (e) {
+        console.warn('Failed to remove draft from localStorage:', e);
       }
+
       showMessage('success', 'Repair order deleted');
     } catch (error) {
       console.error('Error deleting repair order:', error);
