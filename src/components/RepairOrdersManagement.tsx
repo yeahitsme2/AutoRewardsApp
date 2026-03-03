@@ -812,19 +812,20 @@ export function RepairOrdersManagement() {
         .single();
       if (error) throw error;
 
+      const currentOrder = orders.find((order) => order.id === orderId);
+      const nextItems = (currentOrder?.items || []).map((item) => (item.id === itemId ? (data as RepairOrderItem) : item));
+
       setOrders((prev) =>
         prev.map((order) => {
           if (order.id !== orderId) return order;
-          const nextItems = (order.items || []).map((item) => (item.id === itemId ? (data as RepairOrderItem) : item));
           return { ...order, items: nextItems };
         })
       );
 
-      const updatedOrder = orders.find((order) => order.id === orderId);
-      const nextItems = (updatedOrder?.items || []).map((item) => (item.id === itemId ? (data as RepairOrderItem) : item));
       await updateOrderTotals(orderId, nextItems);
 
       setEditingItemId(null);
+      delete editDrafts[itemId];
       showMessage('success', 'Item updated');
     } catch (error) {
       console.error('Failed to update line item:', error);
@@ -836,15 +837,17 @@ export function RepairOrdersManagement() {
     try {
       const { error } = await supabase.from('repair_order_items').delete().eq('id', itemId);
       if (error) throw error;
+
+      const currentOrder = orders.find((order) => order.id === orderId);
+      const nextItems = (currentOrder?.items || []).filter((item) => item.id !== itemId);
+
       setOrders((prev) =>
         prev.map((order) => {
           if (order.id !== orderId) return order;
-          const nextItems = (order.items || []).filter((item) => item.id !== itemId);
           return { ...order, items: nextItems };
         })
       );
-      const updatedOrder = orders.find((order) => order.id === orderId);
-      const nextItems = (updatedOrder?.items || []).filter((item) => item.id !== itemId);
+
       await updateOrderTotals(orderId, nextItems);
       showMessage('success', 'Line item deleted');
     } catch (error) {
@@ -909,29 +912,37 @@ export function RepairOrdersManagement() {
   };
 
   const refreshOrderTotals = async (orderId: string) => {
-    const { data, error } = await supabase
-      .from('repair_orders')
-      .select('id, labor_total, parts_total, fees_total, tax_total, grand_total, supplies_amount')
-      .eq('id', orderId)
-      .maybeSingle();
-    if (error) throw error;
-    if (!data) return;
-    setOrders((prev) =>
-      prev.map((order) => (order.id === orderId ? { ...order, ...data } : order))
-    );
+    try {
+      const { data, error } = await supabase
+        .from('repair_orders')
+        .select('id, labor_total, parts_total, fees_total, tax_total, grand_total, supplies_amount')
+        .eq('id', orderId)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return;
+      setOrders((prev) =>
+        prev.map((order) => (order.id === orderId ? { ...order, ...data } : order))
+      );
+    } catch (error) {
+      console.error('Failed to refresh order totals:', error);
+    }
   };
 
   const updateOrderTotals = async (orderId: string, items: RepairOrderItem[]) => {
-    const totals = computeTotals(items);
-    const { error } = await supabase
-      .from('repair_orders')
-      .update({ ...totals, updated_at: new Date().toISOString() })
-      .eq('id', orderId);
-    if (error) throw error;
-    setOrders((prev) =>
-      prev.map((order) => (order.id === orderId ? { ...order, ...totals } : order))
-    );
-    await refreshOrderTotals(orderId);
+    try {
+      const totals = computeTotals(items);
+      const { error } = await supabase
+        .from('repair_orders')
+        .update({ ...totals, updated_at: new Date().toISOString() })
+        .eq('id', orderId);
+      if (error) throw error;
+      setOrders((prev) =>
+        prev.map((order) => (order.id === orderId ? { ...order, ...totals } : order))
+      );
+      await refreshOrderTotals(orderId);
+    } catch (error) {
+      console.error('Failed to update order totals:', error);
+    }
   };
 
   const handleSelectOrder = async (orderId: string) => {
