@@ -67,7 +67,6 @@ export function AppointmentsManagement() {
         event: '*',
         schema: 'public',
         table: 'appointments',
-        filter: `shop_id=eq.${admin.shop_id}`,
       }, () => {
         loadAppointments();
       })
