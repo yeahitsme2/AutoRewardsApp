@@ -45,8 +45,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       (async () => {
+        if (event === 'SIGNED_OUT') {
+          setSession(null);
+          setUser(null);
+          setCustomer(null);
+          setAdmin(null);
+          setSuperAdmin(null);
+          setLoading(false);
+          return;
+        }
+
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
@@ -221,23 +231,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+    } catch (error) {
+      console.error('Sign out error (ignored):', error);
+    }
+
     setUser(null);
     setSession(null);
     setCustomer(null);
     setAdmin(null);
     setSuperAdmin(null);
     setAuthError(null);
+
     try {
-      localStorage.removeItem('currentShop');
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('sb-') || key === 'currentShop')) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key));
     } catch (e) {
       console.warn('Failed to clear localStorage:', e);
     }
-    try {
-      await supabase.auth.signOut();
-    } catch (error) {
-      console.error('Sign out error (ignored):', error);
-    }
-    window.location.href = '/';
+
+    setTimeout(() => {
+      window.location.href = '/';
+    }, 100);
   };
 
   const refreshCustomer = async () => {
