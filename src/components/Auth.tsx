@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useBrand } from '../lib/BrandContext';
 import { useShop } from '../lib/ShopContext';
@@ -14,6 +14,15 @@ export function Auth() {
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    setEmail('');
+    setPassword('');
+    setFullName('');
+    setPhone('');
+    setError('');
+    setIsSignUp(false);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

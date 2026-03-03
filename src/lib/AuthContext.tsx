@@ -53,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await loadUserData(session.user.id);
         } else {
           setCustomer(null);
+          setAdmin(null);
           setSuperAdmin(null);
           setLoading(false);
         }
@@ -220,11 +221,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    try {
-      await supabase.auth.signOut();
-    } catch (error) {
-      console.error('Sign out error (ignored):', error);
-    }
     setUser(null);
     setSession(null);
     setCustomer(null);
@@ -236,8 +232,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       console.warn('Failed to clear localStorage:', e);
     }
-    window.history.pushState({}, '', '/');
-    window.location.reload();
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('Sign out error (ignored):', error);
+    }
+    window.location.href = '/';
   };
 
   const refreshCustomer = async () => {
