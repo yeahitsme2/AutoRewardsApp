@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
 import { logAuditEvent } from '../lib/audit';
-import { Boxes, Plus, ShoppingCart, Truck, AlertTriangle, Package, Search, CheckCircle, RefreshCcw, Edit2, X, Eye, ArrowRight } from 'lucide-react';
+import { Boxes, Plus, ShoppingCart, Truck, AlertTriangle, Package, Search, CheckCircle, RefreshCcw, CreditCard as Edit2, X, Eye, ArrowRight } from 'lucide-react';
 import type { InventoryTransaction, Part, PartLocation, PurchaseOrder, PurchaseOrderLine, RepairOrder, RepairOrderPartReservation, ShopLocation, Vendor } from '../types/database';
 
 type MainView = 'overview' | 'parts' | 'orders' | 'receiving';
