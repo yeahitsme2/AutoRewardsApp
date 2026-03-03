@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from './lib/AuthContext';
 import { useShop } from './lib/ShopContext';
 import { Auth } from './components/Auth';
@@ -6,6 +6,10 @@ import { CustomerDashboard } from './components/CustomerDashboard';
 import { AdminDashboard } from './components/AdminDashboard';
 import { SuperAdminDashboard } from './components/SuperAdminDashboard';
 import { TechnicianDashboard } from './components/TechnicianDashboard';
+import { LandingPage } from './components/LandingPage';
+import { ShopSignup } from './components/ShopSignup';
+
+type AppView = 'landing' | 'signup' | 'app';
 
 function getShopSlugFromUrl(): string {
   const hostname = window.location.hostname;
@@ -33,9 +37,26 @@ function getShopSlugFromUrl(): string {
 function App() {
   const { user, customer, admin, superAdmin, loading, signOut } = useAuth();
   const { loading: shopLoading, setShopById, setShopBySlug } = useShop();
+  const [view, setView] = useState<AppView>('landing');
 
   useEffect(() => {
-    if (loading) return;
+    const pathname = window.location.pathname;
+
+    if (pathname === '/signup') {
+      setView('signup');
+      return;
+    }
+
+    const slug = getShopSlugFromUrl();
+    if (user || slug) {
+      setView('app');
+    } else {
+      setView('landing');
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (loading || view !== 'app') return;
 
     if (admin?.shop_id) {
       setShopById(admin.shop_id);
@@ -47,7 +68,21 @@ function App() {
         setShopBySlug(slug);
       }
     }
-  }, [admin?.shop_id, customer?.shop_id, loading, user]);
+  }, [admin?.shop_id, customer?.shop_id, loading, user, view]);
+
+  if (view === 'landing') {
+    return <LandingPage onGetStarted={() => {
+      window.history.pushState({}, '', '/signup');
+      setView('signup');
+    }} />;
+  }
+
+  if (view === 'signup') {
+    return <ShopSignup onBack={() => {
+      window.history.pushState({}, '', '/');
+      setView('landing');
+    }} />;
+  }
 
   if (loading || (user && (admin || customer) && shopLoading)) {
     return (

@@ -62,6 +62,11 @@ export interface Database {
           name: string;
           slug: string;
           is_active: boolean;
+          trial_ends_at: string | null;
+          subscription_status: string;
+          subscription_tier: string;
+          onboarding_completed: boolean;
+          billing_email: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -70,6 +75,11 @@ export interface Database {
           name: string;
           slug: string;
           is_active?: boolean;
+          trial_ends_at?: string | null;
+          subscription_status?: string;
+          subscription_tier?: string;
+          onboarding_completed?: boolean;
+          billing_email?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -78,6 +88,11 @@ export interface Database {
           name?: string;
           slug?: string;
           is_active?: boolean;
+          trial_ends_at?: string | null;
+          subscription_status?: string;
+          subscription_tier?: string;
+          onboarding_completed?: boolean;
+          billing_email?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -1968,6 +1983,50 @@ export interface Database {
           auth?: string;
           created_at?: string;
           updated_at?: string;
+        };
+      };
+      shop_signup_requests: {
+        Row: {
+          id: string;
+          shop_name: string;
+          owner_name: string;
+          owner_email: string;
+          owner_phone: string | null;
+          business_address: string | null;
+          business_type: string | null;
+          number_of_bays: number | null;
+          status: string;
+          shop_id: string | null;
+          created_at: string;
+          processed_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          shop_name: string;
+          owner_name: string;
+          owner_email: string;
+          owner_phone?: string | null;
+          business_address?: string | null;
+          business_type?: string | null;
+          number_of_bays?: number | null;
+          status?: string;
+          shop_id?: string | null;
+          created_at?: string;
+          processed_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          shop_name?: string;
+          owner_name?: string;
+          owner_email?: string;
+          owner_phone?: string | null;
+          business_address?: string | null;
+          business_type?: string | null;
+          number_of_bays?: number | null;
+          status?: string;
+          shop_id?: string | null;
+          created_at?: string;
+          processed_at?: string | null;
         };
       };
       [key: string]: {
