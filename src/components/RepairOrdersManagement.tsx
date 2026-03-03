@@ -864,9 +864,15 @@ export function RepairOrdersManagement() {
 
     // Then sync with database
     try {
-      const { error } = await supabase.from('repair_order_items').delete().eq('id', itemId);
+      const { data, error } = await supabase.from('repair_order_items').delete().eq('id', itemId);
       if (error) {
-        console.error('Delete error:', error);
+        console.error('Delete error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+          error
+        });
         // Rollback on error
         setOrders((prev) =>
           prev.map((order) => {
@@ -874,7 +880,8 @@ export function RepairOrdersManagement() {
             return currentOrder;
           })
         );
-        throw error;
+        showMessage('error', `Failed to delete: ${error.message || error.details || 'Unknown error'}`);
+        return;
       }
 
       // Persist updated totals to database
@@ -889,7 +896,7 @@ export function RepairOrdersManagement() {
 
       showMessage('success', 'Line item deleted');
     } catch (error) {
-      console.error('Failed to delete line item:', error);
+      console.error('Failed to delete line item (caught):', error);
       showMessage('error', 'Failed to delete line item');
     }
   };
