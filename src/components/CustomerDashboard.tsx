@@ -448,6 +448,17 @@ export function CustomerDashboard() {
               <span className="text-sm sm:text-base">Vehicles</span>
             </button>
             <button
+              onClick={() => setActiveTab('profile')}
+              className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-3 font-medium transition-colors border-b-2 whitespace-nowrap flex-shrink-0"
+              style={activeTab === 'profile' ? {
+                borderBottomColor: brandSettings.primary_color,
+                color: brandSettings.primary_color
+              } : { borderBottomColor: 'transparent', color: '#475569' }}
+            >
+              <User className="w-5 h-5" />
+              <span className="text-sm sm:text-base">Profile</span>
+            </button>
+            <button
               onClick={() => setActiveTab('services')}
               className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-3 font-medium transition-colors border-b-2 whitespace-nowrap flex-shrink-0"
               style={activeTab === 'services' ? {
@@ -522,17 +533,6 @@ export function CustomerDashboard() {
             >
               <MessageSquare className="w-5 h-5" />
               <span className="text-sm sm:text-base">Messages</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('profile')}
-              className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-3 font-medium transition-colors border-b-2 whitespace-nowrap flex-shrink-0"
-              style={activeTab === 'profile' ? {
-                borderBottomColor: brandSettings.primary_color,
-                color: brandSettings.primary_color
-              } : { borderBottomColor: 'transparent', color: '#475569' }}
-            >
-              <User className="w-5 h-5" />
-              <span className="text-sm sm:text-base">Profile</span>
             </button>
           </div>
         </div>

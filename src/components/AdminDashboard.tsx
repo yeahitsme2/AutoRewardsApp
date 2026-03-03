@@ -640,6 +640,18 @@ export function AdminDashboard() {
                       <div className="text-sm text-slate-600 space-y-0.5">
                         <p>{cust.email}</p>
                         {cust.phone && <p>{cust.phone}</p>}
+                        {((cust as any).address_line1 || (cust as any).city || (cust as any).state || (cust as any).postal_code || (cust as any).country) && (
+                          <div className="mt-1 pt-1 border-t border-slate-100">
+                            {(cust as any).address_line1 && <p>{(cust as any).address_line1}</p>}
+                            {(cust as any).address_line2 && <p>{(cust as any).address_line2}</p>}
+                            {((cust as any).city || (cust as any).state || (cust as any).postal_code) && (
+                              <p>
+                                {[(cust as any).city, (cust as any).state, (cust as any).postal_code].filter(Boolean).join(', ')}
+                              </p>
+                            )}
+                            {(cust as any).country && <p>{(cust as any).country}</p>}
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="text-right whitespace-nowrap">
