@@ -1276,10 +1276,9 @@ export function RepairOrdersManagement() {
         setSelectedOrderId(null);
       }
 
-      const { error } = await supabase
-        .from('repair_orders')
-        .delete()
-        .eq('id', orderId);
+      const { error } = await supabase.rpc('delete_repair_order_with_items', {
+        p_repair_order_id: orderId
+      });
       if (error) throw error;
 
       setOrders((prev) => prev.filter((order) => order.id !== orderId));
