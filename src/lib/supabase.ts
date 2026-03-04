@@ -11,8 +11,7 @@ if (!supabaseAnonKey) {
   throw new Error('Missing VITE_SUPABASE_ANON_KEY environment variable');
 }
 
-const isDev = import.meta.env.DEV;
-const apiUrl = isDev ? window.location.origin + '/supabase' : supabaseUrl;
+const apiUrl = supabaseUrl;
 
 function isStorageAvailable() {
   try {
