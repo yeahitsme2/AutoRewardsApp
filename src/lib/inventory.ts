@@ -53,6 +53,45 @@ export async function reservePart(payload: ReservePartPayload) {
   return data as RepairOrderPartReservation;
 }
 
+type UnreservePartPayload = {
+  shopId: string;
+  reservationId: string;
+  partId: string;
+  locationId: string | null;
+  quantity: number;
+  orderId: string;
+  isSpecialOrder: boolean;
+};
+
+export async function unreservePart(payload: UnreservePartPayload) {
+  const { error: delError } = await supabase
+    .from('repair_order_part_reservations')
+    .delete()
+    .eq('id', payload.reservationId);
+  if (delError) throw delError;
+
+  if (!payload.isSpecialOrder && payload.locationId) {
+    await supabase.from('inventory_transactions').insert({
+      shop_id: payload.shopId,
+      location_id: payload.locationId,
+      part_id: payload.partId,
+      transaction_type: 'unreserve',
+      quantity: payload.quantity,
+      reference_type: 'ro',
+      reference_id: payload.orderId,
+    });
+  }
+
+  await logAuditEvent({
+    shopId: payload.shopId,
+    actorRole: 'admin',
+    eventType: 'inventory_unreserved',
+    entityType: 'repair_order',
+    entityId: payload.orderId,
+    metadata: { part_id: payload.partId, quantity: payload.quantity, reservation_id: payload.reservationId },
+  });
+}
+
 type ConsumeReservedPayload = {
   shopId: string;
   orderId: string;

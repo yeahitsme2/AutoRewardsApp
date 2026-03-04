@@ -10,7 +10,7 @@ import type { SelectedPartInfo } from './repair-orders/PartsPicker';
 import { ChatThread } from './ChatThread';
 import { logAuditEvent } from '../lib/audit';
 import { logOutboundMessage } from '../lib/messaging';
-import { consumeReservedParts as consumeReservedPartsAction, reservePart as reservePartAction } from '../lib/inventory';
+import { consumeReservedParts as consumeReservedPartsAction, reservePart as reservePartAction, unreservePart as unreservePartAction } from '../lib/inventory';
 import { buildMediaCounts, buildRecommendations, selectLatestReport, type DviRecommendation } from '../lib/dviRecommendations';
 import { getTierLevels } from '../lib/rewardsUtils';
 import type { Customer, DviItemMedia, DviReport, DviReportItem, Part, RepairOrder, RepairOrderItem, RepairOrderMarkupRule, RepairOrderPartReservation, ShopLocation, ShopSettings, Vehicle } from '../types/database';
@@ -713,6 +713,30 @@ export function RepairOrdersManagement() {
       );
     } catch (error) {
       console.error('Error consuming reserved parts:', error);
+    }
+  };
+
+  const handleUnreservePart = async (reservation: RepairOrderPartReservation) => {
+    if (!admin?.shop_id) return;
+    if (reservation.status === 'consumed') {
+      showMessage('error', 'Cannot unreserve a part that has already been installed');
+      return;
+    }
+    try {
+      await unreservePartAction({
+        shopId: admin.shop_id,
+        reservationId: reservation.id,
+        partId: reservation.part_id,
+        locationId: reservation.location_id,
+        quantity: reservation.quantity,
+        orderId: reservation.repair_order_id,
+        isSpecialOrder: Boolean(reservation.is_special_order),
+      });
+      setReservations((prev) => prev.filter((r) => r.id !== reservation.id));
+      showMessage('success', 'Part unreserved');
+    } catch (error) {
+      console.error('Error unreserving part:', error);
+      showMessage('error', 'Failed to unreserve part');
     }
   };
 
@@ -2157,15 +2181,33 @@ export function RepairOrdersManagement() {
                   {reservations.length > 0 && (
                     <div className="space-y-2">
                       {reservations.map((res) => (
-                        <div key={res.id} className="border border-slate-200 rounded-lg p-3 text-sm flex items-center justify-between">
-                          <div>
+                        <div key={res.id} className="border border-slate-200 rounded-lg p-3 text-sm flex items-center justify-between gap-3">
+                          <div className="flex-1 min-w-0">
                             <p className="font-medium text-slate-900">{parts.find((p) => p.id === res.part_id)?.name || 'Part'}</p>
                             <p className="text-xs text-slate-500">
                               {res.is_special_order ? 'Special order' : (locations.find((l) => l.id === res.location_id)?.name || 'Location')}
+                              {' · '}Qty {res.quantity}
                             </p>
                           </div>
-                          <div className="text-xs text-slate-600">
-                            Qty {res.quantity} - {res.job_status || res.status}
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                              res.status === 'consumed'
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : res.is_special_order
+                                ? 'bg-blue-100 text-blue-700'
+                                : 'bg-amber-100 text-amber-700'
+                            }`}>
+                              {res.status === 'consumed' ? 'Installed' : res.job_status || res.status}
+                            </span>
+                            {res.status !== 'consumed' && (
+                              <button
+                                onClick={() => handleUnreservePart(res)}
+                                className="px-2 py-1 text-xs rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors"
+                                title="Unreserve this part"
+                              >
+                                Unreserve
+                              </button>
+                            )}
                           </div>
                         </div>
                       ))}

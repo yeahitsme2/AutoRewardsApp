@@ -1327,7 +1327,7 @@ export interface Database {
           shop_id: string;
           location_id: string | null;
           part_id: string | null;
-          transaction_type: 'receive' | 'adjust' | 'reserve' | 'consume' | 'release';
+          transaction_type: 'receive' | 'adjust' | 'reserve' | 'unreserve' | 'consume' | 'release';
           quantity: number;
           reference_type: 'po' | 'ro' | 'adjustment' | null;
           reference_id: string | null;
@@ -1339,7 +1339,7 @@ export interface Database {
           shop_id: string;
           location_id?: string | null;
           part_id?: string | null;
-          transaction_type: 'receive' | 'adjust' | 'reserve' | 'consume' | 'release';
+          transaction_type: 'receive' | 'adjust' | 'reserve' | 'unreserve' | 'consume' | 'release';
           quantity: number;
           reference_type?: 'po' | 'ro' | 'adjustment' | null;
           reference_id?: string | null;
