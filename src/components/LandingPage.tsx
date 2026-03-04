@@ -159,7 +159,7 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-2">
               <Wrench className="w-8 h-8 text-blue-600" />
-              <span className="text-xl font-bold text-slate-900">ShopManager Pro</span>
+              <span className="text-xl font-bold text-slate-900">Drive Manager Pro</span>
             </div>
             <nav className="hidden md:flex items-center gap-8">
               <a href="#features" className="text-slate-600 hover:text-slate-900">Features</a>
@@ -422,7 +422,7 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
             <div>
               <div className="flex items-center gap-2 mb-4">
                 <Wrench className="w-6 h-6 text-blue-500" />
-                <span className="text-lg font-bold text-white">ShopManager Pro</span>
+                <span className="text-lg font-bold text-white">Drive Manager Pro</span>
               </div>
               <p className="text-sm">
                 Modern shop management software built for auto repair professionals.
@@ -453,7 +453,7 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
             </div>
           </div>
           <div className="border-t border-slate-800 mt-12 pt-8 text-center text-sm">
-            <p>© 2024 ShopManager Pro. All rights reserved.</p>
+            <p>© 2024 Drive Manager Pro. All rights reserved.</p>
           </div>
         </div>
       </footer>
