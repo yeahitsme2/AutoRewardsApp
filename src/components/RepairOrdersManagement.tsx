@@ -1033,7 +1033,8 @@ export function RepairOrdersManagement() {
         .eq('id', orderId);
       if (error) {
         console.error('Update error details:', error);
-        throw error;
+        const errorMessage = error.message || error.details || error.hint || 'Failed to update repair order';
+        throw new Error(errorMessage);
       }
 
       if (status === 'awaiting_approval' && order?.customer_id) {
@@ -1248,7 +1249,8 @@ export function RepairOrdersManagement() {
       );
     } catch (error) {
       console.error('Error updating RO status:', error);
-      showMessage('error', 'Failed to update repair order');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update repair order';
+      showMessage('error', errorMessage);
     }
   };
 
@@ -1279,12 +1281,13 @@ export function RepairOrdersManagement() {
         setSelectedOrderId(null);
       }
 
-      const { error } = await supabase.rpc('delete_repair_order_with_items', {
+      const { data, error } = await supabase.rpc('delete_repair_order_with_items', {
         p_repair_order_id: orderId
       });
       if (error) {
         console.error('Delete error details:', error);
-        throw error;
+        const errorMessage = error.message || error.details || error.hint || 'Failed to delete repair order';
+        throw new Error(errorMessage);
       }
 
       setOrders((prev) => prev.filter((order) => order.id !== orderId));
@@ -1298,7 +1301,8 @@ export function RepairOrdersManagement() {
       showMessage('success', 'Repair order deleted');
     } catch (error) {
       console.error('Error deleting repair order:', error);
-      showMessage('error', 'Failed to delete repair order');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete repair order';
+      showMessage('error', errorMessage);
     }
   };
   const handleCreateOrder = async () => {
