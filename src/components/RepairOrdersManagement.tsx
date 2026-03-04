@@ -1031,7 +1031,10 @@ export function RepairOrdersManagement() {
         .from('repair_orders')
         .update(updates)
         .eq('id', orderId);
-      if (error) throw error;
+      if (error) {
+        console.error('Update error details:', error);
+        throw error;
+      }
 
       if (status === 'awaiting_approval' && order?.customer_id) {
         await notifyCustomer({
