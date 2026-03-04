@@ -848,11 +848,6 @@ export function RepairOrdersManagement() {
     const currentOrder = orders.find((order) => order.id === orderId);
     if (!currentOrder) return;
 
-    const nextItems = currentOrder.items.filter((item) =>
-      item.id !== itemId && item.parent_item_id !== itemId
-    );
-    const totals = computeTotals(nextItems);
-
     try {
       const { error } = await supabase.from('repair_order_items').delete().eq('id', itemId);
       if (error) {
@@ -861,6 +856,11 @@ export function RepairOrdersManagement() {
         return;
       }
 
+      const nextItems = currentOrder.items.filter((item) =>
+        item.id !== itemId && item.parent_item_id !== itemId
+      );
+      const totals = computeTotals(nextItems);
+
       setOrders((prev) =>
         prev.map((order) => {
           if (order.id !== orderId) return order;
@@ -868,15 +868,7 @@ export function RepairOrdersManagement() {
         })
       );
 
-      const { error: updateError } = await supabase
-        .from('repair_orders')
-        .update({ ...totals, updated_at: new Date().toISOString() })
-        .eq('id', orderId);
-
-      if (updateError) {
-        console.error('Failed to update totals:', updateError);
-      }
-
+      await refreshOrderTotals(orderId);
       showMessage('success', 'Line item deleted');
     } catch (error) {
       console.error('Failed to delete line item:', error);
@@ -1260,7 +1252,7 @@ export function RepairOrdersManagement() {
     if (!confirmed) return;
 
     try {
-      const { error } = await supabase.rpc('delete_repair_order_with_items', {
+      const { data, error } = await supabase.rpc('delete_repair_order_with_items', {
         p_repair_order_id: orderId
       });
 
@@ -1268,6 +1260,12 @@ export function RepairOrdersManagement() {
         console.error('Delete error details:', error);
         const errorMessage = error.message || error.details || error.hint || 'Failed to delete repair order';
         showMessage('error', errorMessage);
+        return;
+      }
+
+      const result = data as { success: boolean; error?: string } | null;
+      if (result && !result.success) {
+        showMessage('error', result.error || 'Failed to delete repair order');
         return;
       }
 
