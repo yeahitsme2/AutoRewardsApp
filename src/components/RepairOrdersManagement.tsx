@@ -890,6 +890,25 @@ export function RepairOrdersManagement() {
     );
 
     try {
+      const linkedReservations = reservations.filter(
+        (r) => r.repair_order_item_id === itemId && r.status !== 'consumed'
+      );
+      for (const res of linkedReservations) {
+        try {
+          await unreservePartAction({
+            shopId: admin!.shop_id!,
+            reservationId: res.id,
+            partId: res.part_id,
+            locationId: res.location_id,
+            quantity: res.quantity,
+            orderId: orderId,
+            isSpecialOrder: Boolean(res.is_special_order),
+          });
+        } catch (unreserveErr) {
+          console.warn('Failed to unreserve part on item delete:', unreserveErr);
+        }
+      }
+
       const { error } = await supabase.from('repair_order_items').delete().eq('id', itemId);
       if (error) {
         console.error('Delete error details:', error);
@@ -901,6 +920,10 @@ export function RepairOrdersManagement() {
         );
         showMessage('error', `Failed to delete: ${error.message || 'Unknown error'}`);
         return;
+      }
+
+      if (linkedReservations.length > 0) {
+        setReservations((prev) => prev.filter((r) => !linkedReservations.some((lr) => lr.id === r.id)));
       }
 
       await supabase
