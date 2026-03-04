@@ -982,6 +982,8 @@ export interface Database {
           source_type: string | null;
           source_id: string | null;
           metadata: Record<string, unknown> | null;
+          part_id: string | null;
+          part_cost_snapshot: number | null;
           created_at: string;
         };
         Insert: {
@@ -999,6 +1001,8 @@ export interface Database {
           source_type?: string | null;
           source_id?: string | null;
           metadata?: Record<string, unknown> | null;
+          part_id?: string | null;
+          part_cost_snapshot?: number | null;
           created_at?: string;
         };
         Update: {
@@ -1016,6 +1020,8 @@ export interface Database {
           source_type?: string | null;
           source_id?: string | null;
           metadata?: Record<string, unknown> | null;
+          part_id?: string | null;
+          part_cost_snapshot?: number | null;
           created_at?: string;
         };
       };

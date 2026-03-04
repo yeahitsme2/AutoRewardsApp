@@ -5,6 +5,8 @@ import { useBrand } from '../lib/BrandContext';
 import { calculateTotalsWithSupplies } from '../lib/repairOrderTotals';
 import { notifyCustomer } from '../lib/notifications';
 import { AlertCircle, CheckCircle, ClipboardList, ClipboardCheck, DollarSign, Plus, Save, User, Car, X, MessageSquare, Boxes, AlertTriangle, Camera, Mic, Video } from 'lucide-react';
+import { PartsPicker, StockStatusBadge } from './repair-orders/PartsPicker';
+import type { SelectedPartInfo } from './repair-orders/PartsPicker';
 import { ChatThread } from './ChatThread';
 import { logAuditEvent } from '../lib/audit';
 import { logOutboundMessage } from '../lib/messaging';
@@ -65,6 +67,8 @@ const emptyItem = {
   unit_price: 0,
   taxable: false,
   parent_item_id: null as string | null,
+  part_id: null as string | null,
+  part_cost_snapshot: null as number | null,
 };
 
 const generateRoNumber = () => {
@@ -1377,6 +1381,8 @@ export function RepairOrdersManagement() {
             taxable: Boolean(draft.taxable),
             parent_item_id: draft.parent_item_id || null,
             status: 'pending',
+            part_id: draft.part_id || null,
+            part_cost_snapshot: draft.part_cost_snapshot ?? null,
           })
         .select('*')
         .single();
@@ -1387,7 +1393,6 @@ export function RepairOrdersManagement() {
       const nextItems = [...(currentOrder?.items || []), data as RepairOrderItem];
       const totals = computeTotals(nextItems);
 
-      // Update state with both items and totals in one update
       setOrders((prev) =>
         prev.map((order) => {
           if (order.id !== orderId) return order;
@@ -1398,6 +1403,23 @@ export function RepairOrdersManagement() {
         ...prev,
         [orderId]: { ...emptyItem, taxable: taxableTypes.includes('part'), unit_price: laborRate },
       }));
+
+      if (draft.part_id && admin?.shop_id && !isLabor) {
+        try {
+          const reservation = await reservePartAction({
+            shopId: admin.shop_id,
+            orderId,
+            partId: draft.part_id,
+            locationId: (draft as any)._locationId || '',
+            quantity: quantityValue,
+            isSpecialOrder: Boolean((draft as any)._isSpecialOrder),
+            repairOrderItemId: (data as RepairOrderItem).id,
+          });
+          setReservations((prev) => [...prev, reservation]);
+        } catch (reserveErr) {
+          console.warn('Auto-reserve failed (non-fatal):', reserveErr);
+        }
+      }
 
       // Persist totals to database
       try {
@@ -1899,10 +1921,23 @@ export function RepairOrdersManagement() {
                                     <p className="font-medium text-slate-900">{item.description}</p>
                                     <p className="text-xs text-slate-500">
                                       {item.item_type.toUpperCase()} - {item.item_type === 'labor' ? `${item.labor_hours ?? 0} hrs` : `Qty ${item.quantity}`} - ${item.unit_price.toFixed(2)}
+                                      {item.item_type === 'part' && item.part_cost_snapshot != null && (
+                                        <span className="ml-1 text-slate-400">(cost ${Number(item.part_cost_snapshot).toFixed(2)})</span>
+                                      )}
                                     </p>
-                                    <span className={`inline-flex text-xs px-2 py-0.5 rounded-full ${item.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : item.status === 'declined' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
-                                      {item.status || 'pending'}
-                                    </span>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className={`inline-flex text-xs px-2 py-0.5 rounded-full ${item.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : item.status === 'declined' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
+                                        {item.status || 'pending'}
+                                      </span>
+                                      {item.item_type === 'part' && (
+                                        <StockStatusBadge
+                                          partId={item.part_id}
+                                          repairOrderId={selectedOrder.id}
+                                          quantity={item.quantity}
+                                          reservations={reservations}
+                                        />
+                                      )}
+                                    </div>
                                   </>
                                 )}
                               </div>
@@ -1999,10 +2034,25 @@ export function RepairOrdersManagement() {
                                         ) : (
                                           <>
                                             <p className="font-medium text-slate-900">{child.description}</p>
-                                            <p className="text-xs text-slate-500">{child.item_type.toUpperCase()} - Qty {child.quantity} - ${child.unit_price.toFixed(2)}</p>
-                                            <span className={`inline-flex text-xs px-2 py-0.5 rounded-full ${child.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : child.status === 'declined' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
-                                              {child.status || 'pending'}
-                                            </span>
+                                            <p className="text-xs text-slate-500">
+                                              {child.item_type.toUpperCase()} - Qty {child.quantity} - ${child.unit_price.toFixed(2)}
+                                              {child.item_type === 'part' && child.part_cost_snapshot != null && (
+                                                <span className="ml-1 text-slate-400">(cost ${Number(child.part_cost_snapshot).toFixed(2)})</span>
+                                              )}
+                                            </p>
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                              <span className={`inline-flex text-xs px-2 py-0.5 rounded-full ${child.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : child.status === 'declined' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
+                                                {child.status || 'pending'}
+                                              </span>
+                                              {child.item_type === 'part' && (
+                                                <StockStatusBadge
+                                                  partId={child.part_id}
+                                                  repairOrderId={selectedOrder.id}
+                                                  quantity={child.quantity}
+                                                  reservations={reservations}
+                                                />
+                                              )}
+                                            </div>
                                           </>
                                         )}
                                       </div>
@@ -2180,6 +2230,9 @@ export function RepairOrdersManagement() {
                           [selectedOrder.id]: {
                             ...(prev[selectedOrder.id] || emptyItem),
                             item_type: e.target.value as RepairOrderItem['item_type'],
+                            part_id: null,
+                            part_cost_snapshot: null,
+                            description: e.target.value !== (prev[selectedOrder.id] || emptyItem).item_type ? '' : (prev[selectedOrder.id] || emptyItem).description,
                             unit_price: e.target.value === 'labor'
                               ? laborRate
                               : e.target.value === 'part'
@@ -2201,15 +2254,57 @@ export function RepairOrdersManagement() {
                         <option value="part">Part</option>
                         <option value="fee">Fee</option>
                     </select>
-                    <input
-                      value={(itemDrafts[selectedOrder.id] || emptyItem).description}
-                      onChange={(e) => setItemDrafts((prev) => ({
-                        ...prev,
-                        [selectedOrder.id]: { ...(prev[selectedOrder.id] || emptyItem), description: e.target.value },
-                      }))}
-                      placeholder="Description"
-                        className="border border-slate-300 rounded-lg px-3 py-2 text-sm md:col-span-2"
-                    />
+                      {(itemDrafts[selectedOrder.id] || emptyItem).item_type === 'part' ? (
+                        <div className="md:col-span-2">
+                          <PartsPicker
+                            shopId={admin?.shop_id || ''}
+                            markupRules={markupRules}
+                            locations={locations}
+                            selectedPartId={(itemDrafts[selectedOrder.id] || emptyItem).part_id}
+                            selectedPartName={(itemDrafts[selectedOrder.id] || emptyItem).description}
+                            quantity={(itemDrafts[selectedOrder.id] || emptyItem).quantity}
+                            onSelect={(info: SelectedPartInfo) => {
+                              setItemDrafts((prev) => ({
+                                ...prev,
+                                [selectedOrder.id]: {
+                                  ...(prev[selectedOrder.id] || emptyItem),
+                                  part_id: info.part.id,
+                                  part_cost_snapshot: info.unitCost,
+                                  description: info.part.name,
+                                  cost: info.unitCost,
+                                  unit_price: info.unitPrice,
+                                  taxable: info.part.taxable,
+                                  _locationId: info.location?.location_id || '',
+                                  _isSpecialOrder: info.isSpecialOrder,
+                                } as typeof emptyItem & { _locationId: string; _isSpecialOrder: boolean },
+                              }));
+                            }}
+                            onClear={() => {
+                              setItemDrafts((prev) => ({
+                                ...prev,
+                                [selectedOrder.id]: {
+                                  ...(prev[selectedOrder.id] || emptyItem),
+                                  part_id: null,
+                                  part_cost_snapshot: null,
+                                  description: '',
+                                  cost: 0,
+                                  unit_price: 0,
+                                },
+                              }));
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <input
+                          value={(itemDrafts[selectedOrder.id] || emptyItem).description}
+                          onChange={(e) => setItemDrafts((prev) => ({
+                            ...prev,
+                            [selectedOrder.id]: { ...(prev[selectedOrder.id] || emptyItem), description: e.target.value },
+                          }))}
+                          placeholder="Description"
+                          className="border border-slate-300 rounded-lg px-3 py-2 text-sm md:col-span-2"
+                        />
+                      )}
                       {(itemDrafts[selectedOrder.id] || emptyItem).item_type !== 'labor' && (
                         <input
                           type="number"
@@ -2244,7 +2339,7 @@ export function RepairOrdersManagement() {
                           className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
                         />
                       )}
-                      {(itemDrafts[selectedOrder.id] || emptyItem).item_type === 'part' && (
+                      {(itemDrafts[selectedOrder.id] || emptyItem).item_type === 'part' && !(itemDrafts[selectedOrder.id] || emptyItem).part_id && (
                         <input
                           type="number"
                           min={0}
