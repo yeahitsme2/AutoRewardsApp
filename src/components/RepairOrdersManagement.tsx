@@ -848,43 +848,26 @@ export function RepairOrdersManagement() {
     const currentOrder = orders.find((order) => order.id === orderId);
     if (!currentOrder) return;
 
-    // Filter out the deleted item AND any child items (CASCADE delete handles DB, we handle state)
     const nextItems = currentOrder.items.filter((item) =>
       item.id !== itemId && item.parent_item_id !== itemId
     );
     const totals = computeTotals(nextItems);
 
-    // Optimistically update state immediately for instant UI feedback
-    setOrders((prev) =>
-      prev.map((order) => {
-        if (order.id !== orderId) return order;
-        return { ...order, items: nextItems, ...totals };
-      })
-    );
-
-    // Then sync with database
     try {
-      const { data, error } = await supabase.from('repair_order_items').delete().eq('id', itemId);
+      const { error } = await supabase.from('repair_order_items').delete().eq('id', itemId);
       if (error) {
-        console.error('Delete error details:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code,
-          error
-        });
-        // Rollback on error
-        setOrders((prev) =>
-          prev.map((order) => {
-            if (order.id !== orderId) return order;
-            return currentOrder;
-          })
-        );
-        showMessage('error', `Failed to delete: ${error.message || error.details || 'Unknown error'}`);
+        console.error('Delete error details:', error);
+        showMessage('error', `Failed to delete: ${error.message || 'Unknown error'}`);
         return;
       }
 
-      // Persist updated totals to database
+      setOrders((prev) =>
+        prev.map((order) => {
+          if (order.id !== orderId) return order;
+          return { ...order, items: nextItems, ...totals };
+        })
+      );
+
       const { error: updateError } = await supabase
         .from('repair_orders')
         .update({ ...totals, updated_at: new Date().toISOString() })
@@ -896,7 +879,7 @@ export function RepairOrdersManagement() {
 
       showMessage('success', 'Line item deleted');
     } catch (error) {
-      console.error('Failed to delete line item (caught):', error);
+      console.error('Failed to delete line item:', error);
       showMessage('error', 'Failed to delete line item');
     }
   };
@@ -1277,17 +1260,19 @@ export function RepairOrdersManagement() {
     if (!confirmed) return;
 
     try {
-      if (selectedOrderId === orderId) {
-        setSelectedOrderId(null);
-      }
-
-      const { data, error } = await supabase.rpc('delete_repair_order_with_items', {
+      const { error } = await supabase.rpc('delete_repair_order_with_items', {
         p_repair_order_id: orderId
       });
+
       if (error) {
         console.error('Delete error details:', error);
         const errorMessage = error.message || error.details || error.hint || 'Failed to delete repair order';
-        throw new Error(errorMessage);
+        showMessage('error', errorMessage);
+        return;
+      }
+
+      if (selectedOrderId === orderId) {
+        setSelectedOrderId(null);
       }
 
       setOrders((prev) => prev.filter((order) => order.id !== orderId));
