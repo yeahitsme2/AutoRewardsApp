@@ -848,30 +848,47 @@ export function RepairOrdersManagement() {
     const currentOrder = orders.find((order) => order.id === orderId);
     if (!currentOrder) return;
 
+    const previousItems = currentOrder.items;
+    const nextItems = currentOrder.items.filter((item) =>
+      item.id !== itemId && item.parent_item_id !== itemId
+    );
+    const totals = computeTotals(nextItems);
+
+    setOrders((prev) =>
+      prev.map((order) => {
+        if (order.id !== orderId) return order;
+        return { ...order, items: nextItems, ...totals };
+      })
+    );
+
     try {
       const { error } = await supabase.from('repair_order_items').delete().eq('id', itemId);
       if (error) {
         console.error('Delete error details:', error);
+        setOrders((prev) =>
+          prev.map((order) => {
+            if (order.id !== orderId) return order;
+            return { ...order, items: previousItems, ...computeTotals(previousItems) };
+          })
+        );
         showMessage('error', `Failed to delete: ${error.message || 'Unknown error'}`);
         return;
       }
 
-      const nextItems = currentOrder.items.filter((item) =>
-        item.id !== itemId && item.parent_item_id !== itemId
-      );
-      const totals = computeTotals(nextItems);
+      await supabase
+        .from('repair_orders')
+        .update({ ...totals, updated_at: new Date().toISOString() })
+        .eq('id', orderId);
 
-      setOrders((prev) =>
-        prev.map((order) => {
-          if (order.id !== orderId) return order;
-          return { ...order, items: nextItems, ...totals };
-        })
-      );
-
-      await refreshOrderTotals(orderId);
       showMessage('success', 'Line item deleted');
     } catch (error) {
       console.error('Failed to delete line item:', error);
+      setOrders((prev) =>
+        prev.map((order) => {
+          if (order.id !== orderId) return order;
+          return { ...order, items: previousItems, ...computeTotals(previousItems) };
+        })
+      );
       showMessage('error', 'Failed to delete line item');
     }
   };
