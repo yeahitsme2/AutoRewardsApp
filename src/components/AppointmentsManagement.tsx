@@ -44,6 +44,7 @@ export function AppointmentsManagement() {
   const [selectedAppointmentType, setSelectedAppointmentType] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [timeRange, setTimeRange] = useState<'30' | '90' | 'all'>('30');
 
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; appointment: AppointmentWithDetails | null }>({ isOpen: false, appointment: null });
   const [cancelModal, setCancelModal] = useState<{ isOpen: boolean; appointment: AppointmentWithDetails | null }>({ isOpen: false, appointment: null });
@@ -365,6 +366,7 @@ export function AppointmentsManagement() {
     setSelectedAppointmentType('');
     setDateFrom('');
     setDateTo('');
+    setTimeRange('30');
   };
 
   let filteredAppointments = filterAppointments(
@@ -375,6 +377,16 @@ export function AppointmentsManagement() {
     dateFrom,
     dateTo
   );
+
+  if (timeRange !== 'all') {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - parseInt(timeRange));
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+    filteredAppointments = filteredAppointments.filter(apt => {
+      const aptDate = apt.scheduled_date || apt.created_at?.slice(0, 10) || '';
+      return aptDate >= cutoffStr;
+    });
+  }
 
   if (filter !== 'all') {
     filteredAppointments = filteredAppointments.filter(apt => apt.status === filter);
@@ -453,6 +465,24 @@ export function AppointmentsManagement() {
           brandColor={brandSettings.primary_color}
         />
       )}
+
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-sm text-slate-500 font-medium">Showing:</span>
+        {([{ value: '30', label: 'Last 30 days' }, { value: '90', label: 'Last 90 days' }, { value: 'all', label: 'All time' }] as const).map(({ value, label }) => (
+          <button
+            key={value}
+            onClick={() => setTimeRange(value)}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              timeRange === value
+                ? 'text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+            style={timeRange === value ? { backgroundColor: brandSettings.primary_color } : undefined}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
       <div className="flex items-center justify-between">
         <div className="flex gap-2 flex-wrap">
