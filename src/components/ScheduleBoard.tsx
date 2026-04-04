@@ -454,7 +454,6 @@ export function ScheduleBoard() {
         location_id: formData.location_id || null,
         appointment_type_id: formData.appointment_type_id || null,
         duration_minutes: formData.duration_minutes || null,
-        resource_id: formData.resource_id || null,
       };
       const { data: inserted, error: insertError } = await supabase.from('appointments').insert({
         ...appointmentPayload,
