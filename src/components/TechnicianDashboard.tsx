@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
@@ -6,7 +6,7 @@ import { logAuditEvent } from '../lib/audit';
 import { logOutboundMessage } from '../lib/messaging';
 import { buildCustomReportItem, buildReportItems } from '../lib/dvi';
 import { notifyCustomer } from '../lib/notifications';
-import { CheckCircle, ListChecks, Loader2, Plus, Save, Send, SlidersHorizontal } from 'lucide-react';
+import { CheckCircle, ListChecks, Loader2, LogOut, Plus, Save, Send, SlidersHorizontal } from 'lucide-react';
 import { TechnicianRoQueue } from './technician/TechnicianRoQueue';
 import { ItemDetailDrawer, MediaAttachment } from './technician/ItemDetailDrawer';
 import type {
@@ -920,8 +920,9 @@ export function TechnicianDashboard() {
             </div>
             <button
               onClick={signOut}
-              className="px-4 py-2 border border-slate-300 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900"
+              className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition-colors"
             >
+              <LogOut size={15} />
               Sign Out
             </button>
           </div>
