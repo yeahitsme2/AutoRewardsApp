@@ -970,7 +970,7 @@ export interface Database {
         Row: {
           id: string;
           repair_order_id: string;
-          item_type: 'labor' | 'part' | 'fee';
+          item_type: 'labor' | 'part' | 'fee' | 'discount';
           description: string;
           quantity: number;
           labor_hours: number | null;
@@ -984,12 +984,13 @@ export interface Database {
           metadata: Record<string, unknown> | null;
           part_id: string | null;
           part_cost_snapshot: number | null;
+          customer_notes: string | null;
           created_at: string;
         };
         Insert: {
           id?: string;
           repair_order_id: string;
-          item_type: 'labor' | 'part' | 'fee';
+          item_type: 'labor' | 'part' | 'fee' | 'discount';
           description: string;
           quantity: number;
           labor_hours?: number | null;
@@ -1003,12 +1004,13 @@ export interface Database {
           metadata?: Record<string, unknown> | null;
           part_id?: string | null;
           part_cost_snapshot?: number | null;
+          customer_notes?: string | null;
           created_at?: string;
         };
         Update: {
           id?: string;
           repair_order_id?: string;
-          item_type?: 'labor' | 'part' | 'fee';
+          item_type?: 'labor' | 'part' | 'fee' | 'discount';
           description?: string;
           quantity?: number;
           labor_hours?: number | null;
@@ -1022,6 +1024,7 @@ export interface Database {
           metadata?: Record<string, unknown> | null;
           part_id?: string | null;
           part_cost_snapshot?: number | null;
+          customer_notes?: string | null;
           created_at?: string;
         };
       };

@@ -4,7 +4,7 @@ import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
 import { calculateTotalsWithSupplies } from '../lib/repairOrderTotals';
 import { notifyCustomer } from '../lib/notifications';
-import { AlertCircle, CheckCircle, ClipboardList, ClipboardCheck, DollarSign, Plus, Save, User, Car, X, MessageSquare, Boxes, AlertTriangle, Camera, Mic, Video } from 'lucide-react';
+import { AlertCircle, CheckCircle, ClipboardList, ClipboardCheck, DollarSign, Plus, Save, User, Car, X, MessageSquare, Boxes, AlertTriangle, Camera, Mic, Video, Copy, RefreshCw, Tag } from 'lucide-react';
 import { PartsPicker, StockStatusBadge } from './repair-orders/PartsPicker';
 import type { SelectedPartInfo } from './repair-orders/PartsPicker';
 import { ChatThread } from './ChatThread';
@@ -40,6 +40,14 @@ type RepairOrderStatus = RepairOrder['status'];
 
 const statusOptions: RepairOrderStatus[] = ['draft', 'awaiting_approval', 'approved', 'declined', 'inspection_complete', 'closed'];
 
+type ConfirmModalConfig = {
+  title: string;
+  body: string;
+  confirmLabel: string;
+  confirmStyle?: string;
+  onConfirm: () => void;
+};
+
 const statusLabels: Record<RepairOrderStatus, string> = {
   draft: 'Draft',
   awaiting_approval: 'Awaiting Approval',
@@ -69,6 +77,7 @@ const emptyItem = {
   parent_item_id: null as string | null,
   part_id: null as string | null,
   part_cost_snapshot: null as number | null,
+  customer_notes: '' as string,
 };
 
 const generateRoNumber = () => {
@@ -131,6 +140,10 @@ export function RepairOrdersManagement() {
   );
   const pastOrders = useMemo(
     () => orders.filter((order) => order.status === 'closed'),
+    [orders]
+  );
+  const awaitingApprovalCount = useMemo(
+    () => orders.filter((order) => order.status === 'awaiting_approval').length,
     [orders]
   );
   const filteredPriority = useMemo(() => {
@@ -217,6 +230,8 @@ export function RepairOrdersManagement() {
     is_special_order: false,
   });
   const [showChat, setShowChat] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<ConfirmModalConfig | null>(null);
+  const [duplicating, setDuplicating] = useState(false);
   const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reloadItemsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reloadDviTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -788,6 +803,7 @@ export function RepairOrdersManagement() {
         unit_price: item.unit_price,
         taxable: item.taxable,
         parent_item_id: item.parent_item_id || null,
+        customer_notes: (item as any).customer_notes || '',
       },
     }));
   };
@@ -834,6 +850,7 @@ export function RepairOrdersManagement() {
           taxable: Boolean(draft.taxable),
           status: draft.status || 'pending',
           parent_item_id: draft.parent_item_id || null,
+          customer_notes: (draft as any).customer_notes?.trim() || null,
         })
         .eq('id', itemId)
         .select('*')
@@ -876,8 +893,8 @@ export function RepairOrdersManagement() {
     const currentOrder = orders.find((order) => order.id === orderId);
     if (!currentOrder) return;
 
-    const previousItems = currentOrder.items;
-    const nextItems = currentOrder.items.filter((item) =>
+    const previousItems = currentOrder.items || [];
+    const nextItems = (currentOrder.items || []).filter((item) =>
       item.id !== itemId && item.parent_item_id !== itemId
     );
     const totals = computeTotals(nextItems);
@@ -991,30 +1008,17 @@ export function RepairOrdersManagement() {
       .filter((i) => i.item_type === 'part')
       .reduce((sum, i) => sum + computeLineTotal(i), 0);
     const fees_total = eligible
-      .filter((i) => i.item_type === 'fee')
-      .reduce((sum, i) => sum + computeLineTotal(i), 0);
+      .filter((i) => i.item_type === 'fee' || i.item_type === 'discount')
+      .reduce((sum, i) => {
+        const lineTotal = computeLineTotal(i);
+        return i.item_type === 'discount' ? sum - Math.abs(lineTotal) : sum + lineTotal;
+      }, 0);
     const taxableSubtotal = eligible.filter((i) => i.taxable).reduce((sum, i) => sum + computeLineTotal(i), 0);
     const tax_total = roundToCents(taxableSubtotal * (taxRate / 100));
     const grand_total = roundToCents(labor_total + parts_total + fees_total + tax_total);
     return { labor_total, parts_total, fees_total, tax_total, grand_total };
   };
 
-  const refreshOrderTotals = async (orderId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('repair_orders')
-        .select('id, labor_total, parts_total, fees_total, tax_total, grand_total, supplies_amount')
-        .eq('id', orderId)
-        .maybeSingle();
-      if (error) throw error;
-      if (!data) return;
-      setOrders((prev) =>
-        prev.map((order) => (order.id === orderId ? { ...order, ...data } : order))
-      );
-    } catch (error) {
-      console.error('Failed to refresh order totals:', error);
-    }
-  };
 
   const updateOrderTotals = async (orderId: string, items: RepairOrderItem[]) => {
     try {
@@ -1048,6 +1052,33 @@ export function RepairOrdersManagement() {
       }
     }
     await loadReservations(orderId);
+  };
+
+  const requestStatusChange = (orderId: string, status: RepairOrderStatus) => {
+    const order = orders.find((o) => o.id === orderId);
+    if (!order) return;
+    const totals = getDisplayTotals(order);
+    const customer = order.customer;
+
+    if (status === 'awaiting_approval') {
+      setConfirmModal({
+        title: 'Send Estimate for Approval',
+        body: `Send this ${totals.grand_total.toFixed(2) !== '0.00' ? `$${totals.grand_total.toFixed(2)} ` : ''}estimate to ${customer?.full_name || 'the customer'} for review? They will be notified and can approve or decline.`,
+        confirmLabel: 'Send to Customer',
+        confirmStyle: 'bg-yellow-500 hover:bg-yellow-600 text-white',
+        onConfirm: () => { setConfirmModal(null); handleStatusChange(orderId, status); },
+      });
+    } else if (status === 'closed') {
+      setConfirmModal({
+        title: 'Close Repair Order',
+        body: `Closing this RO will consume reserved parts, award loyalty points, and send a pickup notification to ${customer?.full_name || 'the customer'}. This cannot be undone.`,
+        confirmLabel: 'Close RO',
+        confirmStyle: 'bg-slate-700 hover:bg-slate-800 text-white',
+        onConfirm: () => { setConfirmModal(null); handleStatusChange(orderId, status); },
+      });
+    } else {
+      handleStatusChange(orderId, status);
+    }
   };
 
   const handleStatusChange = async (orderId: string, status: RepairOrderStatus) => {
@@ -1356,6 +1387,169 @@ export function RepairOrdersManagement() {
       showMessage('error', errorMessage);
     }
   };
+  const handleDuplicateOrder = async (orderId: string) => {
+    if (!admin?.shop_id) return;
+    setDuplicating(true);
+    try {
+      const source = orders.find((o) => o.id === orderId);
+      if (!source) return;
+      const now = new Date().toISOString();
+      const { data: newRo, error: roError } = await supabase
+        .from('repair_orders')
+        .insert({
+          shop_id: admin.shop_id,
+          customer_id: source.customer_id,
+          vehicle_id: source.vehicle_id || null,
+          status: 'draft',
+          ro_number: generateRoNumber(),
+          internal_notes: source.internal_notes || null,
+          labor_total: 0,
+          parts_total: 0,
+          fees_total: 0,
+          tax_total: 0,
+          grand_total: 0,
+          created_at: now,
+          updated_at: now,
+          customer_notified_at: null,
+        })
+        .select('*')
+        .single();
+      if (roError) throw roError;
+
+      const sourceItems = source.items || [];
+      if (sourceItems.length > 0) {
+        const parentItems = sourceItems.filter((i) => !i.parent_item_id);
+        const idMap: Record<string, string> = {};
+
+        for (const item of parentItems) {
+          const { data: newItem, error: itemErr } = await supabase
+            .from('repair_order_items')
+            .insert({
+              repair_order_id: newRo.id,
+              item_type: item.item_type,
+              description: item.description,
+              quantity: item.quantity,
+              labor_hours: item.labor_hours,
+              unit_price: item.unit_price,
+              total: item.total,
+              taxable: item.taxable,
+              status: 'pending',
+              parent_item_id: null,
+              part_id: item.part_id || null,
+              part_cost_snapshot: item.part_cost_snapshot ?? null,
+              customer_notes: (item as any).customer_notes || null,
+            })
+            .select('id')
+            .single();
+          if (itemErr) throw itemErr;
+          idMap[item.id] = newItem.id;
+        }
+
+        const childItems = sourceItems.filter((i) => i.parent_item_id);
+        for (const item of childItems) {
+          const mappedParentId = item.parent_item_id ? (idMap[item.parent_item_id] || null) : null;
+          await supabase.from('repair_order_items').insert({
+            repair_order_id: newRo.id,
+            item_type: item.item_type,
+            description: item.description,
+            quantity: item.quantity,
+            labor_hours: item.labor_hours,
+            unit_price: item.unit_price,
+            total: item.total,
+            taxable: item.taxable,
+            status: 'pending',
+            parent_item_id: mappedParentId,
+            part_id: item.part_id || null,
+            part_cost_snapshot: item.part_cost_snapshot ?? null,
+            customer_notes: (item as any).customer_notes || null,
+          });
+        }
+
+        const { data: copiedItems } = await supabase
+          .from('repair_order_items')
+          .select('*')
+          .eq('repair_order_id', newRo.id)
+          .order('created_at', { ascending: true });
+
+        const nextItems = (copiedItems || []) as RepairOrderItem[];
+        const totals = computeTotals(nextItems);
+        await supabase.from('repair_orders').update({ ...totals, updated_at: now }).eq('id', newRo.id);
+
+        const customer = customers.find((c) => c.id === newRo.customer_id);
+        const vehicle = vehicles.find((v) => v.id === newRo.vehicle_id) || null;
+        setOrders((prev) => [{ ...(newRo as RepairOrder), ...totals, customer, vehicle, items: nextItems }, ...prev]);
+      } else {
+        const customer = customers.find((c) => c.id === newRo.customer_id);
+        const vehicle = vehicles.find((v) => v.id === newRo.vehicle_id) || null;
+        setOrders((prev) => [{ ...(newRo as RepairOrder), customer, vehicle }, ...prev]);
+      }
+
+      showMessage('success', 'Repair order duplicated');
+      setSelectedOrderId(newRo.id);
+    } catch (error) {
+      console.error('Error duplicating repair order:', error);
+      showMessage('error', 'Failed to duplicate repair order');
+    } finally {
+      setDuplicating(false);
+    }
+  };
+
+  const handleReviseOrder = async (orderId: string) => {
+    try {
+      const { error } = await supabase
+        .from('repair_orders')
+        .update({
+          status: 'draft',
+          customer_signature: null,
+          customer_signature_name: null,
+          customer_signature_status: null,
+          customer_signature_at: null,
+          has_signature: false,
+          customer_declined_at: null,
+          customer_notes: null,
+          customer_approved_at: null,
+          approved_at: null,
+          approved_by: null,
+          customer_notified_at: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', orderId);
+      if (error) throw error;
+
+      await supabase
+        .from('repair_order_items')
+        .update({ status: 'pending' })
+        .eq('repair_order_id', orderId);
+
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === orderId
+            ? {
+                ...o,
+                status: 'draft',
+                customer_signature: null,
+                customer_signature_name: null,
+                customer_signature_status: null,
+                customer_signature_at: null,
+                has_signature: false,
+                customer_declined_at: null,
+                customer_notes: null,
+                customer_approved_at: null,
+                approved_at: null,
+                approved_by: null,
+                customer_notified_at: null,
+                items: (o.items || []).map((item) => ({ ...item, status: 'pending' })),
+              } as RepairOrderWithDetails
+            : o
+        )
+      );
+      showMessage('success', 'Repair order reset to draft for revision');
+    } catch (error) {
+      console.error('Error revising repair order:', error);
+      showMessage('error', 'Failed to revise repair order');
+    }
+  };
+
   const handleCreateOrder = async () => {
     if (!admin?.shop_id || !newOrder.customer_id) {
       showMessage('error', 'Select a customer before creating an order');
@@ -1430,6 +1624,7 @@ export function RepairOrdersManagement() {
             status: 'pending',
             part_id: draft.part_id || null,
             part_cost_snapshot: draft.part_cost_snapshot ?? null,
+            customer_notes: draft.customer_notes?.trim() || null,
           })
         .select('*')
         .single();
@@ -1710,7 +1905,14 @@ export function RepairOrdersManagement() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="space-y-4 lg:col-span-1">
             <div className="space-y-3">
-              <div className="text-xs uppercase tracking-[0.3em] text-slate-400">Open</div>
+              <div className="flex items-center justify-between">
+                <div className="text-xs uppercase tracking-[0.3em] text-slate-400">Open</div>
+                {awaitingApprovalCount > 0 && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 font-medium">
+                    {awaitingApprovalCount} awaiting approval
+                  </span>
+                )}
+              </div>
               {openOrders.length === 0 && (
                 <p className="text-sm text-slate-500">No open repair orders.</p>
               )}
@@ -1721,7 +1923,11 @@ export function RepairOrdersManagement() {
                     key={order.id}
                     onClick={() => handleSelectOrder(order.id)}
                     className={`w-full text-left rounded-xl border p-4 transition-colors ${
-                      order.id === selectedOrderId ? 'border-slate-400 bg-slate-50' : 'border-slate-200 bg-white hover:bg-slate-50'
+                      order.id === selectedOrderId
+                        ? 'border-slate-400 bg-slate-50'
+                        : order.status === 'awaiting_approval'
+                        ? 'border-yellow-200 bg-yellow-50 hover:bg-yellow-100'
+                        : 'border-slate-200 bg-white hover:bg-slate-50'
                     }`}
                   >
                     <div className="flex items-start justify-between">
@@ -1729,6 +1935,7 @@ export function RepairOrdersManagement() {
                         <p className="font-semibold text-slate-900">{order.ro_number}</p>
                         <p className="text-sm text-slate-600">{getCustomerLabel(order.customer)}</p>
                         <p className="text-xs text-slate-500">{getVehicleLabel(order.vehicle)}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">{new Date(order.created_at).toLocaleDateString()}</p>
                       </div>
                       <span className={`text-xs px-2 py-1 rounded-full ${statusStyles[order.status].bg} ${statusStyles[order.status].text}`}>
                         {statusLabels[order.status]}
@@ -1835,7 +2042,7 @@ export function RepairOrdersManagement() {
                   </div>
                   <select
                     value={selectedOrder.status}
-                    onChange={(e) => handleStatusChange(selectedOrder.id, e.target.value as RepairOrderStatus)}
+                    onChange={(e) => requestStatusChange(selectedOrder.id, e.target.value as RepairOrderStatus)}
                     className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
                   >
                     {statusOptions.map((status) => (
@@ -1887,6 +2094,12 @@ export function RepairOrdersManagement() {
                                       value={String(draft.description || '')}
                                       onChange={(e) => updateEditDraft(item.id, { description: e.target.value })}
                                       className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                    />
+                                    <input
+                                      value={String((draft as any).customer_notes || '')}
+                                      onChange={(e) => updateEditDraft(item.id, { customer_notes: e.target.value } as any)}
+                                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                      placeholder="Customer-visible note (optional)"
                                     />
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                                       {draft.item_type === 'labor' ? (
@@ -1965,13 +2178,19 @@ export function RepairOrdersManagement() {
                                   </>
                                 ) : (
                                   <>
-                                    <p className="font-medium text-slate-900">{item.description}</p>
+                                    <div className="flex items-center gap-2">
+                                      {item.item_type === 'discount' && <Tag className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
+                                      <p className={`font-medium ${item.item_type === 'discount' ? 'text-emerald-700' : 'text-slate-900'}`}>{item.description}</p>
+                                    </div>
                                     <p className="text-xs text-slate-500">
-                                      {item.item_type.toUpperCase()} - {item.item_type === 'labor' ? `${item.labor_hours ?? 0} hrs` : `Qty ${item.quantity}`} - ${item.unit_price.toFixed(2)}
+                                      {item.item_type === 'discount' ? 'DISCOUNT' : item.item_type.toUpperCase()} - {item.item_type === 'labor' ? `${item.labor_hours ?? 0} hrs` : `Qty ${item.quantity}`} - ${item.unit_price.toFixed(2)}
                                       {item.item_type === 'part' && item.part_cost_snapshot != null && (
                                         <span className="ml-1 text-slate-400">(cost ${Number(item.part_cost_snapshot).toFixed(2)})</span>
                                       )}
                                     </p>
+                                    {(item as any).customer_notes && (
+                                      <p className="text-xs text-blue-600 mt-0.5">{(item as any).customer_notes}</p>
+                                    )}
                                     <div className="flex items-center gap-2 flex-wrap">
                                       <span className={`inline-flex text-xs px-2 py-0.5 rounded-full ${item.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : item.status === 'declined' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
                                         {item.status || 'pending'}
@@ -1989,7 +2208,9 @@ export function RepairOrdersManagement() {
                                 )}
                               </div>
                               <div className="flex flex-col items-end gap-2">
-                                        <div className="font-semibold text-slate-900">${computeLineTotal(item).toFixed(2)}</div>
+                                        <div className={`font-semibold ${item.item_type === 'discount' ? 'text-emerald-600' : 'text-slate-900'}`}>
+                                          {item.item_type === 'discount' ? '-' : ''}${computeLineTotal(item).toFixed(2)}
+                                        </div>
                                 {isEditing ? (
                                   <div className="flex gap-2">
                                     <button
@@ -2318,6 +2539,7 @@ export function RepairOrdersManagement() {
                         <option value="labor">Labor</option>
                         <option value="part">Part</option>
                         <option value="fee">Fee</option>
+                        <option value="discount">Discount</option>
                     </select>
                       {(itemDrafts[selectedOrder.id] || emptyItem).item_type === 'part' ? (
                         <div className="md:col-span-2">
@@ -2457,26 +2679,37 @@ export function RepairOrdersManagement() {
                         </select>
                       )}
                   </div>
-                  <div className="flex items-center justify-between">
-                    <label className="flex items-center gap-2 text-sm text-slate-600">
-                      <input
-                        type="checkbox"
-                        checked={(itemDrafts[selectedOrder.id] || emptyItem).taxable}
-                        onChange={(e) => setItemDrafts((prev) => ({
-                          ...prev,
-                          [selectedOrder.id]: { ...(prev[selectedOrder.id] || emptyItem), taxable: e.target.checked },
-                        }))}
-                      />
-                      Taxable
-                    </label>
-                    <button
-                      onClick={() => handleAddItem(selectedOrder.id)}
-                      className="flex items-center gap-2 px-4 py-2 text-white rounded-lg"
-                      style={{ backgroundColor: brandSettings.primary_color }}
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add Item
-                    </button>
+                  <div className="space-y-2">
+                    <input
+                      value={(itemDrafts[selectedOrder.id] || emptyItem).customer_notes || ''}
+                      onChange={(e) => setItemDrafts((prev) => ({
+                        ...prev,
+                        [selectedOrder.id]: { ...(prev[selectedOrder.id] || emptyItem), customer_notes: e.target.value },
+                      }))}
+                      placeholder="Customer-visible note (optional)"
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                    />
+                    <div className="flex items-center justify-between">
+                      <label className="flex items-center gap-2 text-sm text-slate-600">
+                        <input
+                          type="checkbox"
+                          checked={(itemDrafts[selectedOrder.id] || emptyItem).taxable}
+                          onChange={(e) => setItemDrafts((prev) => ({
+                            ...prev,
+                            [selectedOrder.id]: { ...(prev[selectedOrder.id] || emptyItem), taxable: e.target.checked },
+                          }))}
+                        />
+                        Taxable
+                      </label>
+                      <button
+                        onClick={() => handleAddItem(selectedOrder.id)}
+                        className="flex items-center gap-2 px-4 py-2 text-white rounded-lg"
+                        style={{ backgroundColor: brandSettings.primary_color }}
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add Item
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -2496,26 +2729,54 @@ export function RepairOrdersManagement() {
                 </div>
 
                   <div className="flex flex-wrap gap-2">
+                    {selectedOrder.status === 'declined' ? (
+                      <button
+                        onClick={() => setConfirmModal({
+                          title: 'Revise & Re-send Estimate',
+                          body: 'This will reset the order back to draft so you can edit and re-send it to the customer. All item statuses will be cleared.',
+                          confirmLabel: 'Revise',
+                          confirmStyle: 'bg-blue-600 hover:bg-blue-700 text-white',
+                          onConfirm: () => { setConfirmModal(null); handleReviseOrder(selectedOrder.id); },
+                        })}
+                        className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                        Revise & Re-send
+                      </button>
+                    ) : selectedOrder.status !== 'closed' && selectedOrder.status !== 'awaiting_approval' && (
+                      <button
+                        onClick={() => requestStatusChange(selectedOrder.id, 'awaiting_approval')}
+                        className="flex items-center gap-2 px-3 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg text-sm"
+                      >
+                        <AlertCircle className="w-4 h-4" />
+                        Send for Approval
+                      </button>
+                    )}
+                    {selectedOrder.status === 'awaiting_approval' && (
+                      <button
+                        onClick={() => handleApproveOrder(selectedOrder.id)}
+                        className="flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        Mark Approved
+                      </button>
+                    )}
+                    {selectedOrder.status !== 'closed' && selectedOrder.status !== 'draft' && (
+                      <button
+                        onClick={() => requestStatusChange(selectedOrder.id, 'closed')}
+                        className="flex items-center gap-2 px-3 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-sm"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        Close RO
+                      </button>
+                    )}
                     <button
-                      onClick={() => handleStatusChange(selectedOrder.id, 'awaiting_approval')}
-                      className="flex items-center gap-2 px-3 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg text-sm"
+                      onClick={() => handleDuplicateOrder(selectedOrder.id)}
+                      disabled={duplicating}
+                      className="flex items-center gap-2 px-3 py-2 border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-lg text-sm disabled:opacity-50"
                     >
-                      <AlertCircle className="w-4 h-4" />
-                      Send for Approval
-                    </button>
-                    <button
-                      onClick={() => handleApproveOrder(selectedOrder.id)}
-                      className="flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm"
-                    >
-                      <CheckCircle className="w-4 h-4" />
-                      Mark Approved
-                    </button>
-                    <button
-                      onClick={() => handleStatusChange(selectedOrder.id, 'closed')}
-                      className="flex items-center gap-2 px-3 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-sm"
-                    >
-                      <CheckCircle className="w-4 h-4" />
-                      Close RO
+                      <Copy className="w-4 h-4" />
+                      {duplicating ? 'Duplicating...' : 'Duplicate'}
                     </button>
                     <button
                       onClick={() => handleDeleteOrder(selectedOrder.id)}
@@ -2701,6 +2962,29 @@ export function RepairOrdersManagement() {
                 disabled={selectedCount === 0}
               >
                 Add Selected ({selectedCount})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md p-6 space-y-4">
+            <h3 className="text-lg font-semibold text-slate-900">{confirmModal.title}</h3>
+            <p className="text-sm text-slate-600">{confirmModal.body}</p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => setConfirmModal(null)}
+                className="px-4 py-2 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmModal.onConfirm}
+                className={`px-4 py-2 rounded-lg text-sm font-medium ${confirmModal.confirmStyle || 'bg-slate-900 text-white'}`}
+              >
+                {confirmModal.confirmLabel}
               </button>
             </div>
           </div>

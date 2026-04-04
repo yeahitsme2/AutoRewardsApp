@@ -4,7 +4,7 @@ import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
 import { calculateTotalsWithSupplies } from '../lib/repairOrderTotals';
 import { notifyAdmins } from '../lib/notifications';
-import { AlertCircle, CheckCircle, ChevronDown, ChevronRight, ClipboardList, ClipboardCheck, MessageSquare } from 'lucide-react';
+import { AlertCircle, CheckCircle, ChevronDown, ChevronRight, ClipboardList, ClipboardCheck, MessageSquare, Tag, Wrench, Package, X } from 'lucide-react';
 import { ChatThread } from './ChatThread';
 import type { DviItemMedia, DviReport, DviReportItem, RepairOrder, RepairOrderItem } from '../types/database';
 
@@ -348,7 +348,6 @@ export function CustomerRepairOrders() {
       if (!order) return;
       if (!signature) {
         openSignatureModal('approve', orderId);
-        showMessage('error', 'Signature is required to send to shop.');
         return;
       }
       const pending = (order.items || []).some((item) => !item.status || item.status === 'pending');
@@ -400,7 +399,6 @@ export function CustomerRepairOrders() {
       const order = orders.find((o) => o.id === orderId);
       if (!signature) {
         openSignatureModal('decline', orderId);
-        showMessage('error', 'Signature is required to decline.');
         return;
       }
       const { error } = await supabase
@@ -739,46 +737,92 @@ export function CustomerRepairOrders() {
             <>
               {(order.items || []).length === 0 ? (
                 <p className="text-sm text-slate-600">No line items yet.</p>
-              ) : (
-            <div className="space-y-2">
-              {order.items.map((item) => (
-                <div key={item.id} className="flex items-start justify-between p-3 border border-slate-200 rounded-lg">
-                  <div>
-                    <p className="font-medium text-slate-900">{item.description}</p>
-                    <p className="text-xs text-slate-500">
-                      {item.item_type.toUpperCase()} - {item.item_type === 'labor' ? `${item.labor_hours ?? 0} hrs` : `Qty ${item.quantity}`}
-                    </p>
-                    <span className={`inline-flex mt-1 text-xs px-2 py-0.5 rounded-full ${
-                      item.status === 'approved'
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : item.status === 'declined'
-                          ? 'bg-rose-100 text-rose-700'
-                          : 'bg-amber-100 text-amber-700'
-                    }`}>
-                      {item.status || 'pending'}
-                    </span>
-                    {order.status === 'awaiting_approval' && !item.parent_item_id && item.status !== 'approved' && item.status !== 'declined' && (
-                      <div className="mt-2 flex gap-2">
-                        <button
-                          onClick={() => updateLineItemStatus(order, item.id, 'approved')}
-                          className="px-3 py-1 text-xs rounded-lg border border-emerald-200 text-emerald-700"
-                        >
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => updateLineItemStatus(order, item.id, 'declined')}
-                          className="px-3 py-1 text-xs rounded-lg border border-rose-200 text-rose-700"
-                        >
-                          Decline
-                        </button>
-                      </div>
-                    )}
+              ) : (() => {
+                const parentItems = order.items.filter((i) => !i.parent_item_id);
+                const childrenMap = new Map<string, RepairOrderItem[]>();
+                order.items.forEach((i) => {
+                  if (!i.parent_item_id) return;
+                  const list = childrenMap.get(i.parent_item_id) || [];
+                  list.push(i);
+                  childrenMap.set(i.parent_item_id, list);
+                });
+                return (
+                  <div className="space-y-3">
+                    {parentItems.map((item) => {
+                      const children = childrenMap.get(item.id) || [];
+                      const isDiscount = item.item_type === 'discount';
+                      const lineTotal = computeLineTotal(item);
+                      return (
+                        <div key={item.id} className="space-y-1">
+                          <div className={`flex items-start justify-between p-3 border rounded-xl ${isDiscount ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white'}`}>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                {item.item_type === 'labor' && <Wrench className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
+                                {item.item_type === 'part' && <Package className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
+                                {isDiscount && <Tag className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
+                                <p className={`font-medium ${isDiscount ? 'text-emerald-700' : 'text-slate-900'}`}>{item.description}</p>
+                              </div>
+                              {(item as any).customer_notes && (
+                                <p className="text-xs text-slate-600 mt-1 ml-5">{(item as any).customer_notes}</p>
+                              )}
+                              <p className="text-xs text-slate-500 mt-1">
+                                {item.item_type === 'labor' ? `${item.labor_hours ?? 0} hrs` : item.item_type === 'discount' ? 'Discount' : `Qty ${item.quantity}`}
+                              </p>
+                              <span className={`inline-flex mt-1 text-xs px-2 py-0.5 rounded-full ${
+                                item.status === 'approved'
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : item.status === 'declined'
+                                    ? 'bg-rose-100 text-rose-700'
+                                    : 'bg-amber-100 text-amber-700'
+                              }`}>
+                                {item.status || 'pending'}
+                              </span>
+                              {order.status === 'awaiting_approval' && !item.parent_item_id && item.status !== 'approved' && item.status !== 'declined' && (
+                                <div className="mt-2 flex gap-2">
+                                  <button
+                                    onClick={() => updateLineItemStatus(order, item.id, 'approved')}
+                                    className="px-3 py-1 text-xs rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition-colors"
+                                  >
+                                    Approve
+                                  </button>
+                                  <button
+                                    onClick={() => updateLineItemStatus(order, item.id, 'declined')}
+                                    className="px-3 py-1 text-xs rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50 transition-colors"
+                                  >
+                                    Decline
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                            <div className={`font-semibold shrink-0 ml-3 ${isDiscount ? 'text-emerald-600' : 'text-slate-900'}`}>
+                              {isDiscount ? '-' : ''}${lineTotal.toFixed(2)}
+                            </div>
+                          </div>
+                          {children.length > 0 && (
+                            <div className="pl-4 space-y-1 border-l-2 border-slate-100 ml-2">
+                              {children.map((child) => (
+                                <div key={child.id} className="flex items-start justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-1.5">
+                                      {child.item_type === 'part' && <Package className="w-3 h-3 text-slate-400 shrink-0" />}
+                                      <p className="text-sm text-slate-700">{child.description}</p>
+                                    </div>
+                                    {(child as any).customer_notes && (
+                                      <p className="text-xs text-slate-500 mt-0.5 ml-4">{(child as any).customer_notes}</p>
+                                    )}
+                                    <p className="text-xs text-slate-400">Qty {child.quantity}</p>
+                                  </div>
+                                  <div className="text-sm text-slate-700 shrink-0 ml-3">${computeLineTotal(child).toFixed(2)}</div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                  <div className="font-semibold text-slate-900">${computeLineTotal(item).toFixed(2)}</div>
-                </div>
-              ))}
-            </div>
-              )}
+                );
+              })()}
 
               {(dviReports[order.id] || []).length > 0 && (
                 <div className="space-y-3">
@@ -960,81 +1004,95 @@ export function CustomerRepairOrders() {
         );
       })}
       {signatureOpen && signatureAction && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg p-5 space-y-4">
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-slate-900">
-                  {signatureAction === 'approve' ? 'Approve & Sign' : 'Decline & Sign'}
-                </h3>
-                <p className="text-sm text-slate-500">Please add your signature to confirm your decision.</p>
-              </div>
-              <button
-                onClick={resetSignature}
-                className="w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center hover:bg-slate-50"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              <label className="text-sm font-medium text-slate-700">Full name</label>
-              <input
-                type="text"
-                value={signatureName}
-                onChange={(e) => setSignatureName(e.target.value)}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                placeholder="Your name"
-              />
-            </div>
-
-            {signatureAction === 'decline' && (
-              <div className="space-y-3">
-                <label className="text-sm font-medium text-slate-700">Reason (optional)</label>
-                <textarea
-                  value={declineReason}
-                  onChange={(e) => setDeclineReason(e.target.value)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 min-h-[90px]"
-                  placeholder="Add a note for the shop"
-                />
-              </div>
-            )}
-
-            <div>
-              <label className="text-sm font-medium text-slate-700">Signature</label>
-              <div className="mt-2 border border-slate-200 rounded-xl overflow-hidden">
-                <canvas
-                  ref={signatureCanvasRef}
-                  className="w-full h-40 touch-none bg-white"
-                  onPointerDown={handlePointerDown}
-                  onPointerMove={handlePointerMove}
-                  onPointerUp={handlePointerUp}
-                  onPointerLeave={handlePointerUp}
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <button
-                onClick={handleClearSignature}
-                className="text-sm text-slate-500 hover:text-slate-700"
-              >
-                Clear signature
-              </button>
-              <div className="flex items-center gap-2">
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg space-y-0 overflow-hidden">
+            <div className={`px-6 py-4 border-b border-slate-200 ${signatureAction === 'approve' ? 'bg-emerald-50' : 'bg-red-50'}`}>
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">
+                    {signatureAction === 'approve' ? 'Approve & Sign' : 'Decline & Sign'}
+                  </h3>
+                  <p className="text-sm text-slate-500 mt-0.5">
+                    {signatureAction === 'approve'
+                      ? 'Sign below to authorize work and send to the shop.'
+                      : 'Sign below to decline this estimate.'}
+                  </p>
+                </div>
                 <button
                   onClick={resetSignature}
-                  className="px-3 py-2 text-sm border border-slate-200 rounded-lg"
+                  className="w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center hover:bg-white/60 transition-colors"
                 >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSignatureSubmit}
-                  className="px-3 py-2 text-sm bg-slate-900 text-white rounded-lg"
-                >
-                  Confirm & Send
+                  <X className="w-4 h-4" />
                 </button>
               </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-slate-700">Full name <span className="text-red-500">*</span></label>
+                <input
+                  type="text"
+                  value={signatureName}
+                  onChange={(e) => setSignatureName(e.target.value)}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                  placeholder="Enter your full name"
+                  autoFocus
+                />
+              </div>
+
+              {signatureAction === 'decline' && (
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-700">Reason (optional)</label>
+                  <textarea
+                    value={declineReason}
+                    onChange={(e) => setDeclineReason(e.target.value)}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 min-h-[80px] focus:outline-none focus:ring-2 focus:ring-slate-300"
+                    placeholder="Add a note for the shop..."
+                  />
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-slate-700">Signature <span className="text-red-500">*</span></label>
+                  <button
+                    onClick={handleClearSignature}
+                    className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    Clear
+                  </button>
+                </div>
+                <div className="border-2 border-dashed border-slate-200 rounded-xl overflow-hidden bg-slate-50 hover:border-slate-300 transition-colors">
+                  <canvas
+                    ref={signatureCanvasRef}
+                    className="w-full h-36 touch-none cursor-crosshair"
+                    onPointerDown={handlePointerDown}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                    onPointerLeave={handlePointerUp}
+                  />
+                </div>
+                <p className="text-xs text-slate-400">Draw your signature above</p>
+              </div>
+            </div>
+
+            <div className="px-6 pb-6 flex items-center gap-3">
+              <button
+                onClick={resetSignature}
+                className="flex-1 px-4 py-2.5 text-sm border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSignatureSubmit}
+                className={`flex-1 px-4 py-2.5 text-sm font-medium rounded-xl text-white transition-colors ${
+                  signatureAction === 'approve'
+                    ? 'bg-emerald-600 hover:bg-emerald-700'
+                    : 'bg-red-500 hover:bg-red-600'
+                }`}
+              >
+                {signatureAction === 'approve' ? 'Confirm & Send to Shop' : 'Confirm Decline'}
+              </button>
             </div>
           </div>
         </div>
