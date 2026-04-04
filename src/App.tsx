@@ -41,14 +41,21 @@ function App() {
 
   useEffect(() => {
     const pathname = window.location.pathname;
-
-    if (pathname === '/') {
-      setView('landing');
-      return;
-    }
+    const params = new URLSearchParams(window.location.search);
+    const hasShopParam = params.has('shop');
 
     if (pathname === '/signup') {
       setView('signup');
+      return;
+    }
+
+    if (pathname === '/' && hasShopParam) {
+      setView('app');
+      return;
+    }
+
+    if (pathname === '/') {
+      setView('landing');
       return;
     }
 
