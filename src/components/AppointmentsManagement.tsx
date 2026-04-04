@@ -12,6 +12,7 @@ import { BoardView } from './appointments/BoardView';
 import { GroupedListView } from './appointments/GroupedListView';
 import { AppointmentFilters } from './appointments/AppointmentFilters';
 import { BulkActionsBar } from './appointments/BulkActionsBar';
+import { AppointmentDetailPanel } from './appointments/AppointmentDetailPanel';
 import { exportAppointmentsToCSV, filterAppointments } from '../lib/appointmentUtils';
 
 interface AppointmentWithDetails extends Appointment {
@@ -50,6 +51,7 @@ export function AppointmentsManagement() {
   const [cancelModal, setCancelModal] = useState<{ isOpen: boolean; appointment: AppointmentWithDetails | null }>({ isOpen: false, appointment: null });
   const [editModal, setEditModal] = useState<{ isOpen: boolean; appointment: AppointmentWithDetails | null }>({ isOpen: false, appointment: null });
   const [reminderModal, setReminderModal] = useState<{ isOpen: boolean; appointment: AppointmentWithDetails | null }>({ isOpen: false, appointment: null });
+  const [detailPanel, setDetailPanel] = useState<AppointmentWithDetails | null>(null);
 
   const normalizeAppointment = (apt: Appointment) => ({
     ...apt,
@@ -347,6 +349,10 @@ export function AppointmentsManagement() {
     handleClearSelection();
   };
 
+  const handleQuickConfirm = async (appointmentId: string) => {
+    await handleUpdateStatus(appointmentId, 'confirmed');
+  };
+
   const handleExportSelected = () => {
     const toExport = selectedAppointments.length > 0 ? selectedAppointments : filteredAppointments;
     exportAppointmentsToCSV(toExport);
@@ -433,8 +439,9 @@ export function AppointmentsManagement() {
           {pendingCount > 0 && (
             <button
               onClick={() => setFilter('pending')}
-              className="bg-yellow-100 border border-yellow-300 rounded-lg px-3 py-1.5 text-sm hover:bg-yellow-200 transition-colors"
+              className="flex items-center gap-1.5 bg-yellow-100 border border-yellow-300 rounded-lg px-3 py-1.5 text-sm hover:bg-yellow-200 transition-colors"
             >
+              <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
               <span className="font-semibold text-yellow-900">{pendingCount} pending</span>
             </button>
           )}
@@ -444,6 +451,7 @@ export function AppointmentsManagement() {
               setDateFrom(today);
               setDateTo(today);
               setTimeRange('all');
+              setFilter('all');
             }}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition-colors"
           >
@@ -598,7 +606,7 @@ export function AppointmentsManagement() {
               appointments={filteredAppointments}
               locations={locations}
               appointmentTypes={appointmentTypes}
-              onAppointmentClick={(apt) => {}}
+              onAppointmentClick={(apt) => setDetailPanel(apt)}
               onConfirm={(apt) => setConfirmModal({ isOpen: true, appointment: apt })}
               onCancel={(apt) => setCancelModal({ isOpen: true, appointment: apt })}
               onComplete={(apt) => handleUpdateStatus(apt.id, 'completed')}
@@ -607,6 +615,7 @@ export function AppointmentsManagement() {
               onSendReminder={(apt) => setReminderModal({ isOpen: true, appointment: apt })}
               onCreateRO={handleCreateRepairOrder}
               onToggleSelect={handleToggleSelect}
+              onQuickConfirm={handleQuickConfirm}
               brandColor={brandSettings.primary_color}
             />
           )}
@@ -694,6 +703,22 @@ export function AppointmentsManagement() {
           brandColor={brandSettings.primary_color}
         />
       )}
+
+      <AppointmentDetailPanel
+        appointment={detailPanel}
+        locations={locations}
+        appointmentTypes={appointmentTypes}
+        brandColor={brandSettings.primary_color}
+        onClose={() => setDetailPanel(null)}
+        onConfirm={(apt) => setConfirmModal({ isOpen: true, appointment: apt })}
+        onCancel={(apt) => setCancelModal({ isOpen: true, appointment: apt })}
+        onComplete={(apt) => handleUpdateStatus(apt.id, 'completed')}
+        onNoShow={(apt) => setCancelModal({ isOpen: true, appointment: apt })}
+        onEdit={(apt) => { setDetailPanel(null); setEditModal({ isOpen: true, appointment: apt }); }}
+        onSendReminder={(apt) => setReminderModal({ isOpen: true, appointment: apt })}
+        onCreateRO={handleCreateRepairOrder}
+        onQuickConfirm={handleQuickConfirm}
+      />
     </div>
   );
 }
