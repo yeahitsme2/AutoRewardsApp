@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { X, AlertCircle } from 'lucide-react';
-import type { Appointment, AppointmentType, ShopLocation } from '../../types/database';
+import { X, AlertCircle, User, Car } from 'lucide-react';
+import type { Appointment, AppointmentType, Customer, ShopLocation, Vehicle } from '../../types/database';
 
 interface ConfirmModalProps {
   isOpen: boolean;
@@ -150,11 +150,16 @@ export function CancelAppointmentModal({ isOpen, onClose, onCancel }: CancelModa
   );
 }
 
+interface AppointmentWithContext extends Appointment {
+  customer?: Customer;
+  vehicle?: Vehicle;
+}
+
 interface EditModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (updates: Partial<Appointment>) => void;
-  appointment: Appointment;
+  appointment: AppointmentWithContext;
   locations: ShopLocation[];
   appointmentTypes: AppointmentType[];
   brandColor: string;
@@ -165,6 +170,7 @@ export function EditAppointmentModal({ isOpen, onClose, onSave, appointment, loc
   const [time, setTime] = useState(appointment.scheduled_time || '');
   const [serviceType, setServiceType] = useState(appointment.service_type || '');
   const [description, setDescription] = useState(appointment.description || '');
+  const [adminNotes, setAdminNotes] = useState((appointment as any).admin_notes || '');
   const [locationId, setLocationId] = useState(appointment.location_id || '');
   const [appointmentTypeId, setAppointmentTypeId] = useState(appointment.appointment_type_id || '');
 
@@ -176,76 +182,85 @@ export function EditAppointmentModal({ isOpen, onClose, onSave, appointment, loc
       scheduled_time: time,
       service_type: serviceType,
       description,
+      admin_notes: adminNotes || null,
       location_id: locationId || null,
       appointment_type_id: appointmentTypeId || null,
-    };
+    } as any;
     onSave(updates);
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-slate-200 sticky top-0 bg-white">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 sticky top-0 bg-white rounded-t-2xl">
           <h3 className="text-lg font-semibold text-slate-900">Edit Appointment</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center">
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {(appointment.customer || appointment.vehicle) && (
+          <div className="px-6 py-3 bg-slate-50 border-b border-slate-100 flex flex-wrap gap-4 text-sm text-slate-600">
+            {appointment.customer && (
+              <span className="flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5 text-slate-400" />
+                <span className="font-medium text-slate-800">{appointment.customer.full_name}</span>
+              </span>
+            )}
+            {appointment.vehicle && (
+              <span className="flex items-center gap-1.5">
+                <Car className="w-3.5 h-3.5 text-slate-400" />
+                {appointment.vehicle.year} {appointment.vehicle.make} {appointment.vehicle.model}
+              </span>
+            )}
+          </div>
+        )}
+
         <div className="p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Date
-              </label>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Date</label>
               <input
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-opacity-50 focus:border-transparent outline-none"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Time
-              </label>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Time</label>
               <input
                 type="time"
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-opacity-50 focus:border-transparent outline-none"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Service Type
-            </label>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">Service Type</label>
             <input
               type="text"
               value={serviceType}
               onChange={(e) => setServiceType(e.target.value)}
               placeholder="e.g., Oil Change, Brake Service"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-opacity-50 focus:border-transparent outline-none"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
             />
           </div>
 
           {locations.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Location
-              </label>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Location</label>
               <select
                 value={locationId}
                 onChange={(e) => setLocationId(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-opacity-50 focus:border-transparent outline-none"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
               >
-                <option value="">Select location</option>
+                <option value="">No location</option>
                 {locations.map((loc) => (
-                  <option key={loc.id} value={loc.id}>
-                    {loc.name}
-                  </option>
+                  <option key={loc.id} value={loc.id}>{loc.name}</option>
                 ))}
               </select>
             </div>
@@ -253,48 +268,54 @@ export function EditAppointmentModal({ isOpen, onClose, onSave, appointment, loc
 
           {appointmentTypes.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Appointment Type
-              </label>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Appointment Type</label>
               <select
                 value={appointmentTypeId}
                 onChange={(e) => setAppointmentTypeId(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-opacity-50 focus:border-transparent outline-none"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
               >
-                <option value="">Select type</option>
+                <option value="">No type</option>
                 {appointmentTypes.map((type) => (
-                  <option key={type.id} value={type.id}>
-                    {type.name}
-                  </option>
+                  <option key={type.id} value={type.id}>{type.name}</option>
                 ))}
               </select>
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Description
-            </label>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">Customer Notes</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              placeholder="Customer notes and details..."
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-opacity-50 focus:border-transparent outline-none resize-none"
+              rows={2}
+              placeholder="Notes from the customer..."
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200 resize-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">Shop Notes <span className="text-slate-400 font-normal">(internal)</span></label>
+            <textarea
+              value={adminNotes}
+              onChange={(e) => setAdminNotes(e.target.value)}
+              rows={2}
+              placeholder="Internal notes visible only to staff..."
+              className="w-full px-3 py-2 border border-amber-200 bg-amber-50 rounded-lg outline-none focus:border-amber-300 focus:ring-2 focus:ring-amber-100 resize-none"
             />
           </div>
         </div>
-        <div className="flex gap-3 p-6 border-t border-slate-200">
+
+        <div className="flex gap-3 px-6 pb-6">
           <button
             onClick={handleSave}
-            className="flex-1 px-4 py-2 text-white font-medium rounded-lg transition-colors"
+            className="flex-1 px-4 py-2.5 text-white font-medium rounded-xl transition-colors"
             style={{ backgroundColor: brandColor }}
           >
             Save Changes
           </button>
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium rounded-lg transition-colors"
+            className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition-colors"
           >
             Cancel
           </button>

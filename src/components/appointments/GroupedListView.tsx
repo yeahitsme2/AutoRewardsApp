@@ -1,4 +1,4 @@
-import { Calendar, Clock, Car, User, CheckCircle, XCircle, AlertCircle, CreditCard as Edit2, MapPin, Mail, MessageSquare, ClipboardList } from 'lucide-react';
+import { Calendar, Clock, Car, User, CheckCircle, XCircle, AlertCircle, CreditCard as Edit2, MapPin, Mail, ClipboardList, ExternalLink, FileText } from 'lucide-react';
 import type { Appointment, AppointmentType, Customer, ShopLocation, Vehicle } from '../../types/database';
 
 interface AppointmentWithDetails extends Appointment {
@@ -219,19 +219,31 @@ export function GroupedListView({
                         </div>
                       </div>
 
-                      {appointment.description && (
-                        <div className="mb-3 p-3 bg-slate-50 rounded-lg">
-                          <p className="text-sm font-medium text-slate-700 mb-1">Customer Notes:</p>
-                          <p className="text-sm text-slate-600">{appointment.description}</p>
+                      {(appointment.description || (appointment as any).admin_notes) && (
+                        <div className="mb-3 space-y-2">
+                          {appointment.description && (
+                            <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Customer Notes</p>
+                              <p className="text-sm text-slate-700">{appointment.description}</p>
+                            </div>
+                          )}
+                          {(appointment as any).admin_notes && (
+                            <div className="p-3 bg-amber-50 rounded-lg border border-amber-100">
+                              <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1 flex items-center gap-1">
+                                <FileText className="w-3 h-3" /> Shop Notes
+                              </p>
+                              <p className="text-sm text-amber-800">{(appointment as any).admin_notes}</p>
+                            </div>
+                          )}
                         </div>
                       )}
 
-                      <div className="flex gap-2 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap">
                         {appointment.status === 'pending' && (
                           <>
                             <button
                               onClick={() => onConfirm(appointment)}
-                              className="flex items-center gap-1 px-3 py-1.5 text-white text-sm font-medium rounded-lg transition-colors"
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-white text-sm font-medium rounded-lg transition-colors"
                               style={{ backgroundColor: brandColor }}
                             >
                               <CheckCircle className="w-4 h-4" />
@@ -239,7 +251,7 @@ export function GroupedListView({
                             </button>
                             <button
                               onClick={() => onCancel(appointment)}
-                              className="flex items-center gap-1 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-lg transition-colors"
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-lg transition-colors"
                             >
                               <XCircle className="w-4 h-4" />
                               Cancel
@@ -251,54 +263,70 @@ export function GroupedListView({
                           <>
                             <button
                               onClick={() => onComplete(appointment)}
-                              className="flex items-center gap-1 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors"
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors"
                             >
                               <CheckCircle className="w-4 h-4" />
                               Complete
                             </button>
-                            <button
-                              onClick={() => onCreateRO(appointment)}
-                              disabled={Boolean(appointment.repair_order_id)}
-                              className="flex items-center gap-1 px-3 py-1.5 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                              style={{ backgroundColor: appointment.repair_order_id ? '#94a3b8' : brandColor }}
-                            >
-                              <ClipboardList className="w-4 h-4" />
-                              {appointment.repair_order_id ? 'RO Created' : 'Create RO'}
-                            </button>
+                            {appointment.repair_order_id ? (
+                              <span className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-medium rounded-lg">
+                                <ExternalLink className="w-4 h-4" />
+                                RO Created
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => onCreateRO(appointment)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-white text-sm font-medium rounded-lg transition-colors"
+                                style={{ backgroundColor: brandColor }}
+                              >
+                                <ClipboardList className="w-4 h-4" />
+                                Create RO
+                              </button>
+                            )}
                             <button
                               onClick={() => onSendReminder(appointment)}
-                              className="flex items-center gap-1 px-3 py-1.5 bg-slate-600 hover:bg-slate-700 text-white text-sm font-medium rounded-lg transition-colors"
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors"
                             >
                               <Mail className="w-4 h-4" />
                               Remind
                             </button>
                             <button
-                              onClick={() => onCancel(appointment)}
-                              className="flex items-center gap-1 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-lg transition-colors"
-                            >
-                              <XCircle className="w-4 h-4" />
-                              Cancel
-                            </button>
-                            <button
                               onClick={() => onNoShow(appointment)}
-                              className="flex items-center gap-1 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium rounded-lg transition-colors"
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-100 hover:bg-orange-200 text-orange-700 text-sm font-medium rounded-lg transition-colors"
                             >
                               <AlertCircle className="w-4 h-4" />
                               No Show
+                            </button>
+                            <button
+                              onClick={() => onCancel(appointment)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 text-sm font-medium rounded-lg transition-colors"
+                            >
+                              <XCircle className="w-4 h-4" />
+                              Cancel
                             </button>
                           </>
                         )}
 
                         {appointment.status === 'completed' && (
-                          <button
-                            onClick={() => onCreateRO(appointment)}
-                            disabled={Boolean(appointment.repair_order_id)}
-                            className="flex items-center gap-1 px-3 py-1.5 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            style={{ backgroundColor: appointment.repair_order_id ? '#94a3b8' : brandColor }}
-                          >
-                            <ClipboardList className="w-4 h-4" />
-                            {appointment.repair_order_id ? 'RO Created' : 'Create RO'}
-                          </button>
+                          appointment.repair_order_id ? (
+                            <span className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-medium rounded-lg">
+                              <ExternalLink className="w-4 h-4" />
+                              RO Created
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => onCreateRO(appointment)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-white text-sm font-medium rounded-lg transition-colors"
+                              style={{ backgroundColor: brandColor }}
+                            >
+                              <ClipboardList className="w-4 h-4" />
+                              Create RO
+                            </button>
+                          )
+                        )}
+
+                        {appointment.status === 'cancelled' && appointment.cancelled_reason && (
+                          <p className="text-sm text-red-600 italic">"{appointment.cancelled_reason}"</p>
                         )}
                       </div>
                     </div>

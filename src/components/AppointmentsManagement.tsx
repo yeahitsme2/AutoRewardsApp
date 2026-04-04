@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useBrand } from '../lib/BrandContext';
-import { Calendar, List, LayoutGrid, Download, SlidersHorizontal } from 'lucide-react';
+import { Calendar, List, LayoutGrid, Download, SlidersHorizontal, Search } from 'lucide-react';
 import { logAuditEvent } from '../lib/audit';
 import { logOutboundMessage } from '../lib/messaging';
 import type { Appointment, AppointmentType, Customer, ShopLocation, Vehicle } from '../types/database';
@@ -394,6 +394,14 @@ export function AppointmentsManagement() {
 
   const pendingCount = appointments.filter((a) => a.status === 'pending').length;
 
+  const statusCounts = useMemo(() => ({
+    all: filteredAppointments.length,
+    pending: filteredAppointments.filter((a) => a.status === 'pending').length,
+    confirmed: filteredAppointments.filter((a) => a.status === 'confirmed').length,
+    completed: filteredAppointments.filter((a) => a.status === 'completed').length,
+    cancelled: filteredAppointments.filter((a) => a.status === 'cancelled').length,
+  }), [filteredAppointments]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -416,20 +424,35 @@ export function AppointmentsManagement() {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Appointments</h2>
-          <p className="text-slate-600">Manage customer appointment requests</p>
+          <p className="text-slate-600 text-sm">Manage customer appointment requests</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
           {pendingCount > 0 && (
-            <div className="bg-yellow-100 border border-yellow-300 rounded-lg px-4 py-2">
+            <button
+              onClick={() => setFilter('pending')}
+              className="bg-yellow-100 border border-yellow-300 rounded-lg px-3 py-1.5 text-sm hover:bg-yellow-200 transition-colors"
+            >
               <span className="font-semibold text-yellow-900">{pendingCount} pending</span>
-            </div>
+            </button>
           )}
           <button
+            onClick={() => {
+              const today = new Date().toISOString().slice(0, 10);
+              setDateFrom(today);
+              setDateTo(today);
+              setTimeRange('all');
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition-colors"
+          >
+            <Calendar className="w-3.5 h-3.5" />
+            Today
+          </button>
+          <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+            className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg font-medium transition-colors ${
               showFilters ? 'text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
             style={showFilters ? { backgroundColor: brandSettings.primary_color } : undefined}
@@ -439,12 +462,31 @@ export function AppointmentsManagement() {
           </button>
           <button
             onClick={handleExportSelected}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition-colors"
           >
             <Download className="w-4 h-4" />
             Export
           </button>
         </div>
+      </div>
+
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search by customer, vehicle, or service..."
+          className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-300"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+          >
+            Clear
+          </button>
+        )}
       </div>
 
       {showFilters && (
@@ -490,7 +532,7 @@ export function AppointmentsManagement() {
             <button
               key={status}
               onClick={() => setFilter(status)}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              className={`px-3 py-1.5 rounded-lg font-medium text-sm transition-colors flex items-center gap-1.5 ${
                 filter === status
                   ? 'text-white'
                   : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
@@ -498,11 +540,11 @@ export function AppointmentsManagement() {
               style={filter === status ? { backgroundColor: brandSettings.primary_color } : undefined}
             >
               {status.charAt(0).toUpperCase() + status.slice(1)}
-              {status === 'pending' && pendingCount > 0 && (
-                <span className="ml-2 bg-yellow-400 text-yellow-900 px-2 py-0.5 rounded-full text-xs font-bold">
-                  {pendingCount}
-                </span>
-              )}
+              <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
+                filter === status ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+              }`}>
+                {statusCounts[status]}
+              </span>
             </button>
           ))}
         </div>
